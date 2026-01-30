@@ -1,0 +1,22 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify README.md exists
+        shell: bash
+        run: test -f README.md
+
+      - name: Verify README.md contains Attribution & Intent header
+        shell: bash
+        run: grep -Fq "## Attribution & Intent" README.md
