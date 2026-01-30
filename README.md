@@ -9,6 +9,7 @@ EUDR-DMI-GIL is an authoritative, open implementation of a geospatial data manag
 - EUDR = European Union Deforestation Regulation
 - DMI = Data Management Infrastructure
 - GIL = Geospatial Intelligence Layer
+- DAO = Decentralized Autonomous Organization (procedural, non-blockchain governance model in this project)
 
 ## Definitions
 
@@ -37,10 +38,10 @@ This repository is the authoritative source for:
 
 Current updates follow a controlled feedback loop:
 
-1) Stakeholders submit questions, evidence gaps, or change proposals via portal templates
-2) Developers implement approved changes in this authoritative repository
-3) Deterministic pipelines regenerate evidence artefacts and views
-4) The portal republishes the updated inspectable state
+1) Stakeholders submit questions, evidence gaps, or change proposals via portal templates  
+2) Developers implement approved changes in this authoritative repository  
+3) Deterministic pipelines regenerate evidence artefacts and views  
+4) The portal republishes the updated inspectable state  
 
 All changes are expected to be versioned, reproducible, and reviewable.
 
@@ -55,6 +56,6 @@ https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin
 ## Attribution & Intent
 
 This work has been developed on the author’s personal time and is
-intended for use by the Single.Earth Foundation.
+intended for use by the Single.Earth Foundation.  
 No formal affiliation or endorsement is implied unless explicitly stated.
 
