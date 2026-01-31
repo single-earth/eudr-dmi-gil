@@ -35,6 +35,12 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
     bundle_id = "bundle-001"
     aoi_id = "aoi-123"
 
+    policy_ref_file = tmp_path / "policy_refs.txt"
+    policy_ref_file.write_text(
+        "# comment line\npolicy-spine:eudr/article-3\nplaceholder:TODO\n\n",
+        encoding="utf-8",
+    )
+
     proc = _run_cli(
         [
             "--aoi-id",
@@ -50,7 +56,9 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
             "--metric",
             "a_metric=1:count:dummy_source:note a",
             "--policy-mapping-ref",
-            "policy-spine:eudr/article-3",
+            "policy-spine:eudr/article-9",
+            "--policy-mapping-ref-file",
+            str(policy_ref_file),
         ],
         env=env,
     )

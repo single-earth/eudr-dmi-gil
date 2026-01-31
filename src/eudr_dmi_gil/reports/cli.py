@@ -15,6 +15,7 @@ from .bundle import bundle_dir as compute_bundle_dir
 from .bundle import compute_sha256
 from .bundle import resolve_evidence_root, write_manifest
 from .determinism import canonical_json_bytes, sha256_bytes, write_bytes
+from .policy_refs import collect_policy_mapping_refs
 from .validate import validate_aoi_report_v1
 
 
@@ -164,6 +165,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
+        "--policy-mapping-ref-file",
+        action="append",
+        default=[],
+        help=(
+            "Path to a file containing newline-separated policy-to-evidence spine references "
+            "(repeatable). Lines starting with '#' are ignored."
+        ),
+    )
+
+    p.add_argument(
         "--dummy-metric",
         default="dummy_metric=1:count",
         help="Metric in the form name=value:unit (for scaffolding).",
@@ -184,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    policy_mapping_refs = collect_policy_mapping_refs(
+        refs=list(args.policy_mapping_ref or []),
+        ref_files=list(args.policy_mapping_ref_file or []),
+    )
 
     aoi_id = _sanitize_id(args.aoi_id)
 
@@ -244,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         "metrics": _metrics_from_rows(metric_rows),
         "evidence_artifacts": [],
-        "policy_mapping_refs": list(args.policy_mapping_ref or []),
+        "policy_mapping_refs": policy_mapping_refs,
         "extensions": {
             "metrics_rows_v1": [
                 {

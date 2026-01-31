@@ -23,3 +23,19 @@ Grounding (per upstream `eudr_dmi` README conventions):
 - ADR: see the decision record in `docs/architecture/decision_records/` about report pipeline architecture.
 - Schemas: see `schemas/reports/` for JSON Schemas describing report outputs.
 - Implementation scaffold: `src/eudr_dmi_gil/reports/`.
+
+## Policy-to-evidence spine references (no interpretation)
+
+AOI reports can include `policy_mapping_refs`: a list of **reference strings** pointing into a separate
+"policy-to-evidence spine" (IDs, URIs, or other stable keys).
+
+These refs are intended for **DAO review and traceability** only:
+
+- They enable stakeholders to discuss which policy clauses/controls are relevant to which evidence artifacts.
+- They may be placeholders.
+- They are **not compliance claims** and must not be interpreted as an automated EUDR determination.
+
+CLI usage:
+
+- Provide refs directly (repeatable): `--policy-mapping-ref "policy-spine:eudr/article-3"`
+- Or load newline-separated refs from files (repeatable): `--policy-mapping-ref-file policy_refs.txt`
