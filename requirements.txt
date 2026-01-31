@@ -1,0 +1,11 @@
+# Runtime dependencies for eudr-dmi-gil
+#
+# Keep this file minimal: only add packages that are directly imported by the
+# runtime code (src/) or required by scripts that are part of the supported
+# operator workflow.
+#
+# Currently, this repository snapshot uses only Python's standard library.
+
+# Packaging note:
+# - The primary install path is `pip install -e ".[dev]"` via pyproject.toml.
+# - Add runtime dependencies to `pyproject.toml` when code in `src/` imports them.

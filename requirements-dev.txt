@@ -1,0 +1,7 @@
+# Development dependencies (tests, linting)
+#
+# Keep this file light. Do not add heavy optional clients or external-service
+# SDKs unless they are directly imported by code in this repo.
+
+pytest>=7.0
+ruff>=0.3

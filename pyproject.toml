@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eudr-dmi-gil"
+version = "0.0.0"
+description = "EUDR DMI GIL (authoritative)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [{name = "Single.Earth Foundation (community)"}]
+
+# Keep runtime deps minimal; add only when directly imported by repo code.
+dependencies = []
+
+[project.optional-dependencies]
+# CI/dev tooling (install with: pip install -e ".[dev]")
+dev = [
+  "pytest>=7.0",
+  "ruff>=0.3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100

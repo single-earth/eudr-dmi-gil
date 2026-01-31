@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "server_audit_root": "/Users/server/audit/eudr_dmi",
+  "sources": [
+    {
+      "id": "hansen_gfc_definitions",
+      "url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html",
+      "expected_content_type": "text/html",
+      "server_audit_path": "/Users/server/audit/eudr_dmi/dependencies/hansen_gfc_definitions"
+    },
+    {
+      "id": "maa-amet/forest/v1",
+      "url": "https://gsavalik.envir.ee/geoserver/wfs",
+      "expected_content_type": "application/xml",
+      "server_audit_path": "/Users/server/audit/eudr_dmi/dependencies/maa_amet_forest_v1"
+    }
+  ]
+}

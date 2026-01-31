@@ -1,0 +1,10 @@
+# Geospatial method dependencies
+#
+# Install when working on geospatial method primitives.
+# These packages may require system libraries (see docs/operations/environment_setup.md).
+
+numpy
+pyproj
+shapely
+rasterio
+duckdb

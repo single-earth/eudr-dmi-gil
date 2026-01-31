@@ -20,3 +20,22 @@ jobs:
       - name: Verify README.md contains Attribution & Intent header
         shell: bash
         run: grep -Fq "## Attribution & Intent" README.md
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install (editable) + dev tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify method deps contract file
+        shell: bash
+        run: python scripts/check_method_deps.py
+
+      - name: Run unit tests (lightweight)
+        shell: bash
+        run: python -m unittest -q tests.test_methods_maa_amet_crosscheck
