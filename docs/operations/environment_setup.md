@@ -47,6 +47,9 @@ pip install -r requirements-methods.txt
 
 This includes the Python MinIO client (`minio`) used by AOI/report upload pipelines.
 
+MinIO operator setup (local server + required env vars):
+- `docs/operations/minio_setup.md`
+
 ## Quick sanity checks
 
 Run the shim unit test (no external services):

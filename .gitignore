@@ -198,6 +198,11 @@ data_db/*.duckdb.tmp
 data_db/*.wal
 data_db/*with_families*.csv
 
+# Local-only runtime artifacts
+infra/minio/minio_data/
+outputs/
+audit/
+
 # PyPI configuration file
 .pypirc
 
