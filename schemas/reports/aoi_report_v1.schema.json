@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/reports/aoi_report_v1.schema.json",
+  "title": "AOI Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_version",
+    "generated_at_utc",
+    "bundle_id",
+    "aoi_id",
+    "aoi_geometry_ref",
+    "inputs",
+    "metrics",
+    "evidence_artifacts",
+    "policy_mapping_refs"
+  ],
+  "properties": {
+    "report_version": {
+      "type": "string",
+      "enum": ["aoi_report_v1"],
+      "description": "Versioned report contract identifier."
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO-8601 timestamp for when this report JSON was generated."
+    },
+    "bundle_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aoi_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aoi_geometry_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["uri", "wkt", "geojson", "dataset_feature"],
+          "description": "How to interpret `value`."
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Optional hash of an external geometry artifact when applicable."
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources"],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_id"],
+            "properties": {
+              "source_id": { "type": "string", "minLength": 1 },
+              "version": { "type": "string" },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "uri": { "type": "string" },
+              "content_type": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Metric key/value pairs with units.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "unit"],
+        "properties": {
+          "value": { "type": ["number", "integer", "string", "boolean", "null"] },
+          "unit": { "type": "string", "minLength": 1 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "evidence_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relpath", "sha256"],
+        "properties": {
+          "relpath": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "content_type": { "type": "string" },
+          "meta": { "type": "object" }
+        }
+      }
+    },
+    "policy_mapping_refs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "References into the policy-to-evidence spine (IDs/URIs)."
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Optional forward-compatible extension point.",
+      "additionalProperties": true
+    }
+  }
+}

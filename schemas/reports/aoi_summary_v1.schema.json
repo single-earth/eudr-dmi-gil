@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/reports/aoi_summary_v1.schema.json",
+  "title": "AOI Summary Report v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["aoi_id"],
+  "properties": {
+    "aoi_id": { "type": "string", "minLength": 1 },
+    "generated_utc": { "type": "string" },
+    "inputs": { "type": "object" },
+    "summary": { "type": "object" }
+  }
+}

@@ -12,7 +12,9 @@ license = {file = "LICENSE"}
 authors = [{name = "Single.Earth Foundation (community)"}]
 
 # Keep runtime deps minimal; add only when directly imported by repo code.
-dependencies = []
+dependencies = [
+  "jsonschema>=4.21",
+]
 
 [project.optional-dependencies]
 # CI/dev tooling (install with: pip install -e ".[dev]")

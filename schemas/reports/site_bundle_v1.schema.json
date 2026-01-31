@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/reports/site_bundle_v1.schema.json",
+  "title": "Portable Site Bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bundle_date", "bundle_id", "zip_relpath"],
+  "properties": {
+    "bundle_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "bundle_id": { "type": "string" },
+    "zip_relpath": { "type": "string" },
+    "entrypoint": { "type": "string", "default": "index.html" }
+  }
+}
