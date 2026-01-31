@@ -52,10 +52,10 @@ MinIO operator setup (local server + required env vars):
 
 ## Quick sanity checks
 
-Run the shim unit test (no external services):
+Run tests (no external services):
 
 ```sh
-python -m unittest -q tests.test_methods_maa_amet_crosscheck
+pytest -q
 ```
 
 ## Common failure modes

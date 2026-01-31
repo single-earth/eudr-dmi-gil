@@ -23,6 +23,7 @@ Grounding (per upstream `eudr_dmi` README conventions):
 - ADR: see the decision record in `docs/architecture/decision_records/` about report pipeline architecture.
 - Schemas: see `schemas/reports/` for JSON Schemas describing report outputs.
 - Implementation scaffold: `src/eudr_dmi_gil/reports/`.
+- End-to-end runbook: `docs/reports/runbook_generate_aoi_report.md`
 
 ## Policy-to-evidence spine references (no interpretation)
 

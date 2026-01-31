@@ -38,4 +38,11 @@ jobs:
 
       - name: Run unit tests (lightweight)
         shell: bash
-        run: python -m unittest -q tests.test_methods_maa_amet_crosscheck
+        run: pytest -q
+
+      - name: Shellcheck bash scripts
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh
