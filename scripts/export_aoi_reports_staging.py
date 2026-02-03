@@ -10,7 +10,8 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE_ROOT_DEFAULT = REPO_ROOT / "audit" / "evidence"
-OUTPUT_ROOT = REPO_ROOT / "out" / "site_bundle" / "aoi_reports"
+OUTPUT_ROOT_DEFAULT = REPO_ROOT / "out" / "site_bundle" / "aoi_reports"
+EXAMPLE_RUN_ID = "example"
 
 
 @dataclass(frozen=True)
@@ -18,31 +19,37 @@ class RunEntry:
     run_id: str
     report_html_path: Path
     report_json_path: Path
+    summary_present: bool
 
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _safe_run_id(base: str, used: set[str], suffix: str) -> str:
-    run_id = base
-    if run_id in used:
-        run_id = f"{base}_{suffix}"
-    if run_id in used:
-        i = 2
-        while f"{run_id}_{i}" in used:
-            i += 1
-        run_id = f"{run_id}_{i}"
-    used.add(run_id)
-    return run_id
+def _ensure_single_example_run(output_root: Path) -> None:
+    runs_dir = output_root / "runs"
+    if not runs_dir.is_dir():
+        raise SystemExit(f"Runs dir not found: {runs_dir}")
+
+    run_dirs = [p for p in runs_dir.iterdir() if p.is_dir()]
+    if len(run_dirs) != 1:
+        raise SystemExit(f"Expected exactly one run dir under {runs_dir}, found {len(run_dirs)}")
+
+    if run_dirs[0].name != EXAMPLE_RUN_ID:
+        raise SystemExit(f"Expected only '{EXAMPLE_RUN_ID}' run dir, found: {run_dirs[0].name}")
 
 
-def _render_index(entries: list[RunEntry]) -> str:
-    rows = "\n".join(
-        f'<li><a href="runs/{e.run_id}/report.html">{e.run_id}</a> '
-        f'<span class="muted">(</span><a href="runs/{e.run_id}/aoi_report.json">aoi_report.json</a>'
-        f'<span class="muted">)</span></li>'
-        for e in entries
+def _render_index(entry: RunEntry) -> str:
+    summary_link = (
+        f' <span class="muted">(</span><a href="runs/{entry.run_id}/summary.json">summary.json</a>'
+        f'<span class="muted">)</span>'
+        if entry.summary_present
+        else ""
+    )
+    rows = (
+        f'<li><a href="runs/{entry.run_id}/report.html">{entry.run_id}</a> '
+        f'<span class="muted">(</span><a href="runs/{entry.run_id}/aoi_report.json">aoi_report.json</a>'
+        f'<span class="muted">)</span>{summary_link}</li>'
     )
 
     return f"""<!doctype html>
@@ -175,57 +182,66 @@ def export_aoi_reports(*, evidence_root: Path, output_root: Path) -> None:
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    run_entries: list[RunEntry] = []
-    used_ids: set[str] = set()
-
     report_jsons = sorted(evidence_root.rglob("reports/aoi_report_v1/*.json"))
 
-    for report_json in report_jsons:
-        report = _load_json(report_json)
-        bundle_id = str(report.get("bundle_id", "bundle"))
-        aoi_id = str(report.get("aoi_id", "aoi"))
-        run_id = _safe_run_id(bundle_id, used_ids, aoi_id)
-
-        bundle_root = report_json.parent.parent.parent.parent
-        run_dir = output_root / "runs" / run_id
-        run_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy evidence artifacts into run dir (preserve relative paths)
-        rel_artifacts: list[str] = []
-        for artifact in report.get("evidence_artifacts", []):
-            relpath = artifact.get("relpath")
-            if not relpath:
-                continue
-            src = bundle_root / relpath
-            if not src.exists():
-                continue
-            dest = run_dir / relpath
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest)
-            rel_artifacts.append(dest.relative_to(run_dir).as_posix())
-
-        # Write canonical report JSON name
-        report_json_out = run_dir / "aoi_report.json"
-        report_json_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        if "aoi_report.json" not in rel_artifacts:
-            rel_artifacts.insert(0, "aoi_report.json")
-
-        # Render a portable report.html (relative links)
-        report_html_out = run_dir / "report.html"
-        report_html_out.write_text(_render_report_html(report, rel_artifacts=rel_artifacts), encoding="utf-8")
-
-        run_entries.append(
-            RunEntry(run_id=run_id, report_html_path=report_html_out, report_json_path=report_json_out)
+    if len(report_jsons) != 1:
+        raise SystemExit(
+            f"Expected exactly one report JSON under {evidence_root}, found {len(report_jsons)}"
         )
 
-    index_html = _render_index(run_entries)
+    report_json = report_jsons[0]
+    report = _load_json(report_json)
+
+    bundle_root = report_json.parent.parent.parent.parent
+    run_dir = output_root / "runs" / EXAMPLE_RUN_ID
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy evidence artifacts into run dir (preserve relative paths)
+    rel_artifacts: list[str] = []
+    for artifact in report.get("evidence_artifacts", []):
+        relpath = artifact.get("relpath")
+        if not relpath:
+            continue
+        src = bundle_root / relpath
+        if not src.exists():
+            continue
+        dest = run_dir / relpath
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        rel_artifacts.append(dest.relative_to(run_dir).as_posix())
+
+    # Write canonical report JSON name
+    report_json_out = run_dir / "aoi_report.json"
+    report_json_out.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    if "aoi_report.json" not in rel_artifacts:
+        rel_artifacts.insert(0, "aoi_report.json")
+
+    # Render a portable report.html (relative links)
+    report_html_out = run_dir / "report.html"
+    report_html_out.write_text(
+        _render_report_html(report, rel_artifacts=rel_artifacts), encoding="utf-8"
+    )
+
+    summary_present = (run_dir / "summary.json").is_file()
+    entry = RunEntry(
+        run_id=EXAMPLE_RUN_ID,
+        report_html_path=report_html_out,
+        report_json_path=report_json_out,
+        summary_present=summary_present,
+    )
+    index_html = _render_index(entry)
     (output_root / "index.html").write_text(index_html, encoding="utf-8")
+
+    _ensure_single_example_run(output_root)
 
 
 def main() -> int:
     evidence_root = Path(os.environ.get("EUDR_DMI_EVIDENCE_ROOT", str(EVIDENCE_ROOT_DEFAULT)))
-    export_aoi_reports(evidence_root=evidence_root, output_root=OUTPUT_ROOT)
-    print(str(OUTPUT_ROOT))
+    output_root = Path(os.environ.get("EUDR_DMI_AOI_STAGING_DIR", str(OUTPUT_ROOT_DEFAULT)))
+    export_aoi_reports(evidence_root=evidence_root, output_root=output_root)
+    print(str(output_root))
     return 0
 
 

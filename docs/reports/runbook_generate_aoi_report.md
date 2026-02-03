@@ -92,8 +92,13 @@ scripts/run_example_report.sh
 This prints:
 
 - input file path
-- stable output directory: `out/site_bundle/aoi_reports/`
+- stable output directory: `out/site_bundle/aoi_reports/` with **runs/example/** only
 - absolute paths for `index.html`, `report.html`, `aoi_report.json` (and `summary.json` if present)
+
+Publishing policy:
+
+- Only one AOI-agnostic example is published at `runs/example/`.
+- Older examples remain available via git history.
 
 ## Operational Runbook (current publish workflow)
 
@@ -113,6 +118,11 @@ Run the deterministic example generation:
 ```sh
 scripts/test_run_estonia_testland1.sh
 ```
+
+Publishing policy:
+
+- Only one AOI-agnostic example is published at `runs/example/`.
+- Older examples are available via git history.
 
 Publish the latest 2 AOI reports to the DT repo:
 
