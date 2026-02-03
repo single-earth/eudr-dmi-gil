@@ -134,12 +134,12 @@ abs_report_html="$(cd "$(dirname "$REPORT_HTML")" && pwd)/$(basename "$REPORT_HT
 abs_index_html="$(cd "$(dirname "$INDEX_HTML")" && pwd)/$(basename "$INDEX_HTML")"
 
 printf "\nArtifacts:\n"
-printf "- %s\n" "$abs_index_html"
-printf "- %s\n" "$abs_report_html"
-printf "- %s\n" "$abs_report_json"
+printf "%s\n" "- $abs_index_html"
+printf "%s\n" "- $abs_report_html"
+printf "%s\n" "- $abs_report_json"
 if [[ -f "$SUMMARY_JSON" ]]; then
   abs_summary_json="$(cd "$(dirname "$SUMMARY_JSON")" && pwd)/$(basename "$SUMMARY_JSON")"
-  printf "- %s\n" "$abs_summary_json"
+  printf "%s\n" "- $abs_summary_json"
 fi
 
 if [[ "$PUBLISH_DT" == "1" ]]; then
