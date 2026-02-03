@@ -89,6 +89,26 @@ This repository is the authoritative implementation that executes the governance
 - [docs/reports/runbook_generate_aoi_report.md](docs/reports/runbook_generate_aoi_report.md)
 - [scripts/migrate_from_private_eudr_dmi/README.md](scripts/migrate_from_private_eudr_dmi/README.md)
 
+## Publish latest AOI reports to the Digital Twin
+
+This publishes only the two most recent AOI report runs to the DT repo and regenerates the AOI index.
+
+1) Publish into the DT repo (auto-commit + push):
+
+```sh
+python tools/publish_latest_aoi_reports_to_dt.py \
+	--dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin \
+	--dt-aoi-dir docs/site/aoi_reports \
+	--source-dir out/site_bundle/aoi_reports \
+	--keep 2
+```
+
+2) Verify navigation and links:
+
+```sh
+scripts/verify_dt_links.sh --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin
+```
+
 ## Governance, Inspection & DAO Entry Points
 
 This repository is the authoritative implementation.

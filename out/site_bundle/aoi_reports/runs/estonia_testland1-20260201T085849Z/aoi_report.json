@@ -1,0 +1,64 @@
+{
+  "aoi_geometry_ref": {
+    "kind": "geojson",
+    "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b",
+    "value": "inputs/aoi.geojson"
+  },
+  "aoi_id": "estonia_testland1",
+  "bundle_id": "estonia_testland1-20260201T085849Z",
+  "evidence_artifacts": [
+    {
+      "relpath": "inputs/aoi.geojson",
+      "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b",
+      "size_bytes": 355
+    },
+    {
+      "relpath": "reports/aoi_report_v1/estonia_testland1.html",
+      "sha256": "97a282b003db4eff1e3b759f52ae5c6d28c8cd596e4e9e221c7946beb9a04190",
+      "size_bytes": 1724
+    },
+    {
+      "relpath": "reports/aoi_report_v1/estonia_testland1.json",
+      "sha256": "92ea341de3117e4cb48b618faf9a34bee49b0ffe22d6df8b345e17f935fa7840",
+      "size_bytes": 751
+    },
+    {
+      "relpath": "reports/aoi_report_v1/estonia_testland1/metrics.csv",
+      "sha256": "ffbac589a7daf930cc56477a6de2d8851f89173543200be019769f8712caecd5",
+      "size_bytes": 68
+    }
+  ],
+  "extensions": {
+    "metrics_rows_v1": [
+      {
+        "notes": "staging",
+        "source": "operator",
+        "unit": "ha",
+        "value": 1.23,
+        "variable": "area_ha"
+      }
+    ]
+  },
+  "generated_at_utc": "2026-02-01T08:58:49+00:00",
+  "inputs": {
+    "sources": [
+      {
+        "content_type": "application/geo+json",
+        "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b",
+        "source_id": "aoi_geometry",
+        "uri": "inputs/aoi.geojson"
+      }
+    ]
+  },
+  "metrics": {
+    "area_ha": {
+      "notes": "staging",
+      "unit": "ha",
+      "value": 1.23
+    }
+  },
+  "policy_mapping_refs": [
+    "placeholder:TODO"
+  ],
+  "report_version": "aoi_report_v1"
+}
