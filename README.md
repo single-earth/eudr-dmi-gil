@@ -109,6 +109,27 @@ python tools/publish_latest_aoi_reports_to_dt.py \
 scripts/verify_dt_links.sh --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin
 ```
 
+## Deterministic AOI reports publisher (exactly two runs)
+
+This script publishes the two AOI run folders from:
+
+- `out/site_bundle/aoi_reports/runs/`
+
+into the DT repo path:
+
+- `/Users/server/projects/eudr-dmi-gil-digital-twin/docs/site/aoi_reports/runs/`
+
+It will abort unless **exactly two** run directories exist and both contain:
+
+- `report.html`
+- `aoi_report.json`
+
+It cleans the DT AOI reports, copies the two runs, regenerates the AOI index, checks links, and **auto-commits + pushes** in the DT repo.
+
+```sh
+scripts/publish_aoi_reports_to_dt.sh
+```
+
 ## Governance, Inspection & DAO Entry Points
 
 This repository is the authoritative implementation.
