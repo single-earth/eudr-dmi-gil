@@ -25,6 +25,11 @@ Grounding (per upstream `eudr_dmi` README conventions):
 - Bundle layout is: `<AUDIT_ROOT>/<YYYY-MM-DD>/<bundle_id>/`
 - Bundles may include a **portable site bundle zip** for portal publishing.
 
+Local generation outputs:
+
+- Evidence bundles: `audit/evidence/<YYYY-MM-DD>/<bundle_id>/`
+- DT-staging AOI reports: `out/site_bundle/aoi_reports/`
+
 ## Where to look
 
 - ADR: see the decision record in `docs/architecture/decision_records/` about report pipeline architecture.
@@ -55,22 +60,24 @@ and portable site bundles.
 
 The Digital Twin portal repository is responsible for **publishing/hosting** those artifacts.
 
+Digital Twin publishing policy:
+
+- The DT portal publishes only the **latest 2 AOI report runs**.
+- Older runs remain on the server (authoritative environment) and are not published to the DT portal.
+
 Recommended workflow:
 
 1) Generate AOI evidence bundles (JSON/HTML/metrics.csv/manifest.json) under the evidence root.
 2) Export a portable site bundle folder + deterministic zip (see `scripts/export_reports_site_bundle.py`).
 3) Copy the portable folder into a sibling checkout of the portal repo and review the diff.
 
-Helper script (no auto-push, no credentials assumed):
+Publishing script (auto-commit + push into DT):
 
-- `scripts/publish_reports_to_digital_twin.sh`
+- `scripts/publish_latest_aoi_reports_to_dt.sh`
 
-By default it copies:
+Default target path in the DT repo:
 
-- from: `docs/site_bundle_reports/`
-- to: `../eudr-dmi-gil-digital-twin/site/aoi_reports/`
-
-The final commit/push happens from the portal repository after human review.
+- `../eudr-dmi-gil-digital-twin/docs/site/aoi_reports/`
 
 ## See also
 

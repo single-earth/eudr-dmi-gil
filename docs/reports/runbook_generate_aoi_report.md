@@ -65,6 +65,56 @@ The bundle includes:
 - `inputs/aoi.wkt` or `inputs/aoi.geojson`
 - `manifest.json` (sha256 + sizes for artifacts)
 
+### Test run: Estonia example AOI (deterministic smoke)
+
+Use the built-in script to generate a sample AOI bundle from the Estonia example GeoJSON and export the DT-ready bundle:
+
+```sh
+scripts/test_run_estonia_testland1.sh
+```
+
+This prints:
+
+- input file path
+- bundle output directory
+- DT staging output directory
+- a short inventory of generated JSON/HTML artifacts
+
+## Operational Runbook (current publish workflow)
+
+**Generation happens in this repo.** The DT portal publishes only the **latest 2 AOI report runs**.
+
+Local output locations:
+
+- Evidence bundles: `audit/evidence/<YYYY-MM-DD>/<bundle_id>/`
+- DT-staging AOI reports: `out/site_bundle/aoi_reports/`
+
+DT target path:
+
+- `eudr-dmi-gil-digital-twin/docs/site/aoi_reports/`
+
+Run the deterministic example generation:
+
+```sh
+scripts/test_run_estonia_testland1.sh
+```
+
+Publish the latest 2 AOI reports to the DT repo:
+
+```sh
+scripts/publish_latest_aoi_reports_to_dt.sh \
+  --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin \
+  --dt-aoi-dir docs/site/aoi_reports \
+  --source-dir out/site_bundle/aoi_reports \
+  --keep 2
+```
+
+Verify DT links (runs link checker + AOI navigation check):
+
+```sh
+scripts/verify_dt_links.sh --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin
+```
+
 ## Step 2: export a portable site bundle
 
 Export for a single UTC date:
