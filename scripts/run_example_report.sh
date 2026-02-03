@@ -94,7 +94,7 @@ if [[ ! -f "$INDEX_HTML" ]]; then
   exit 2
 fi
 
-python - <<'PY'
+python - "$REPORT_JSON" <<'PY'
 from __future__ import annotations
 import json
 import sys
@@ -127,7 +127,7 @@ except Exception as exc:  # noqa: BLE001
         print("OK: required keys present (schema not available)")
     except Exception:
         raise SystemExit(f"ERROR: validation failed: {exc}")
-PY "$REPORT_JSON"
+PY
 
 abs_report_json="$(cd "$(dirname "$REPORT_JSON")" && pwd)/$(basename "$REPORT_JSON")"
 abs_report_html="$(cd "$(dirname "$REPORT_HTML")" && pwd)/$(basename "$REPORT_HTML")"
