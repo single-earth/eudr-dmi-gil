@@ -114,11 +114,13 @@ except Exception as exc:  # noqa: BLE001
             "report_version",
             "generated_at_utc",
             "bundle_id",
+          "report_metadata",
             "aoi_id",
             "aoi_geometry_ref",
             "inputs",
             "metrics",
             "evidence_artifacts",
+          "evidence_registry",
             "policy_mapping_refs",
         }
         missing = sorted(required - set(obj.keys()))

@@ -8,11 +8,13 @@
     "report_version",
     "generated_at_utc",
     "bundle_id",
+    "report_metadata",
     "aoi_id",
     "aoi_geometry_ref",
     "inputs",
     "metrics",
     "evidence_artifacts",
+    "evidence_registry",
     "policy_mapping_refs"
   ],
   "properties": {
@@ -29,6 +31,44 @@
     "bundle_id": {
       "type": "string",
       "minLength": 1
+    },
+    "report_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_type", "regulatory_context", "assessment_capability"],
+      "properties": {
+        "report_type": {
+          "type": "string",
+          "enum": ["example", "production", "test"]
+        },
+        "regulatory_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "regulation",
+            "in_scope_articles",
+            "out_of_scope_articles"
+          ],
+          "properties": {
+            "regulation": {
+              "type": "string",
+              "enum": ["EUDR"]
+            },
+            "in_scope_articles": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "out_of_scope_articles": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "assessment_capability": {
+          "type": "string",
+          "enum": ["inspectable_only", "assessable"]
+        }
+      }
     },
     "aoi_id": {
       "type": "string",
@@ -107,6 +147,27 @@
         }
       }
     },
+    "evidence_registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_classes"],
+      "properties": {
+        "evidence_classes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["class_id", "mandatory", "status"],
+            "properties": {
+              "class_id": { "type": "string", "minLength": 1 },
+              "mandatory": { "type": "boolean" },
+              "status": { "type": "string", "enum": ["missing", "partial", "present"] }
+            }
+          }
+        }
+      }
+    },
     "policy_mapping_refs": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
@@ -117,5 +178,38 @@
       "description": "Optional forward-compatible extension point.",
       "additionalProperties": true
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "report_metadata": {
+            "properties": {
+              "assessment_capability": { "const": "assessable" }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence_registry": {
+            "properties": {
+              "evidence_classes": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "mandatory": { "const": true },
+                      "status": { "const": "missing" }
+                    },
+                    "required": ["mandatory", "status"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

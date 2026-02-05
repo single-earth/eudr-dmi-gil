@@ -242,6 +242,15 @@ def main(argv: list[str] | None = None) -> int:
         "report_version": "aoi_report_v1",
         "generated_at_utc": generated_at_utc,
         "bundle_id": bundle_id,
+        "report_metadata": {
+            "report_type": "example",
+            "regulatory_context": {
+                "regulation": "EUDR",
+                "in_scope_articles": [],
+                "out_of_scope_articles": [],
+            },
+            "assessment_capability": "inspectable_only",
+        },
         "aoi_id": aoi_id,
         "aoi_geometry_ref": {
             "kind": geo_kind,
@@ -260,6 +269,15 @@ def main(argv: list[str] | None = None) -> int:
         },
         "metrics": _metrics_from_rows(metric_rows),
         "evidence_artifacts": [],
+        "evidence_registry": {
+            "evidence_classes": [
+                {
+                    "class_id": "aoi_geometry",
+                    "mandatory": True,
+                    "status": "present",
+                }
+            ]
+        },
         "policy_mapping_refs": policy_mapping_refs,
         "extensions": {
             "metrics_rows_v1": [
