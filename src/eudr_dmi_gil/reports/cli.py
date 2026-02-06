@@ -190,6 +190,31 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    p.add_argument(
+        "--enable-hansen-post-2020-loss",
+        action="store_true",
+        help="Enable Hansen post-2020 forest loss pixel-mask computation.",
+    )
+
+    p.add_argument(
+        "--hansen-tile-dir",
+        help="Optional Hansen tile directory (defaults to EUDR_DMI_HANSEN_TILE_DIR).",
+    )
+
+    p.add_argument(
+        "--hansen-canopy-threshold",
+        type=int,
+        default=30,
+        help="Tree cover canopy threshold percent for baseline forest mask (default: 30).",
+    )
+
+    p.add_argument(
+        "--hansen-cutoff-year",
+        type=int,
+        default=2020,
+        help="Cutoff year for post-loss filter (default: 2020).",
+    )
+
     return p
 
 
@@ -238,6 +263,130 @@ def main(argv: list[str] | None = None) -> int:
 
     metric_rows = _parse_metric_rows(args.metric, fallback_dummy=args.dummy_metric)
 
+    hansen_result = None
+    hansen_analysis = None
+    hansen_methodology_block: dict[str, Any] | None = None
+    hansen_computed_block: dict[str, Any] | None = None
+    hansen_computed_outputs_block: dict[str, Any] | None = None
+    hansen_acceptance_criteria_block: dict[str, Any] | None = None
+    hansen_result_block: dict[str, Any] | None = None
+    if args.enable_hansen_post_2020_loss:
+        from eudr_dmi_gil.analysis.forest_loss_post_2020 import run_forest_loss_post_2020
+        from eudr_dmi_gil.tasks.forest_loss_post_2020 import load_hansen_config
+
+        if geo_kind != "geojson":
+            raise RuntimeError("Hansen post-2020 loss requires --aoi-geojson input")
+
+        hansen_config = load_hansen_config(
+            tile_dir=Path(args.hansen_tile_dir) if args.hansen_tile_dir else None,
+            canopy_threshold_percent=args.hansen_canopy_threshold,
+            cutoff_year=args.hansen_cutoff_year,
+            write_masks=True,
+        )
+        hansen_output_dir = bdir / "reports" / "aoi_report_v1" / aoi_id / "hansen"
+        hansen_analysis = run_forest_loss_post_2020(
+            aoi_geojson_path=geo_path,
+            output_dir=hansen_output_dir,
+            config=hansen_config,
+        )
+        hansen_result = hansen_analysis.raw
+
+        metric_rows.extend(
+            [
+                MetricRow(
+                    variable="pixel_forest_loss_post_2020_ha",
+                    value=hansen_result.forest_loss_post_2020_ha,
+                    unit="ha",
+                    source="hansen_gfc",
+                    notes="pixel_mask",
+                ),
+                MetricRow(
+                    variable="pixel_initial_tree_cover_ha",
+                    value=hansen_result.initial_tree_cover_ha,
+                    unit="ha",
+                    source="hansen_gfc",
+                    notes="pixel_mask",
+                ),
+                MetricRow(
+                    variable="pixel_current_tree_cover_ha",
+                    value=hansen_result.current_tree_cover_ha,
+                    unit="ha",
+                    source="hansen_gfc",
+                    notes="pixel_mask",
+                ),
+            ]
+        )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+        hansen_methodology_block = {
+            "forest_loss_post_2020": {
+                "data_sources": ["hansen_global_forest_change"],
+                "dataset_version": hansen_config.dataset_version,
+                "forest_definition": {
+                    "tree_cover_threshold_percent": hansen_config.canopy_threshold_percent
+                },
+                "calculation": {
+                    "method": "pixel_wise_intersection",
+                    "cutoff_date": f"{hansen_config.cutoff_year}-12-31",
+                    "area_units": "ha",
+                },
+                "resolution": {"pixel_size_m": 30},
+                "tile_source": hansen_config.tile_source,
+                "is_placeholder": False,
+            }
+        }
+
+        hansen_computed_block = {
+            "forest_loss_post_2020": {
+                "pixel_initial_tree_cover_ha": hansen_result.initial_tree_cover_ha,
+                "pixel_forest_loss_post_2020_ha": hansen_result.forest_loss_post_2020_ha,
+                "pixel_current_tree_cover_ha": hansen_result.current_tree_cover_ha,
+                "mask_forest_loss_post_2020": str(
+                    hansen_result.mask_forest_loss_post_2020_path.relative_to(bdir)
+                ).replace("\\", "/"),
+                "mask_forest_current_year": str(
+                    hansen_result.mask_forest_current_path.relative_to(bdir)
+                ).replace("\\", "/"),
+                "tiles_manifest": str(
+                    hansen_analysis.tiles_manifest_path.relative_to(bdir)
+                ).replace("\\", "/"),
+            }
+        }
+
+        hansen_computed_outputs_block = {
+            "forest_loss_post_2020": {
+                "area_ha": hansen_analysis.computed.area_ha,
+                "pixel_size_m": hansen_analysis.computed.pixel_size_m,
+                "mask_geojson_ref": {
+                    "relpath": str(hansen_analysis.loss_mask_path.relative_to(bdir)).replace(
+                        "\\", "/"
+                    ),
+                    "sha256": compute_sha256(hansen_analysis.loss_mask_path),
+                    "content_type": "application/geo+json",
+                },
+                "tiles_manifest_ref": {
+                    "relpath": str(hansen_analysis.tiles_manifest_path.relative_to(bdir)).replace(
+                        "\\", "/"
+                    ),
+                    "sha256": compute_sha256(hansen_analysis.tiles_manifest_path),
+                    "content_type": "application/json",
+                },
+            }
+        }
+
+        hansen_acceptance_criteria_block = {
+            "criteria_id": "forest_loss_post_2020_computed",
+            "description": "Forest loss post-2020 computed from Hansen tiles.",
+            "evidence_classes": ["forest_loss_post_2020"],
+            "decision_type": "presence",
+        }
+        hansen_result_block = {
+            "result_id": "forest_loss_post_2020_computed",
+            "criteria_ids": ["forest_loss_post_2020_computed"],
+            "evidence_classes": ["forest_loss_post_2020"],
+            "status": "computed",
+        }
+
     report: dict[str, Any] = {
         "report_version": "aoi_report_v1",
         "generated_at_utc": generated_at_utc,
@@ -251,6 +400,10 @@ def main(argv: list[str] | None = None) -> int:
             },
             "assessment_capability": "inspectable_only",
         },
+        "computed": {},
+        "computed_outputs": {},
+        "validation": {},
+        "methodology": {},
         "aoi_id": aoi_id,
         "aoi_geometry_ref": {
             "kind": geo_kind,
@@ -293,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "placeholder",
             }
         ],
+        "assumptions": [],
         "regulatory_traceability": [
             {
                 "regulation": "EUDR",
@@ -318,6 +472,85 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     artifact_paths: list[Path] = [geo_path]
+    if hansen_result is not None and hansen_analysis is not None:
+        if hansen_methodology_block is not None:
+            report["methodology"] = hansen_methodology_block
+        if hansen_computed_block is not None:
+            report["computed"] = hansen_computed_block
+        if hansen_computed_outputs_block is not None:
+            report["computed_outputs"] = hansen_computed_outputs_block
+        if hansen_acceptance_criteria_block is not None:
+            report["acceptance_criteria"].append(hansen_acceptance_criteria_block)
+        if hansen_result_block is not None:
+            report["results"].append(hansen_result_block)
+            report["regulatory_traceability"].append(
+                {
+                    "regulation": "EUDR",
+                    "article_ref": "article-3",
+                    "evidence_class": "forest_loss_post_2020",
+                    "acceptance_criteria": "forest_loss_post_2020_computed",
+                    "result_ref": "forest_loss_post_2020_computed",
+                }
+            )
+
+        artifact_paths.append(hansen_analysis.summary_path)
+        artifact_paths.extend(
+            [
+                hansen_analysis.loss_mask_path,
+                hansen_analysis.current_mask_path,
+                hansen_analysis.tiles_manifest_path,
+            ]
+        )
+
+        loss_present = hansen_analysis.loss_mask_path.is_file()
+        current_present = hansen_analysis.current_mask_path.is_file()
+        summary_present = hansen_analysis.summary_path.is_file()
+        tiles_manifest_present = hansen_analysis.tiles_manifest_path.is_file()
+
+        report["evidence_registry"]["evidence_classes"].extend(
+            [
+                {
+                    "class_id": "forest_loss_post_2020",
+                    "mandatory": True,
+                    "status": "present"
+                    if loss_present and current_present and summary_present
+                    else "missing",
+                },
+                {
+                    "class_id": "hansen_tiles_provenance",
+                    "mandatory": True,
+                    "status": "present" if tiles_manifest_present else "missing",
+                },
+            ]
+        )
+
+    if geo_kind == "geojson":
+        from eudr_dmi_gil.analysis.maaamet_validation import run_maaamet_crosscheck
+
+        maaamet_dir = bdir / "reports" / "aoi_report_v1" / aoi_id / "maaamet"
+        computed_current_forest = (
+            hansen_result.current_tree_cover_ha if hansen_result is not None else None
+        )
+        maaamet_result = run_maaamet_crosscheck(
+            aoi_geojson_path=geo_path,
+            output_dir=maaamet_dir,
+            computed_forest_area_ha=computed_current_forest,
+        )
+        crosscheck_block = {
+            "source": "maaamet",
+            "fields_used": maaamet_result.fields_used,
+            "outcome": maaamet_result.outcome,
+            "comparison": {"tolerance_percent": maaamet_result.tolerance_percent},
+            "csv_ref": {
+                "relpath": str(maaamet_result.csv_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(maaamet_result.csv_path),
+                "content_type": "text/csv",
+            },
+        }
+        if maaamet_result.reason:
+            crosscheck_block["reason"] = maaamet_result.reason
+        report["validation"]["forest_area_crosscheck"] = crosscheck_block
+        artifact_paths.extend([maaamet_result.csv_path, maaamet_result.summary_path])
 
     # metrics.csv (portable, deterministic) lives alongside the report outputs.
     metrics_csv_path = bdir / "reports" / "aoi_report_v1" / aoi_id / "metrics.csv"

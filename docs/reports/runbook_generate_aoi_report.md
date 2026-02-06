@@ -86,7 +86,7 @@ python -m eudr_dmi_gil.reports.cli \
 Wrapper script (runs the command, exports DT-staging output, validates JSON, and prints absolute paths):
 
 ```sh
-scripts/run_example_report.sh
+scripts/run_example_report_clean.sh
 ```
 
 This prints:
@@ -113,11 +113,14 @@ DT target path:
 
 - `eudr-dmi-gil-digital-twin/docs/site/aoi_reports/`
 
-Run the deterministic example generation:
+Run the deterministic example generation (clean evidence root, stable bundle-id, runs/example only):
 
 ```sh
-scripts/test_run_estonia_testland1.sh
+scripts/run_example_report_clean.sh
 ```
+
+Note: avoid `scripts/test_run_estonia_testland1.sh` for DT staging because it creates timestamped
+bundle IDs and multiple runs, which can trigger the “found 3 JSONs” issue.
 
 Publishing policy:
 

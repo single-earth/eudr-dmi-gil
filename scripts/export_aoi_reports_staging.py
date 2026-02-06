@@ -192,12 +192,42 @@ def export_aoi_reports(*, evidence_root: Path, output_root: Path) -> None:
     report_json = report_jsons[0]
     report = _load_json(report_json)
 
-    bundle_root = report_json.parent.parent.parent.parent
+    # report_json is expected at: <bundle_root>/reports/aoi_report_v1/<aoi_id>.json
+    bundle_root = report_json.parent.parent.parent
     run_dir = output_root / "runs" / EXAMPLE_RUN_ID
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy evidence artifacts into run dir (preserve relative paths)
     rel_artifacts: list[str] = []
+    rel_artifacts_set: set[str] = set()
+
+    def _add_relpath(relpath: str) -> None:
+      if relpath in rel_artifacts_set:
+        return
+      rel_artifacts.append(relpath)
+      rel_artifacts_set.add(relpath)
+
+    # Copy declared input artefacts into run dir (preserve relative paths)
+    input_relpaths: set[str] = set()
+    aoi_ref = report.get("aoi_geometry_ref", {}).get("value")
+    if isinstance(aoi_ref, str) and aoi_ref:
+      input_relpaths.add(aoi_ref)
+    for src_entry in report.get("inputs", {}).get("sources", []):
+      if not isinstance(src_entry, dict):
+        continue
+      uri = src_entry.get("uri")
+      if isinstance(uri, str) and uri:
+        input_relpaths.add(uri)
+
+    for relpath in sorted(input_relpaths):
+      src = bundle_root / relpath
+      if not src.exists():
+        continue
+      dest = run_dir / relpath
+      dest.parent.mkdir(parents=True, exist_ok=True)
+      shutil.copy2(src, dest)
+      _add_relpath(dest.relative_to(run_dir).as_posix())
+
+    # Copy evidence artifacts into run dir (preserve relative paths)
     for artifact in report.get("evidence_artifacts", []):
         relpath = artifact.get("relpath")
         if not relpath:
@@ -208,15 +238,16 @@ def export_aoi_reports(*, evidence_root: Path, output_root: Path) -> None:
         dest = run_dir / relpath
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
-        rel_artifacts.append(dest.relative_to(run_dir).as_posix())
+        _add_relpath(dest.relative_to(run_dir).as_posix())
 
     # Write canonical report JSON name
     report_json_out = run_dir / "aoi_report.json"
     report_json_out.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    if "aoi_report.json" not in rel_artifacts:
-        rel_artifacts.insert(0, "aoi_report.json")
+    if "aoi_report.json" not in rel_artifacts_set:
+      rel_artifacts.insert(0, "aoi_report.json")
+      rel_artifacts_set.add("aoi_report.json")
 
     # Render a portable report.html (relative links)
     report_html_out = run_dir / "report.html"

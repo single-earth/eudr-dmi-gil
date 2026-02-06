@@ -17,6 +17,7 @@
     "evidence_registry",
     "acceptance_criteria",
     "regulatory_traceability",
+    "assumptions",
     "policy_mapping_refs"
   ],
   "properties": {
@@ -201,7 +202,214 @@
             "type": "array",
             "minItems": 1,
             "items": { "type": "string", "minLength": 1 }
+          },
+          "evidence_classes": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "assumption_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "non_testable_due_to_assumptions": { "type": "boolean" }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assumption_id", "description", "testable", "affects_results"],
+        "properties": {
+          "assumption_id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "testable": { "type": "boolean" },
+          "affects_results": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
           }
+        }
+      }
+    },
+    "methodology": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forest_loss_post_2020": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "data_sources",
+            "dataset_version",
+            "forest_definition",
+            "calculation",
+            "resolution",
+            "tile_source",
+            "is_placeholder"
+          ],
+          "properties": {
+            "data_sources": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "dataset_version": { "type": "string", "minLength": 1 },
+            "forest_definition": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tree_cover_threshold_percent"],
+              "properties": {
+                "tree_cover_threshold_percent": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "calculation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["method", "cutoff_date", "area_units"],
+              "properties": {
+                "method": { "type": "string", "enum": ["pixel_wise_intersection"] },
+                "cutoff_date": { "type": "string", "format": "date" },
+                "area_units": { "type": "string", "enum": ["ha"] }
+              }
+            },
+            "resolution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pixel_size_m"],
+              "properties": {
+                "pixel_size_m": { "type": "number", "minimum": 0 }
+              }
+            },
+            "tile_source": { "type": "string", "enum": ["local", "minio", "other"] },
+            "is_placeholder": { "type": "boolean" },
+            "calculation_run_metadata": { "type": "object" }
+          }
+        }
+      }
+    },
+    "computed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forest_loss_post_2020": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pixel_initial_tree_cover_ha",
+            "pixel_forest_loss_post_2020_ha",
+            "pixel_current_tree_cover_ha",
+            "mask_forest_loss_post_2020",
+            "mask_forest_current_year",
+            "tiles_manifest"
+          ],
+          "properties": {
+            "pixel_initial_tree_cover_ha": { "type": "number" },
+            "pixel_forest_loss_post_2020_ha": { "type": "number" },
+            "pixel_current_tree_cover_ha": { "type": "number" },
+            "mask_forest_loss_post_2020": { "type": "string", "minLength": 1 },
+            "mask_forest_current_year": { "type": "string", "minLength": 1 },
+            "tiles_manifest": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "computed_outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forest_loss_post_2020": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "area_ha",
+            "pixel_size_m",
+            "tiles_manifest_ref"
+          ],
+          "properties": {
+            "area_ha": { "type": "number" },
+            "pixel_size_m": { "type": "number" },
+            "mask_geojson_ref": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relpath", "sha256", "content_type"],
+              "properties": {
+                "relpath": { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "content_type": { "type": "string", "minLength": 1 }
+              }
+            },
+            "mask_wkt_ref": { "type": "string", "minLength": 1 },
+            "tiles_manifest_ref": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relpath", "sha256", "content_type"],
+              "properties": {
+                "relpath": { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "content_type": { "type": "string", "minLength": 1 }
+              }
+            },
+            "calculation_run_metadata": { "type": "object" }
+          },
+          "anyOf": [
+            {"required": ["mask_geojson_ref"]},
+            {"required": ["mask_wkt_ref"]}
+          ]
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forest_area_crosscheck": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "fields_used", "outcome", "comparison", "csv_ref"],
+          "properties": {
+            "source": { "type": "string", "minLength": 1 },
+            "fields_used": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "outcome": {
+              "type": "string",
+              "enum": ["consistent", "divergent", "not_comparable"]
+            },
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tolerance_percent"],
+              "properties": {
+                "tolerance_percent": { "type": "number" }
+              }
+            },
+            "csv_ref": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["relpath", "sha256", "content_type"],
+              "properties": {
+                "relpath": { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                "content_type": { "type": "string", "minLength": 1 }
+              }
+            },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "outcome": { "const": "not_comparable" }
+                }
+              },
+              "then": { "required": ["reason"] }
+            }
+          ]
         }
       }
     },

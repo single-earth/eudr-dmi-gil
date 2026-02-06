@@ -73,6 +73,11 @@ def _golden_aoi_report_v1() -> dict:
                 "status": "pass",
             }
         ],
+        "assumptions": [],
+        "computed": {},
+        "computed_outputs": {},
+        "validation": {},
+        "methodology": {},
         "regulatory_traceability": [
             {
                 "regulation": "EUDR",
@@ -125,6 +130,27 @@ def test_schema_rejects_missing_acceptance_criteria() -> None:
         validate_aoi_report_v1(bad)
 
 
+def test_schema_accepts_empty_assumptions() -> None:
+    ok = _golden_aoi_report_v1()
+    ok["assumptions"] = []
+    validate_aoi_report_v1(ok)
+
+
+def test_schema_accepts_example_assumption() -> None:
+    ok = _golden_aoi_report_v1()
+    ok["assumptions"] = [
+        {
+            "assumption_id": "assumption-1",
+            "description": "Example assumption used for inspection.",
+            "testable": False,
+            "affects_results": ["result-001"],
+        }
+    ]
+    ok["results"][0]["assumption_refs"] = ["assumption-1"]
+    ok["results"][0]["non_testable_due_to_assumptions"] = True
+    validate_aoi_report_v1(ok)
+
+
 def test_schema_accepts_criteria_without_results() -> None:
     ok = _golden_aoi_report_v1()
     ok["results"] = []
@@ -144,6 +170,44 @@ def test_schema_rejects_result_without_criteria_refs() -> None:
             "result_ref": "result-005",
         }
     ]
+    with pytest.raises(ValidationError):
+        validate_aoi_report_v1(bad)
+
+
+def test_schema_rejects_assumption_with_missing_result_ref() -> None:
+    bad = _golden_aoi_report_v1()
+    bad["assumptions"] = [
+        {
+            "assumption_id": "assumption-1",
+            "description": "Example assumption.",
+            "testable": True,
+            "affects_results": ["missing-result"],
+        }
+    ]
+    with pytest.raises(ValidationError):
+        validate_aoi_report_v1(bad)
+
+
+def test_schema_rejects_result_with_unknown_assumption_ref() -> None:
+    bad = _golden_aoi_report_v1()
+    bad["assumptions"] = []
+    bad["results"][0]["assumption_refs"] = ["missing-assumption"]
+    with pytest.raises(ValidationError):
+        validate_aoi_report_v1(bad)
+
+
+def test_schema_rejects_missing_non_testable_flag() -> None:
+    bad = _golden_aoi_report_v1()
+    bad["assumptions"] = [
+        {
+            "assumption_id": "assumption-1",
+            "description": "Example assumption.",
+            "testable": False,
+            "affects_results": ["result-001"],
+        }
+    ]
+    bad["results"][0]["assumption_refs"] = ["assumption-1"]
+    bad["results"][0].pop("non_testable_due_to_assumptions", None)
     with pytest.raises(ValidationError):
         validate_aoi_report_v1(bad)
 
@@ -190,6 +254,7 @@ def test_schema_rejects_traceability_unknown_references() -> None:
 def test_schema_accepts_missing_status_for_inspectable_only() -> None:
     ok = _golden_aoi_report_v1()
     ok["evidence_registry"]["evidence_classes"] = [
+        {"class_id": "aoi_geometry", "mandatory": True, "status": "present"},
         {"class_id": "deforestation_alerts", "mandatory": True, "status": "missing"}
     ]
     validate_aoi_report_v1(ok)
@@ -198,6 +263,7 @@ def test_schema_accepts_missing_status_for_inspectable_only() -> None:
 def test_schema_accepts_partial_status() -> None:
     ok = _golden_aoi_report_v1()
     ok["evidence_registry"]["evidence_classes"] = [
+        {"class_id": "aoi_geometry", "mandatory": True, "status": "present"},
         {"class_id": "deforestation_alerts", "mandatory": False, "status": "partial"}
     ]
     validate_aoi_report_v1(ok)
@@ -206,6 +272,7 @@ def test_schema_accepts_partial_status() -> None:
 def test_schema_accepts_present_status() -> None:
     ok = _golden_aoi_report_v1()
     ok["evidence_registry"]["evidence_classes"] = [
+        {"class_id": "aoi_geometry", "mandatory": True, "status": "present"},
         {"class_id": "deforestation_alerts", "mandatory": True, "status": "present"}
     ]
     validate_aoi_report_v1(ok)

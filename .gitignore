@@ -81,6 +81,10 @@ target/
 # IPython
 profile_default/
 ipython_config.py
+$__pycache__/
+
+# Local scratch
+.tmp/
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
@@ -202,6 +206,7 @@ data_db/*with_families*.csv
 infra/minio/minio_data/
 outputs/
 audit/
+.tmp/
 
 # PyPI configuration file
 .pypirc
