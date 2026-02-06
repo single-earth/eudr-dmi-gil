@@ -64,11 +64,19 @@ def test_suggest_dependency_updates_history(tmp_path: Path, monkeypatch: pytest.
         encoding="utf-8",
     )
 
+    sources_csv = repo_root / "data_db" / "dependency_sources.csv"
+    sources_csv.parent.mkdir(parents=True, exist_ok=True)
+    sources_csv.write_text(
+        "dependency_id,url,expected_content_type,server_audit_path,description,family_or_tag,used_by,update_policy,version_pattern,last_verified_utc\n"
+        "hansen_gfc_definitions,https://example.org/GFC-2024-v1.12/download.html,text/html,/audit/hansen,desc,forest,docs/dependencies/hansen_gfc.yaml,probe_yearly,GFC-YYYY-v1.12,\n",
+        encoding="utf-8",
+    )
+
     def fake_urlopen(request, timeout=0):  # noqa: ANN001
         url = request.full_url
         if "2025" in url:
             return FakeResponse(status=200, url=url, headers={"Content-Type": "text/html"})
-        return FakeResponse(status=200, url=url, headers={"Content-Type": "text/html"})
+        return FakeResponse(status=404, url=url, headers={"Content-Type": "text/html"})
 
     monkeypatch.setattr(suggest_updates, "repo_root", lambda: repo_root)
     monkeypatch.setattr(suggest_updates.urllib.request, "urlopen", fake_urlopen)
@@ -89,6 +97,7 @@ def test_suggest_dependency_updates_history(tmp_path: Path, monkeypatch: pytest.
         "data_db/dependency_link_history.csv",
         "--no-timestamps",
         "--write-history",
+        "--promote-best",
     ]
 
     assert suggest_updates.main(args) == 0
@@ -109,3 +118,13 @@ def test_suggest_dependency_updates_history(tmp_path: Path, monkeypatch: pytest.
         for row in rows
     }
     assert len(keys) == len(rows)
+
+    updated = list(csv.DictReader(sources_csv.open("r", encoding="utf-8")))
+    assert updated[0]["url"].endswith("2025-v1.12/download.html")
+
+    promoted_rows = [
+        row
+        for row in rows
+        if row["discovery_method"] == "promoted" and row["link_role"] == "current"
+    ]
+    assert len(promoted_rows) == 1

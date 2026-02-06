@@ -1,3 +1,3 @@
-dependency_id,url,expected_content_type,server_audit_path,description,family_or_tag,used_by
-hansen_gfc_definitions,https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html,text/html,/Users/server/audit/eudr_dmi/dependencies/hansen_gfc_definitions,Hansen GFC metadata and download page,forest_loss,docs/dependencies/hansen_gfc.yaml
-maa-amet/forest/v1,https://gsavalik.envir.ee/geoserver/wfs,application/xml,/Users/server/audit/eudr_dmi/dependencies/maa_amet_forest_v1,Maa-amet forest WFS service,reference,src/eudr_dmi_gil/analysis/maaamet_validation.py
+dependency_id,url,expected_content_type,server_audit_path,description,family_or_tag,used_by,update_policy,version_pattern,last_verified_utc
+hansen_gfc_definitions,https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html,text/html,/Users/server/audit/eudr_dmi/dependencies/hansen_gfc_definitions,Hansen GFC metadata and download page,forest_loss,docs/dependencies/hansen_gfc.yaml,probe_yearly,GFC-YYYY-v1.12,
+maa-amet/forest/v1,https://gsavalik.envir.ee/geoserver/wfs,application/xml,/Users/server/audit/eudr_dmi/dependencies/maa_amet_forest_v1,Maa-amet forest WFS service,reference,src/eudr_dmi_gil/analysis/maaamet_validation.py,manual_only,,

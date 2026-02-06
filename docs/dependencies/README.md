@@ -18,6 +18,16 @@ python scripts/validate_dependency_links.py --fail-on-broken
 python scripts/validate_dependency_links.py --only hansen
 ```
 
+Dependency source workflow (authoritative):
+
+```sh
+python scripts/export_dependency_sources.py
+python scripts/validate_dependency_links.py --fail-on-broken
+python scripts/suggest_dependency_updates.py
+python scripts/suggest_dependency_updates.py --promote-best
+python scripts/bootstrap_data_db.py
+```
+
 ## Compatibility note
 
 Some code paths referenced by the DT are preserved as *compatibility shims* in

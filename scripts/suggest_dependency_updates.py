@@ -37,6 +37,19 @@ HISTORY_COLUMNS = [
     "note",
 ]
 
+DEPENDENCY_SOURCE_REQUIRED_COLUMNS = [
+    "dependency_id",
+    "url",
+    "expected_content_type",
+    "server_audit_path",
+    "description",
+    "family_or_tag",
+    "used_by",
+    "update_policy",
+    "version_pattern",
+    "last_verified_utc",
+]
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -137,6 +150,56 @@ def _load_sources(sources_path: Path) -> list[dict[str, Any]]:
             }
         )
     return sorted(normalized, key=lambda d: d["dependency_id"])
+
+
+def _load_dependency_sources_csv(
+    csv_path: Path,
+) -> tuple[list[str], list[dict[str, str]], list[str]]:
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Missing dependency_sources.csv at {csv_path}")
+
+    raw_lines = csv_path.read_text(encoding="utf-8").splitlines()
+    comment_lines: list[str] = []
+    data_lines: list[str] = []
+    for line in raw_lines:
+        if line.strip().startswith("#") and not data_lines:
+            comment_lines.append(line)
+            continue
+        data_lines.append(line)
+
+    if not data_lines:
+        raise ValueError("dependency_sources.csv is empty")
+
+    reader = csv.DictReader(data_lines)
+    header = reader.fieldnames or []
+    if not header:
+        raise ValueError("dependency_sources.csv missing header")
+
+    columns = list(header)
+    for col in DEPENDENCY_SOURCE_REQUIRED_COLUMNS:
+        if col not in columns:
+            columns.append(col)
+
+    rows = [dict(row) for row in reader]
+    return columns, rows, comment_lines
+
+
+def _write_dependency_sources_csv(
+    csv_path: Path,
+    *,
+    columns: list[str],
+    rows: list[dict[str, str]],
+    comment_lines: list[str],
+) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    rows_sorted = sorted(rows, key=lambda r: r.get("dependency_id", ""))
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        if comment_lines:
+            fh.write("\n".join(comment_lines) + "\n")
+        writer = csv.DictWriter(fh, fieldnames=columns)
+        writer.writeheader()
+        for row in rows_sorted:
+            writer.writerow({col: row.get(col, "") for col in columns})
 
 
 def _candidate_urls(url: str) -> list[tuple[str, str]]:
@@ -309,6 +372,13 @@ def main(argv: list[str] | None = None) -> int:
         history_path = None
         history_rows, history_keys = [], set()
 
+    promote_updates: dict[str, str] = {}
+    promote_rows: list[dict[str, str]] = []
+    sources_csv_path = resolve_under_repo(Path("data_db/dependency_sources.csv"))
+    if args.promote_best:
+        src_columns, src_rows, src_comments = _load_dependency_sources_csv(sources_csv_path)
+        src_index = {row.get("dependency_id", ""): row for row in src_rows}
+
     for src in sources:
         dep_id = src["dependency_id"]
         current_url = src["url"]
@@ -424,12 +494,31 @@ def main(argv: list[str] | None = None) -> int:
                     history_keys.add(key)
                     history_rows.append(row)
 
+            promote_updates[dep_id] = best_candidate_url
+            promote_rows.append(
+                _as_row(
+                    dependency_id=dep_id,
+                    dataset_family=dataset_family,
+                    link_role="current",
+                    url=best_candidate_url,
+                    discovered_by="suggest_dependency_updates.py",
+                    discovery_method="promoted",
+                    discovered_on_utc=discovered_on,
+                    http_status=best_candidate_entry.get("http_status") if best_candidate_entry else None,
+                    observed_content_type=best_candidate_entry.get("observed_content_type", "") if best_candidate_entry else "",
+                    ok=bool(best_candidate_entry.get("ok")) if best_candidate_entry else False,
+                    score=float(best_candidate_entry.get("score", 0)) if best_candidate_entry else 0.0,
+                    note="promoted",
+                )
+            )
+
         suggestions.append(
             {
                 "dependency_id": dep_id,
                 "current": current_entry,
                 "candidates": sorted(candidates, key=lambda c: (c["url"], c.get("note", ""))),
                 "best_candidate_url": best_candidate_url,
+                "recommendation": "update" if best_candidate_url and best_candidate_url != current_url else "none",
             }
         )
 
@@ -445,9 +534,35 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_history and history_path is not None:
         _write_history(history_path, history_rows)
 
+    if args.promote_best:
+        for dep_id, new_url in promote_updates.items():
+            row = src_index.get(dep_id)
+            if row is None:
+                print(f"ERROR: dependency_id not found in dependency_sources.csv: {dep_id}", file=sys.stderr)
+                return 2
+            row["url"] = new_url
+            if not args.no_timestamps:
+                row["last_verified_utc"] = _now_utc_iso()
+        _write_dependency_sources_csv(
+            sources_csv_path,
+            columns=src_columns,
+            rows=src_rows,
+            comment_lines=src_comments,
+        )
+
+        if args.write_history and history_path is not None:
+            for row in promote_rows:
+                key = (row["dependency_id"], row["url"], row["discovered_by"], row["discovery_method"])
+                if key not in history_keys:
+                    history_keys.add(key)
+                    history_rows.append(row)
+            _write_history(history_path, history_rows)
+
     print(f"OK: wrote {Path(args.out).as_posix()}")
     if args.write_history and history_path is not None:
         print(f"OK: updated {Path(args.history_csv).as_posix()}")
+    if args.promote_best:
+        print(f"OK: updated {Path('data_db/dependency_sources.csv').as_posix()}")
     return 0
 
 
