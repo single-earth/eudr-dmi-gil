@@ -1,0 +1,17 @@
+dependency_id: hansen_gfc_2024_v1_12
+upstream_download_page: https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html
+dataset_version: 2024-v1.12
+tile_scheme: 10x10_degree
+required_layers_for_method:
+  - treecover2000
+  - lossyear
+storage_layout:
+  base_dir: data/external/hansen/hansen_gfc_2024_v1_12
+  tiles_dir: tiles/{tile_id}/{layer}.tif
+  manifests_dir: manifests/{aoi_id}/{run_id}/tiles_manifest.json
+integrity:
+  hash: sha256
+  manifest_sorted: true
+notes: |
+  Use this dependency in Digital Twin “Dependencies” with “Used by” entries that
+  reference report methods relying on Hansen GFC post-2020 loss.

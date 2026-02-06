@@ -282,12 +282,15 @@ def main(argv: list[str] | None = None) -> int:
             canopy_threshold_percent=args.hansen_canopy_threshold,
             cutoff_year=args.hansen_cutoff_year,
             write_masks=True,
+            aoi_geojson_path=geo_path,
         )
         hansen_output_dir = bdir / "reports" / "aoi_report_v1" / aoi_id / "hansen"
         hansen_analysis = run_forest_loss_post_2020(
             aoi_geojson_path=geo_path,
             output_dir=hansen_output_dir,
             config=hansen_config,
+            aoi_id=aoi_id,
+            run_id=bundle_id,
         )
         hansen_result = hansen_analysis.raw
 

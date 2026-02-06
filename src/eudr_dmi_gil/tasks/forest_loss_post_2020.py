@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 import rasterio
@@ -15,6 +15,13 @@ from rasterio.warp import transform_geom
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
 
+from eudr_dmi_gil.deps.hansen_acquire import (
+    DATASET_VERSION_DEFAULT,
+    HansenLayerEntry,
+    ensure_hansen_layers_present,
+    hansen_default_base_dir,
+)
+from eudr_dmi_gil.deps.hansen_tiles import hansen_tile_ids_for_bbox, load_aoi_bbox
 from eudr_dmi_gil.reports.determinism import sha256_file, write_json
 
 
@@ -26,6 +33,8 @@ class HansenConfig:
     write_masks: bool = False
     dataset_version: str = "unknown"
     tile_source: str = "local"
+    tile_entries: list[HansenLayerEntry] | None = None
+    tile_ids: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,7 @@ class LocalTileSource(TileSource):
                 candidates.append(direct)
             candidates.extend(sorted(self._tile_dir.glob(f"{layer}_*.tif")))
             candidates.extend(sorted(self._tile_dir.glob(f"{layer}-*.tif")))
+            candidates.extend(sorted(self._tile_dir.glob(f"**/{layer}.tif")))
         return sorted(set(candidates))
 
     def tile_relpath(self, path: Path) -> str:
@@ -103,13 +113,28 @@ def _pair_tiles(treecover_tiles: list[Path], lossyear_tiles: list[Path]) -> list
     if len(treecover_tiles) == 1 and len(lossyear_tiles) == 1:
         return [(treecover_tiles[0], lossyear_tiles[0])]
 
-    lossyear_by_name = {p.name: p for p in lossyear_tiles}
-    pairs: list[tuple[Path, Path]] = []
+    tree_names = {p.name for p in treecover_tiles}
+    loss_names = {p.name for p in lossyear_tiles}
+
+    if len(tree_names) == len(treecover_tiles) and len(loss_names) == len(lossyear_tiles):
+        lossyear_by_name = {p.name: p for p in lossyear_tiles}
+        pairs: list[tuple[Path, Path]] = []
+        for tree_path in treecover_tiles:
+            match = lossyear_by_name.get(tree_path.name)
+            if match is None:
+                raise RuntimeError(
+                    f"No matching lossyear tile for treecover2000 tile: {tree_path.name}"
+                )
+            pairs.append((tree_path, match))
+        return pairs
+
+    lossyear_by_parent = {p.parent.name: p for p in lossyear_tiles}
+    pairs = []
     for tree_path in treecover_tiles:
-        match = lossyear_by_name.get(tree_path.name)
+        match = lossyear_by_parent.get(tree_path.parent.name)
         if match is None:
             raise RuntimeError(
-                f"No matching lossyear tile for treecover2000 tile: {tree_path.name}"
+                f"No matching lossyear tile for treecover2000 tile in {tree_path.parent.name}"
             )
         pairs.append((tree_path, match))
     return pairs
@@ -297,14 +322,34 @@ def load_hansen_config(
     canopy_threshold_percent: int,
     cutoff_year: int,
     write_masks: bool = False,
+    aoi_geojson_path: Path | None = None,
+    download: bool = True,
 ) -> HansenConfig:
+    tile_entries: list[HansenLayerEntry] | None = None
+    tile_ids: list[str] | None = None
+
     if tile_dir is None:
-        env = os.environ.get("EUDR_DMI_HANSEN_TILE_DIR")
-        if not env:
-            raise RuntimeError("EUDR_DMI_HANSEN_TILE_DIR must be set for Hansen processing")
-        tile_dir = Path(env)
-    dataset_version = os.environ.get("EUDR_DMI_HANSEN_DATASET_VERSION", "unknown")
-    tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "local")
+        if aoi_geojson_path is None:
+            raise RuntimeError("AOI GeoJSON is required to derive Hansen tile IDs")
+        bbox = load_aoi_bbox(aoi_geojson_path)
+        tile_ids = hansen_tile_ids_for_bbox(bbox)
+        tile_dir = hansen_default_base_dir() / "tiles"
+        tile_entries = []
+        for tile_id in tile_ids:
+            tile_entries.extend(
+                ensure_hansen_layers_present(
+                    tile_id,
+                    ["treecover2000", "lossyear"],
+                    download=download,
+                )
+            )
+        tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "external")
+    else:
+        tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "local")
+
+    dataset_version = os.environ.get(
+        "EUDR_DMI_HANSEN_DATASET_VERSION", DATASET_VERSION_DEFAULT
+    )
     return HansenConfig(
         tile_dir=tile_dir,
         canopy_threshold_percent=canopy_threshold_percent,
@@ -312,4 +357,6 @@ def load_hansen_config(
         write_masks=write_masks,
         dataset_version=dataset_version,
         tile_source=tile_source,
+        tile_entries=tile_entries,
+        tile_ids=tile_ids,
     )

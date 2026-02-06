@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from eudr_dmi_gil.reports.determinism import write_json
+from eudr_dmi_gil.deps.hansen_acquire import build_entries_from_provenance, write_tiles_manifest
 from eudr_dmi_gil.tasks.forest_loss_post_2020 import (
     ForestLossResult,
     HansenConfig,
@@ -31,26 +30,13 @@ class ForestLossAnalysisResult:
     raw: ForestLossResult
 
 
-def _write_tiles_manifest(path: Path, provenance: list[dict[str, Any]]) -> None:
-    write_json(
-        path,
-        {
-            "tiles": sorted(
-                provenance,
-                key=lambda item: (
-                    str(item.get("layer", "")),
-                    str(item.get("path", "")),
-                ),
-            )
-        },
-    )
-
-
 def run_forest_loss_post_2020(
     *,
     aoi_geojson_path: Path,
     output_dir: Path,
     config: HansenConfig,
+    aoi_id: str,
+    run_id: str,
 ) -> ForestLossAnalysisResult:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -61,12 +47,24 @@ def run_forest_loss_post_2020(
     )
 
     tiles_manifest_path = output_dir / "forest_loss_post_2020_tiles.json"
-    _write_tiles_manifest(
+    entries = config.tile_entries or build_entries_from_provenance(
+        raw.tile_provenance,
+        tile_dir=config.tile_dir,
+    )
+    tile_ids = config.tile_ids or sorted({e.tile_id for e in entries if e.tile_id})
+    write_tiles_manifest(
         tiles_manifest_path,
-        [
-            {"layer": p.layer, "path": p.relpath, "sha256": p.sha256}
-            for p in raw.tile_provenance
-        ],
+        entries=entries,
+        dataset_version=config.dataset_version,
+        tile_source=config.tile_source,
+        aoi_id=aoi_id,
+        run_id=run_id,
+        tile_ids=tile_ids,
+        derived_relpaths={
+            "summary": raw.summary_path.name,
+            "loss_mask": raw.mask_forest_loss_post_2020_path.name,
+            "current_mask": raw.mask_forest_current_path.name,
+        },
     )
 
     computed = ForestLossComputedOutputs(

@@ -11,7 +11,7 @@ export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 AOI_PATH="$REPO_ROOT/aoi_json_examples/estonia_testland1.geojson"
 EVIDENCE_ROOT="$REPO_ROOT/.tmp/evidence_example"
 OUTPUT_ROOT="$REPO_ROOT/out/site_bundle/aoi_reports"
-HANSEN_TILE_DIR="$REPO_ROOT/.tmp/hansen_tiles_example"
+HANSEN_TILE_DIR="${EUDR_DMI_HANSEN_TILE_DIR:-$REPO_ROOT/tests/fixtures/hansen/tiles}"
 DT_REPO="${DT_REPO:-/Users/server/projects/eudr-dmi-gil-digital-twin}"
 
 RUN_ID="estonia_testland1_example"
@@ -46,52 +46,13 @@ mkdir -p "$EVIDENCE_ROOT"
 
 export EUDR_DMI_EVIDENCE_ROOT="$EVIDENCE_ROOT"
 export EUDR_DMI_AOI_STAGING_DIR="$OUTPUT_ROOT"
-export EUDR_DMI_HANSEN_TILE_DIR="$HANSEN_TILE_DIR"
-
-if [[ ! -f "$HANSEN_TILE_DIR/treecover2000.tif" || ! -f "$HANSEN_TILE_DIR/lossyear.tif" ]]; then
-  "$PYTHON" - "$HANSEN_TILE_DIR" <<'PY'
-from __future__ import annotations
-
-from pathlib import Path
-import numpy as np
-import rasterio
-from rasterio.transform import from_bounds
-import sys
-
-tile_dir = Path(sys.argv[1])
-tile_dir.mkdir(parents=True, exist_ok=True)
-
-# Deterministic synthetic tiles (fixed bounds, no AOI interpolation).
-minx, miny, maxx, maxy = 24.0, 59.0, 24.02, 59.02
-width = 32
-height = 32
-transform = from_bounds(minx, miny, maxx, maxy, width, height)
-
-treecover = np.zeros((height, width), dtype=np.uint8)
-lossyear = np.zeros((height, width), dtype=np.uint8)
-for r in range(height):
-  for c in range(width):
-    treecover[r, c] = (r + c) % 100
-    if (r + c) % 17 == 0:
-      lossyear[r, c] = 21
-
-profile = {
-  "driver": "GTiff",
-  "height": height,
-  "width": width,
-  "count": 1,
-  "dtype": treecover.dtype,
-  "crs": "EPSG:4326",
-  "transform": transform,
-}
-
-with rasterio.open(tile_dir / "treecover2000.tif", "w", **profile) as dst:
-  dst.write(treecover, 1)
-
-with rasterio.open(tile_dir / "lossyear.tif", "w", **profile) as dst:
-  dst.write(lossyear, 1)
-PY
+if [[ ! -d "$HANSEN_TILE_DIR" ]]; then
+  echo "ERROR: missing Hansen fixture tiles dir: $HANSEN_TILE_DIR" >&2
+  echo "Set EUDR_DMI_HANSEN_TILE_DIR to a fixture tileset (e.g. tests/fixtures/hansen/tiles)." >&2
+  exit 2
 fi
+
+export EUDR_DMI_HANSEN_TILE_DIR="$HANSEN_TILE_DIR"
 
 "$PYTHON" -m eudr_dmi_gil.reports.cli \
   --aoi-id "$AOI_ID" \
