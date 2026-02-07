@@ -4,6 +4,12 @@
 
 This repository is the authoritative implementation for EUDR-DMI-GIL. The Digital Twin repository is the public, non-authoritative portal for inspection and governance.
 
+## Workspace Bootstrap
+
+- Open scripts/eudr-dmi-gil.code-workspace.
+- Re-run Prompt 0: Workspace Bootstrap.
+- All changes must be tested via scripts/run_example_report_clean.sh.
+
 ## Governance and DAO Context
 
 DAO proposals are produced via the DTE workflow and must be grounded in the Digital Twin inspection surface.

@@ -3,6 +3,12 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+if [[ ! -x "$REPO_ROOT/scripts/clean_aoi_reports.sh" ]]; then
+  echo "ERROR: missing or non-executable scripts/clean_aoi_reports.sh" >&2
+  echo "HINT: ensure you are in repo root and up-to-date (git pull)" >&2
+  exit 2
+fi
+
 "$REPO_ROOT/scripts/clean_aoi_reports.sh"
 
 AOI_PATH_DEFAULT="${REPO_ROOT}/aoi_json_examples/estonia_testland1.geojson"

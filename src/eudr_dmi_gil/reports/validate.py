@@ -263,6 +263,17 @@ def _ensure_external_dependency_refs(report: Mapping[str, Any]) -> None:
             continue
         if dep.get("dependency_id") == "hansen_gfc_2024_v1_12":
             has_hansen = True
+        if dep.get("tile_source") == "local":
+            tiles_used = dep.get("tiles_used")
+            if isinstance(tiles_used, list):
+                for item in tiles_used:
+                    if not isinstance(item, Mapping):
+                        continue
+                    source_url = item.get("source_url")
+                    if not isinstance(source_url, str) or not source_url.strip():
+                        raise ValidationError(
+                            "external_dependencies.tiles_used.source_url must be non-empty when tile_source=local"
+                        )
         tiles_manifest = dep.get("tiles_manifest")
         if isinstance(tiles_manifest, Mapping):
             relpath = tiles_manifest.get("relpath")
@@ -281,9 +292,16 @@ def _ensure_validation_refs(report: Mapping[str, Any]) -> None:
     crosscheck = validation.get("forest_area_crosscheck")
     if not isinstance(crosscheck, Mapping):
         return
+    if not crosscheck.get("outcome"):
+        raise ValidationError("validation.forest_area_crosscheck.outcome is required")
     csv_ref = crosscheck.get("csv_ref")
     if isinstance(csv_ref, Mapping):
         relpath = csv_ref.get("relpath")
+        if isinstance(relpath, str) and relpath not in relpaths:
+            raise ValidationError(f"Missing evidence_artifacts relpath: {relpath}")
+    summary_ref = crosscheck.get("summary_ref")
+    if isinstance(summary_ref, Mapping):
+        relpath = summary_ref.get("relpath")
         if isinstance(relpath, str) and relpath not in relpaths:
             raise ValidationError(f"Missing evidence_artifacts relpath: {relpath}")
 

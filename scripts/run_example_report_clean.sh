@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # This script is a mandatory full-stack regression test.
 # It must run without configuration and must never use placeholders.
-set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+if [[ ! -x "$REPO_ROOT/scripts/clean_aoi_reports.sh" ]]; then
+  echo "ERROR: missing or non-executable scripts/clean_aoi_reports.sh" >&2
+  echo "HINT: ensure you are in repo root and up-to-date (git pull)" >&2
+  exit 2
+fi
+
+set -euo pipefail
 "$REPO_ROOT/scripts/clean_aoi_reports.sh"
 
 PYTHON="$REPO_ROOT/.venv/bin/python"

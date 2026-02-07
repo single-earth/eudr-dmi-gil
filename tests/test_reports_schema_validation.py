@@ -261,12 +261,41 @@ def test_schema_accepts_external_dependencies_for_hansen() -> None:
                     "local_path": "/tmp/tiles/N50_E020/treecover2000.tif",
                     "sha256": "0" * 64,
                     "size_bytes": 123,
-                    "source_url": "",
+                    "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/Hansen_GFC-2024-v1.12_treecover2000_50N_020E.tif",
                 }
             ],
         }
     ]
     validate_aoi_report(ok)
+
+
+def test_schema_rejects_empty_source_url_for_local_tiles() -> None:
+    bad = _golden_aoi_report_v2()
+    _inject_hansen_blocks(bad)
+    bad["external_dependencies"] = [
+        {
+            "dependency_id": "hansen_gfc_2024_v1_12",
+            "dataset_version": "2024-v1.12",
+            "tile_source": "local",
+            "aoi_geojson_sha256": "0" * 64,
+            "tiles_manifest": {
+                "relpath": "reports/aoi_report_v2/aoi-123/hansen/forest_loss_post_2020_tiles.json",
+                "sha256": "0" * 64,
+            },
+            "tiles_used": [
+                {
+                    "tile_id": "N50_E020",
+                    "layer": "treecover2000",
+                    "local_path": "/tmp/tiles/N50_E020/treecover2000.tif",
+                    "sha256": "0" * 64,
+                    "size_bytes": 123,
+                    "source_url": "",
+                }
+            ],
+        }
+    ]
+    with pytest.raises(ValidationError):
+        validate_aoi_report(bad)
 
 
 def test_schema_accepts_criteria_without_results() -> None:

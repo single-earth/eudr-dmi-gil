@@ -50,6 +50,7 @@ def run_forest_loss_post_2020(
     entries = config.tile_entries or build_entries_from_provenance(
         raw.tile_provenance,
         tile_dir=config.tile_dir,
+        url_template=config.url_template,
     )
     tile_ids = config.tile_ids or sorted({e.tile_id for e in entries if e.tile_id})
     write_tiles_manifest(

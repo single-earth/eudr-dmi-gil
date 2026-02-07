@@ -108,6 +108,19 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
     # Contract validation.
     validate_aoi_report_file(report_json)
 
+    # report.html should link to declared HTML artifacts if present.
+    report_obj = json.loads(report_json.read_text(encoding="utf-8"))
+    html_relpaths = [
+        item.get("relpath")
+        for item in report_obj.get("evidence_artifacts", [])
+        if isinstance(item, dict)
+        and (item.get("meta") or {}).get("role") == "report_html"
+    ]
+    if html_relpaths:
+        html_text = report_html.read_text(encoding="utf-8")
+        for relpath in html_relpaths:
+            assert relpath in html_text
+
     # metrics.csv header and stable row ordering.
     lines = metrics_csv.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "variable,value,unit,source,notes"
@@ -204,6 +217,7 @@ def test_cli_hansen_external_dependencies(tmp_path: Path) -> None:
     assert isinstance(tiles_used, list)
     ordered = [(t["tile_id"], t["layer"], t["local_path"]) for t in tiles_used]
     assert ordered == sorted(ordered)
+    assert all(t.get("source_url") for t in tiles_used)
 
     manifest_rel = dep.get("tiles_manifest", {}).get("relpath")
     assert isinstance(manifest_rel, str)
@@ -218,3 +232,16 @@ def test_cli_hansen_external_dependencies(tmp_path: Path) -> None:
     }
     assert manifest_rel in manifest_entries
     assert manifest_entries[manifest_rel].get("content_type") == "application/json"
+
+    validation = report.get("validation")
+    assert isinstance(validation, dict)
+    crosscheck = validation.get("forest_area_crosscheck")
+    assert isinstance(crosscheck, dict)
+    assert crosscheck.get("outcome") in {"pass", "fail", "not_comparable"}
+    assert "reference" in crosscheck
+    assert "computed" in crosscheck
+    assert "comparison" in crosscheck
+    csv_ref = crosscheck.get("csv_ref", {})
+    summary_ref = crosscheck.get("summary_ref", {})
+    assert (bundle_dir / csv_ref.get("relpath", "")).is_file()
+    assert (bundle_dir / summary_ref.get("relpath", "")).is_file()

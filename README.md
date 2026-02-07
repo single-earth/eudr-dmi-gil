@@ -133,6 +133,12 @@ scripts/clean_aoi_reports.sh
 
 This script removes only derived AOI report outputs and is required before any regeneration to avoid stale artifacts.
 
+Mandatory regression test:
+
+```sh
+scripts/run_example_report_clean.sh
+```
+
 ### Use a different AOI GeoJSON (custom input)
 
 ```sh

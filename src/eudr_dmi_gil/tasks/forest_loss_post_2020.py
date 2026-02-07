@@ -20,6 +20,7 @@ from eudr_dmi_gil.deps.hansen_acquire import (
     HansenLayerEntry,
     ensure_hansen_layers_present,
     hansen_default_base_dir,
+    resolve_hansen_url_template,
 )
 from eudr_dmi_gil.deps.hansen_tiles import hansen_tile_ids_for_bbox, load_aoi_bbox
 from eudr_dmi_gil.reports.determinism import sha256_file, write_json
@@ -35,6 +36,7 @@ class HansenConfig:
     tile_source: str = "local"
     tile_entries: list[HansenLayerEntry] | None = None
     tile_ids: list[str] | None = None
+    url_template: str = ""
 
 
 @dataclass(frozen=True)
@@ -350,6 +352,7 @@ def load_hansen_config(
     dataset_version = os.environ.get(
         "EUDR_DMI_HANSEN_DATASET_VERSION", DATASET_VERSION_DEFAULT
     )
+    url_template = resolve_hansen_url_template()
     return HansenConfig(
         tile_dir=tile_dir,
         canopy_threshold_percent=canopy_threshold_percent,
@@ -359,4 +362,5 @@ def load_hansen_config(
         tile_source=tile_source,
         tile_entries=tile_entries,
         tile_ids=tile_ids,
+        url_template=url_template,
     )

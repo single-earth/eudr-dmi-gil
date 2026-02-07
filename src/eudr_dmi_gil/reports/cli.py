@@ -475,6 +475,7 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 "resolution": {"pixel_size_m": 30},
                 "tile_source": hansen_config.tile_source,
+                "tile_source_url_template": hansen_config.url_template,
                 "is_placeholder": False,
             }
         }
@@ -536,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
         entries = hansen_config.tile_entries or build_entries_from_provenance(
             hansen_analysis.raw.tile_provenance,
             tile_dir=hansen_config.tile_dir,
+            url_template=hansen_config.url_template,
         )
         tiles_used = sorted(
             [
@@ -654,6 +656,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
 
+    in_scope_articles = ["article-3"] if hansen_result is not None else []
     report: dict[str, Any] = {
         "report_version": "aoi_report_v2",
         "generated_at_utc": generated_at_utc,
@@ -662,7 +665,7 @@ def main(argv: list[str] | None = None) -> int:
             "report_type": "example",
             "regulatory_context": {
                 "regulation": "EUDR",
-                "in_scope_articles": [],
+                "in_scope_articles": in_scope_articles,
                 "out_of_scope_articles": [],
             },
             "assessment_capability": "inspectable_only",
@@ -814,11 +817,25 @@ def main(argv: list[str] | None = None) -> int:
             "source": "maaamet",
             "fields_used": maaamet_result.fields_used,
             "outcome": maaamet_result.outcome,
-            "comparison": {"tolerance_percent": maaamet_result.tolerance_percent},
+            "reference": {
+                "source": maaamet_result.reference_source,
+                "method": maaamet_result.reference_method,
+                "value_ha": maaamet_result.reference_value_ha,
+            },
+            "computed": {"forest_area_ha": maaamet_result.computed_forest_area_ha},
+            "comparison": {
+                "tolerance_percent": maaamet_result.tolerance_percent,
+                "diff_pct": maaamet_result.diff_pct,
+            },
             "csv_ref": {
                 "relpath": str(maaamet_result.csv_path.relative_to(bdir)).replace("\\", "/"),
                 "sha256": compute_sha256(maaamet_result.csv_path),
                 "content_type": "text/csv",
+            },
+            "summary_ref": {
+                "relpath": str(maaamet_result.summary_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(maaamet_result.summary_path),
+                "content_type": "application/json",
             },
         }
         if maaamet_result.reason:

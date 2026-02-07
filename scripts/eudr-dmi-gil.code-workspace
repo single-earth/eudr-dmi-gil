@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "/Users/server/projects/eudr-dmi-gil"
+		},
+		{
+			"path": "/Users/server/projects/eudr-dmi-gil-digital-twin"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/audit/**": true,
+			"**/out/**": true,
+			"**/.tmp/**": true,
+			"**/data/derived/**": true
+		},
+		"search.exclude": {
+			"**/audit/**": true,
+			"**/out/**": true,
+			"**/.tmp/**": true,
+			"**/data/derived/**": true
+		},
+		"terminal.integrated.cwd": "${fileDirname}"
+	}
+}

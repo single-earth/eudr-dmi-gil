@@ -14,6 +14,10 @@ from eudr_dmi_gil.reports.determinism import sha256_file, write_json
 DATASET_VERSION_DEFAULT = "2024-v1.12"
 HANSEN_BASE_DIR_NAME = "hansen_gfc_2024_v1_12"
 HANSEN_URL_TEMPLATE_ENV = "EUDR_DMI_HANSEN_URL_TEMPLATE"
+DEFAULT_HANSEN_URL_TEMPLATE = (
+    "https://storage.googleapis.com/earthenginepartners-hansen/"
+    "GFC-2024-v1.12/Hansen_GFC-2024-v1.12_{layer}_{url_tile_id}.tif"
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,11 @@ def _format_url(template: str, *, tile_id: str, layer: str) -> str:
     return template.format(layer=layer, tile_id=tile_id, url_tile_id=url_tile_id)
 
 
+def resolve_hansen_url_template() -> str:
+    url_template = os.environ.get(HANSEN_URL_TEMPLATE_ENV, "").strip()
+    return url_template or DEFAULT_HANSEN_URL_TEMPLATE
+
+
 def _download_to_path(url: str, dest_path: Path) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = dest_path.with_suffix(dest_path.suffix + ".part")
@@ -63,7 +72,7 @@ def ensure_hansen_layers_present(
     download: bool,
 ) -> list[HansenLayerEntry]:
     entries: list[HansenLayerEntry] = []
-    url_template = os.environ.get(HANSEN_URL_TEMPLATE_ENV, "").strip()
+    url_template = resolve_hansen_url_template()
 
     for layer in layers:
         tile_dir = resolve_tile_dir(tile_id)
@@ -98,11 +107,6 @@ def ensure_hansen_layers_present(
             )
             continue
 
-        if not url_template:
-            raise RuntimeError(
-                "Missing Hansen URL template. Set EUDR_DMI_HANSEN_URL_TEMPLATE to enable downloads."
-            )
-
         _download_to_path(source_url, local_path)
         entries.append(
             HansenLayerEntry(
@@ -129,8 +133,10 @@ def build_entries_from_provenance(
     provenance: Iterable[object],
     *,
     tile_dir: Path,
+    url_template: str | None = None,
 ) -> list[HansenLayerEntry]:
     entries: list[HansenLayerEntry] = []
+    resolved_template = (url_template or resolve_hansen_url_template()).strip()
     for item in provenance:
         layer = getattr(item, "layer", None)
         relpath = getattr(item, "relpath", None)
@@ -140,6 +146,11 @@ def build_entries_from_provenance(
         local_path = (tile_dir / relpath).resolve()
         size_bytes = local_path.stat().st_size if local_path.exists() else 0
         tile_id = _infer_tile_id_from_path(Path(relpath))
+        source_url = (
+            _format_url(resolved_template, tile_id=tile_id, layer=str(layer))
+            if resolved_template and tile_id != "unknown"
+            else ""
+        )
         entries.append(
             HansenLayerEntry(
                 tile_id=tile_id,
@@ -147,7 +158,7 @@ def build_entries_from_provenance(
                 local_path=str(local_path),
                 sha256=str(sha256),
                 size_bytes=size_bytes,
-                source_url="",
+                source_url=source_url,
                 status="present" if local_path.exists() else "missing",
             )
         )

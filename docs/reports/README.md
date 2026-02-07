@@ -34,6 +34,16 @@ Deterministic example runner:
 
 - `scripts/run_example_report.sh`
 
+## AOI report regeneration contract
+
+All AOI report generation must be preceded by:
+
+- `scripts/clean_aoi_reports.sh`
+
+Mandatory regression test:
+
+- `scripts/run_example_report_clean.sh`
+
 ## Where to look
 
 - ADR: see the decision record in `docs/architecture/decision_records/` about report pipeline architecture.
