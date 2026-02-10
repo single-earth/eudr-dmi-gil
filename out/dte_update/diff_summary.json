@@ -4,23 +4,58 @@
     "added_path": [],
     "hash_changed": [
       {
-        "baseline_sha256": "a0a835e45409244e80f44cbc55891f5855a3884d91576a2e7d188a7c4f7c7ae8",
-        "published_sha256": "3adcf35d520edb73952d97ca03264250f1c7907a7a3df6a413a9badd865113c1",
+        "baseline_sha256": "4b85047bf0e1f3a1679b95425f31db7bf45c10e506d76ac99cf51dc27c09635b",
+        "published_sha256": "d16f41c76f93660140d44b185c63fa24a84db8f2148bb7fa9fafe9af5cc973aa",
         "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
       },
       {
-        "baseline_sha256": "777e2303835771ca6e1b2eb75adab1bdf99e0575cb83a5ec992f614d88b84476",
-        "published_sha256": "46a6af09e12ba40641ccc13d290a3375b7ab36c2ba6b9924f8d2abdc40ef4fde",
+        "baseline_sha256": "cc02187c24e73bce696e97679dc1902b7484e5cc91776b49a12af1f7f231300d",
+        "published_sha256": "1d63a2d20f8c205afad991dba63ba734ba70741face7cded862ec1fb2caca05f",
         "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
       },
       {
-        "baseline_sha256": "d8160c38981718b017a97703fe80c8dd17d84648e31c2321e058c60e5d93dbe1",
-        "published_sha256": "4d5468a70357e919bb6365c1621db61c6105e9fe59b40506ebb22692afca1b60",
+        "baseline_sha256": "e7b6efc8c9f9c5738576b8c767979b5f2b95f47799be75aee2a6ca18384a6c6b",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson"
+      },
+      {
+        "baseline_sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson"
+      },
+      {
+        "baseline_sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson"
+      },
+      {
+        "baseline_sha256": "0948a4ede585c55020e38e88514614d2f215b0078895ce8b5cb53b19141ac567",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson"
+      },
+      {
+        "baseline_sha256": "5554b07c8ea4858fad03c4d0763facf51e5f3f9633052d14c97e381f5ab71497",
+        "published_sha256": "1132286cb052a1bfa3a7b9966cc67be5b60c6c321a84f0a08c5264b3c2dc9b37",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json"
+      },
+      {
+        "baseline_sha256": "49b59bc3bc51449b190c935acedcc46516999dc4b9a2e12a236a5e7dd1dcaa55",
+        "published_sha256": "63329a11d53b790c57494e969a7d8de3174f310b7f9df845ad7432361ca517d6",
         "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
       },
       {
+        "baseline_sha256": "6c6174cd057296af79efbcde6112a33dfd2656a2c0401c5520a31370cee4f3be",
+        "published_sha256": "e6ad15a0c5230e5a0ae26fb697e79ec82454c5daa4e521a9780a8611c4e2ec11",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json"
+      },
+      {
+        "baseline_sha256": "1cb14afa1e300ab8b2e5431814b7a1ea15f0745c66c0f6d5b9e2b6e87bb5fd22",
+        "published_sha256": "16b1495b00e01dda094b2cd6cc6cb5a425d3ea418e2bc9b4de17c0a029dd7514",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json"
+      },
+      {
         "baseline_sha256": "dd10f24a336858860bc0dfec7e696552f10e3344d6cd711e646f39cac11d4821",
-        "published_sha256": "51d69f148756ea967ff72901cd1c08d205d4473c05358243c2b635a200bd2892",
+        "published_sha256": "55bcdb9e23abf3bd127d92dc4e9846deb740dee7c241721dd82120b1b4a95e62",
         "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv"
       }
     ],
@@ -32,23 +67,58 @@
     "added_path": [],
     "hash_changed": [
       {
-        "local_sha256": "a0a835e45409244e80f44cbc55891f5855a3884d91576a2e7d188a7c4f7c7ae8",
-        "published_sha256": "3adcf35d520edb73952d97ca03264250f1c7907a7a3df6a413a9badd865113c1",
+        "local_sha256": "4b85047bf0e1f3a1679b95425f31db7bf45c10e506d76ac99cf51dc27c09635b",
+        "published_sha256": "d16f41c76f93660140d44b185c63fa24a84db8f2148bb7fa9fafe9af5cc973aa",
         "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
       },
       {
-        "local_sha256": "777e2303835771ca6e1b2eb75adab1bdf99e0575cb83a5ec992f614d88b84476",
-        "published_sha256": "46a6af09e12ba40641ccc13d290a3375b7ab36c2ba6b9924f8d2abdc40ef4fde",
+        "local_sha256": "cc02187c24e73bce696e97679dc1902b7484e5cc91776b49a12af1f7f231300d",
+        "published_sha256": "1d63a2d20f8c205afad991dba63ba734ba70741face7cded862ec1fb2caca05f",
         "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
       },
       {
-        "local_sha256": "d8160c38981718b017a97703fe80c8dd17d84648e31c2321e058c60e5d93dbe1",
-        "published_sha256": "4d5468a70357e919bb6365c1621db61c6105e9fe59b40506ebb22692afca1b60",
+        "local_sha256": "e7b6efc8c9f9c5738576b8c767979b5f2b95f47799be75aee2a6ca18384a6c6b",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson"
+      },
+      {
+        "local_sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson"
+      },
+      {
+        "local_sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson"
+      },
+      {
+        "local_sha256": "0948a4ede585c55020e38e88514614d2f215b0078895ce8b5cb53b19141ac567",
+        "published_sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson"
+      },
+      {
+        "local_sha256": "5554b07c8ea4858fad03c4d0763facf51e5f3f9633052d14c97e381f5ab71497",
+        "published_sha256": "1132286cb052a1bfa3a7b9966cc67be5b60c6c321a84f0a08c5264b3c2dc9b37",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json"
+      },
+      {
+        "local_sha256": "49b59bc3bc51449b190c935acedcc46516999dc4b9a2e12a236a5e7dd1dcaa55",
+        "published_sha256": "63329a11d53b790c57494e969a7d8de3174f310b7f9df845ad7432361ca517d6",
         "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
       },
       {
+        "local_sha256": "6c6174cd057296af79efbcde6112a33dfd2656a2c0401c5520a31370cee4f3be",
+        "published_sha256": "e6ad15a0c5230e5a0ae26fb697e79ec82454c5daa4e521a9780a8611c4e2ec11",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json"
+      },
+      {
+        "local_sha256": "1cb14afa1e300ab8b2e5431814b7a1ea15f0745c66c0f6d5b9e2b6e87bb5fd22",
+        "published_sha256": "16b1495b00e01dda094b2cd6cc6cb5a425d3ea418e2bc9b4de17c0a029dd7514",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json"
+      },
+      {
         "local_sha256": "dd10f24a336858860bc0dfec7e696552f10e3344d6cd711e646f39cac11d4821",
-        "published_sha256": "51d69f148756ea967ff72901cd1c08d205d4473c05358243c2b635a200bd2892",
+        "published_sha256": "55bcdb9e23abf3bd127d92dc4e9846deb740dee7c241721dd82120b1b4a95e62",
         "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv"
       }
     ],
@@ -59,7 +129,7 @@
     "path": "docs/baselines/dte_gpt_instructions.txt",
     "sha256": "4084b7750d4b6bac43ec566fef5206d55797d58c6362ffd3e28416b58725c936"
   },
-  "generated_utc": "2026-02-08T13:01:48+00:00",
+  "generated_utc": "2026-02-10T11:42:38+00:00",
   "published_report_url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/report.html",
-  "retrieved_utc": "2026-02-10T11:03:18.556407+00:00"
+  "retrieved_utc": "2026-02-10T12:22:50.349549+00:00"
 }

@@ -11,7 +11,7 @@ def test_hansen_tile_ids_for_estonia_fixture() -> None:
     bbox = load_aoi_bbox(aoi_path)
     tile_ids = hansen_tile_ids_for_bbox(bbox)
 
-    assert tile_ids == ["N50_E020"]
+    assert tile_ids == ["N60_E020"]
 
 
 def test_hansen_tile_ids_for_multipolygon_fixture() -> None:
@@ -19,7 +19,7 @@ def test_hansen_tile_ids_for_multipolygon_fixture() -> None:
     bbox = load_aoi_bbox(aoi_path)
     tile_ids = hansen_tile_ids_for_bbox(bbox)
 
-    assert tile_ids == ["N50_E020", "N50_E030", "N60_E020", "N60_E030"]
+    assert tile_ids == ["N60_E020", "N60_E030", "N70_E020", "N70_E030"]
 
 
 def test_infer_hansen_latest_year_from_dataset_version(tmp_path: Path) -> None:

@@ -8,22 +8,76 @@
       "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b"
     },
     {
-      "bytes": 9050,
+      "bytes": 9481,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "a0a835e45409244e80f44cbc55891f5855a3884d91576a2e7d188a7c4f7c7ae8"
+      "sha256": "4b85047bf0e1f3a1679b95425f31db7bf45c10e506d76ac99cf51dc27c09635b"
     },
     {
-      "bytes": 9744,
+      "bytes": 9779,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "777e2303835771ca6e1b2eb75adab1bdf99e0575cb83a5ec992f614d88b84476"
+      "sha256": "cc02187c24e73bce696e97679dc1902b7484e5cc91776b49a12af1f7f231300d"
+    },
+    {
+      "bytes": 318960,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson",
+      "sha256": "e7b6efc8c9f9c5738576b8c767979b5f2b95f47799be75aee2a6ca18384a6c6b"
+    },
+    {
+      "bytes": 752528,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson",
+      "sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323"
+    },
+    {
+      "bytes": 752528,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson",
+      "sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323"
+    },
+    {
+      "bytes": 152466,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson",
+      "sha256": "0948a4ede585c55020e38e88514614d2f215b0078895ce8b5cb53b19141ac567"
+    },
+    {
+      "bytes": 974,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json",
+      "sha256": "5554b07c8ea4858fad03c4d0763facf51e5f3f9633052d14c97e381f5ab71497"
     },
     {
       "bytes": 1154,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
-      "sha256": "d8160c38981718b017a97703fe80c8dd17d84648e31c2321e058c60e5d93dbe1"
+      "sha256": "49b59bc3bc51449b190c935acedcc46516999dc4b9a2e12a236a5e7dd1dcaa55"
+    },
+    {
+      "bytes": 216,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json",
+      "sha256": "6c6174cd057296af79efbcde6112a33dfd2656a2c0401c5520a31370cee4f3be"
+    },
+    {
+      "bytes": 129,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.csv",
+      "sha256": "caa14b64eb9738a3dc9610966dd7bbc76821986ca5bcf1aa4bdadd44c5e9f41c"
+    },
+    {
+      "bytes": 342,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json",
+      "sha256": "1cb14afa1e300ab8b2e5431814b7a1ea15f0745c66c0f6d5b9e2b6e87bb5fd22"
+    },
+    {
+      "bytes": 464,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/map/map_config.json",
+      "sha256": "d027dccbe30540f5fb096d56b055fc6478e620fb421561cbfc7d98882466fe78"
     },
     {
       "bytes": 100,
@@ -33,9 +87,9 @@
     }
   ],
   "bundle": "example",
-  "generated_utc": "2026-02-08T13:01:48+00:00",
+  "generated_utc": "2026-02-10T11:42:38+00:00",
   "source": {
     "local_run_root": "out/site_bundle/aoi_reports/runs/example",
-    "retrieved_utc": "2026-02-10T11:03:19.052182+00:00"
+    "retrieved_utc": "2026-02-10T12:22:51.964122+00:00"
   }
 }

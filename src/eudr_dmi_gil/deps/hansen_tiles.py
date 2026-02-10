@@ -42,9 +42,19 @@ def _band_start(value: float, band_size: int = 10) -> int:
     return int(math.floor(value / band_size) * band_size)
 
 
+def _lat_band_start(value: float, band_size: int = 10) -> int:
+    return int(math.ceil(value / band_size) * band_size)
+
+
 def _band_range(min_value: float, max_value: float, band_size: int = 10) -> list[int]:
     min_band = _band_start(min_value, band_size)
     max_band = _band_start(max_value - 1e-9, band_size)
+    return list(range(min_band, max_band + band_size, band_size))
+
+
+def _lat_band_range(min_value: float, max_value: float, band_size: int = 10) -> list[int]:
+    min_band = _lat_band_start(min_value + 1e-9, band_size)
+    max_band = _lat_band_start(max_value - 1e-9, band_size)
     return list(range(min_band, max_band + band_size, band_size))
 
 
@@ -60,7 +70,7 @@ def _format_lon_band(lon: int) -> str:
 
 def hansen_tile_ids_for_bbox(bbox: tuple[float, float, float, float]) -> list[str]:
     minx, miny, maxx, maxy = bbox
-    lat_bands = _band_range(miny, maxy)
+    lat_bands = _lat_band_range(miny, maxy)
     lon_bands = _band_range(minx, maxx)
 
     tile_ids = [

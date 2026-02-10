@@ -265,6 +265,12 @@ def _render_html_summary(
     <script>
         (function () {{
             const map = L.map('map', {{ zoomControl: true }});
+            const satellite = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}',
+                {{
+                    attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+                }},
+            ).addTo(map);
             const configUrl = '{map_href}';
             fetch(configUrl)
                 .then((resp) => resp.json())
@@ -277,6 +283,7 @@ def _render_html_summary(
                     map.fitBounds(bounds);
 
                     const overlays = {{}};
+                    const baseLayers = {{ 'Satellite': satellite }};
                     const addGeoJson = (label, url, options) => {{
                         if (!url) return;
                         fetch(url)
@@ -300,7 +307,7 @@ def _render_html_summary(
                         }},
                     }});
 
-                    L.control.layers(null, overlays, {{ collapsed: false }}).addTo(map);
+                    L.control.layers(baseLayers, overlays, {{ collapsed: false }}).addTo(map);
                 }});
         }})();
     </script>
