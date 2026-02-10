@@ -164,6 +164,20 @@ if [[ -f "$SUMMARY_JSON" ]]; then
   printf "%s\n" "- $abs_summary_json"
 fi
 
+set +e
+python3 scripts/detect_example_bundle_artifact_changes.py --local-run-root out/site_bundle/aoi_reports/runs/example
+detect_status=$?
+set -e
+if [[ $detect_status -eq 0 ]]; then
+  echo "DTE setup update: not required (no artifact change detected)."
+elif [[ $detect_status -eq 3 ]]; then
+  echo "DTE setup update REQUIRED: artifacts changed."
+  echo "Open: out/dte_update/dte_setup_patch.md (copy/paste into DTE GPT setup)"
+else
+  echo "ERROR: DTE update detection failed." >&2
+  exit 2
+fi
+
 if [[ "$PUBLISH_DT" == "1" ]]; then
   if [[ ! -d "$DT_REPO/.git" ]]; then
     echo "ERROR: DT repo not found: $DT_REPO" >&2

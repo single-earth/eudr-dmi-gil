@@ -1,0 +1,41 @@
+{
+  "aoi": "estonia_testland1",
+  "artifacts": [
+    {
+      "bytes": 355,
+      "relative_path": "inputs/aoi.geojson",
+      "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b",
+      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/inputs/aoi.geojson"
+    },
+    {
+      "bytes": 6478,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
+      "sha256": "3adcf35d520edb73952d97ca03264250f1c7907a7a3df6a413a9badd865113c1",
+      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.html"
+    },
+    {
+      "bytes": 16212,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
+      "sha256": "46a6af09e12ba40641ccc13d290a3375b7ab36c2ba6b9924f8d2abdc40ef4fde",
+      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.json"
+    },
+    {
+      "bytes": 1154,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
+      "sha256": "4d5468a70357e919bb6365c1621db61c6105e9fe59b40506ebb22692afca1b60",
+      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
+    },
+    {
+      "bytes": 712,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv",
+      "sha256": "51d69f148756ea967ff72901cd1c08d205d4473c05358243c2b635a200bd2892",
+      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv"
+    }
+  ],
+  "bundle": "example",
+  "generated_utc": "2026-02-08T13:01:48+00:00",
+  "source": {
+    "published_report_url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/report.html",
+    "retrieved_utc": "2026-02-09T12:27:37.688453+00:00"
+  }
+}

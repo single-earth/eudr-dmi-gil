@@ -1,0 +1,55 @@
+{
+  "aoi": "estonia_testland1",
+  "baseline_diff": {
+    "added_path": [],
+    "hash_changed": [
+      {
+        "baseline_sha256": "792f5792e2254ee833f1a0a52636f3b55afaf914d746732f99be9796f449502d",
+        "published_sha256": "3adcf35d520edb73952d97ca03264250f1c7907a7a3df6a413a9badd865113c1",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
+      },
+      {
+        "baseline_sha256": "2a9f43ce52e3397f3639b7c7698a828aa813f41b0d5009bbf4e4c9411332e37c",
+        "published_sha256": "46a6af09e12ba40641ccc13d290a3375b7ab36c2ba6b9924f8d2abdc40ef4fde",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
+      },
+      {
+        "baseline_sha256": "f9992743b877d9f851a388702f5c5277f227b7f13eb600daf5223b23b15d6d74",
+        "published_sha256": "4d5468a70357e919bb6365c1621db61c6105e9fe59b40506ebb22692afca1b60",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
+      }
+    ],
+    "removed_path": []
+  },
+  "bundle": "example",
+  "changes_detected": true,
+  "diff": {
+    "added_path": [],
+    "hash_changed": [
+      {
+        "local_sha256": "792f5792e2254ee833f1a0a52636f3b55afaf914d746732f99be9796f449502d",
+        "published_sha256": "3adcf35d520edb73952d97ca03264250f1c7907a7a3df6a413a9badd865113c1",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
+      },
+      {
+        "local_sha256": "2a9f43ce52e3397f3639b7c7698a828aa813f41b0d5009bbf4e4c9411332e37c",
+        "published_sha256": "46a6af09e12ba40641ccc13d290a3375b7ab36c2ba6b9924f8d2abdc40ef4fde",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
+      },
+      {
+        "local_sha256": "f9992743b877d9f851a388702f5c5277f227b7f13eb600daf5223b23b15d6d74",
+        "published_sha256": "4d5468a70357e919bb6365c1621db61c6105e9fe59b40506ebb22692afca1b60",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
+      }
+    ],
+    "missing_locally": [],
+    "removed_path": []
+  },
+  "dte_instructions": {
+    "path": "docs/baselines/dte_gpt_instructions.txt",
+    "sha256": "999e8f958ea2117d73d0ba339e2265cda3f92ef5b0e827618e6dba43ea2765df"
+  },
+  "generated_utc": "2026-02-08T13:01:48+00:00",
+  "published_report_url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/report.html",
+  "retrieved_utc": "2026-02-09T12:27:37.688453+00:00"
+}

@@ -1,0 +1,41 @@
+{
+  "aoi": "estonia_testland1",
+  "artifacts": [
+    {
+      "bytes": 355,
+      "missing": false,
+      "relative_path": "inputs/aoi.geojson",
+      "sha256": "22ad6fe53d54f93b3d2f5894c9722b944ebd005734435308c2f14020e76bc28b"
+    },
+    {
+      "bytes": 6478,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
+      "sha256": "792f5792e2254ee833f1a0a52636f3b55afaf914d746732f99be9796f449502d"
+    },
+    {
+      "bytes": 16212,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
+      "sha256": "2a9f43ce52e3397f3639b7c7698a828aa813f41b0d5009bbf4e4c9411332e37c"
+    },
+    {
+      "bytes": 1154,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
+      "sha256": "f9992743b877d9f851a388702f5c5277f227b7f13eb600daf5223b23b15d6d74"
+    },
+    {
+      "bytes": 712,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv",
+      "sha256": "51d69f148756ea967ff72901cd1c08d205d4473c05358243c2b635a200bd2892"
+    }
+  ],
+  "bundle": "example",
+  "generated_utc": "2026-02-08T13:01:48+00:00",
+  "source": {
+    "local_run_root": "out/site_bundle/aoi_reports/runs/example",
+    "retrieved_utc": "2026-02-09T12:27:38.306862+00:00"
+  }
+}
