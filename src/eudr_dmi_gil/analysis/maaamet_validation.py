@@ -9,11 +9,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+import logging
+
 from pyproj import Geod
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
 
 from eudr_dmi_gil.reports.determinism import write_json
+
+LOGGER = logging.getLogger(__name__)
+WFS_TIMEOUT_SECONDS = int(os.environ.get("EUDR_DMI_MAAAMET_WFS_TIMEOUT", "60"))
 
 
 @dataclass(frozen=True)
@@ -154,8 +159,11 @@ class WfsMaaAmetProvider(MaaAmetProvider):
             "bbox": f"{minx},{miny},{maxx},{maxy},EPSG:4326",
         }
         url = f"{self._url}?{urllib.parse.urlencode(params)}"
-        with urllib.request.urlopen(url) as resp:  # noqa: S310
+        LOGGER.info("Maa-amet WFS request: %s", url)
+        print(f"Maa-amet WFS request: {url}", flush=True)
+        with urllib.request.urlopen(url, timeout=WFS_TIMEOUT_SECONDS) as resp:  # noqa: S310
             payload = resp.read().decode("utf-8")
+        print("Maa-amet WFS response received.", flush=True)
         data = json.loads(payload)
         return _analyze_parcels_from_geojson(data, aoi_geom)
 
