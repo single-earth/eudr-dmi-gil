@@ -11,13 +11,13 @@
       "bytes": 9481,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "4b85047bf0e1f3a1679b95425f31db7bf45c10e506d76ac99cf51dc27c09635b"
+      "sha256": "091b819307d2a5364b6596c0863dd4509e823a80c05076081d28b296389f0d48"
     },
     {
       "bytes": 9779,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "cc02187c24e73bce696e97679dc1902b7484e5cc91776b49a12af1f7f231300d"
+      "sha256": "d66f12006cfb3b645d574772613b3bb5bd66a38eb9a1018113740a4a9a176a36"
     },
     {
       "bytes": 318960,
@@ -53,7 +53,7 @@
       "bytes": 1154,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
-      "sha256": "49b59bc3bc51449b190c935acedcc46516999dc4b9a2e12a236a5e7dd1dcaa55"
+      "sha256": "40fcb6cdbc464a1d19bb832942635a00dfb4e586c275bcee5b12c346548b6e31"
     },
     {
       "bytes": 216,
@@ -87,9 +87,9 @@
     }
   ],
   "bundle": "example",
-  "generated_utc": "2026-02-10T11:42:38+00:00",
+  "generated_utc": "2026-02-10T12:22:47+00:00",
   "source": {
     "local_run_root": "out/site_bundle/aoi_reports/runs/example",
-    "retrieved_utc": "2026-02-10T12:22:51.964122+00:00"
+    "retrieved_utc": "2026-02-10T14:34:18.852821+00:00"
   }
 }

@@ -1,6 +1,6 @@
 ## Bundle Update Intake (auto-generated; paste into DTE setup when example artifacts change)
 
-Generated (UTC): 2026-02-10T11:42:38+00:00
+Generated (UTC): 2026-02-10T12:22:47+00:00
 
 Declared evidence artifacts (relative paths):
 - inputs/aoi.geojson

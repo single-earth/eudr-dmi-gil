@@ -563,6 +563,10 @@ def main(argv: list[str] | None = None) -> int:
     maaamet_parcels_override = None
     maaamet_provider = None
     maaamet_parcels = None
+    maaamet_land_area_sum: float | None = None
+    hansen_land_area_sum: float | None = None
+    land_area_diff_ha: float | None = None
+    land_area_diff_pct: float | None = None
     parcel_rows: list[dict[str, Any]] = []
     maaamet_wfs_url = os.environ.get("MAAAMET_WFS_URL")
     maaamet_wfs_layer = os.environ.get("MAAAMET_WFS_LAYER") or "kataster:ky_kehtiv"
@@ -645,6 +649,23 @@ def main(argv: list[str] | None = None) -> int:
                         fields_considered=parcel.fields_considered,
                         forest_area_key_used=parcel.forest_area_key_used,
                     )
+                )
+            hansen_land_area_sum = sum(
+                p.hansen_land_area_ha
+                for p in updated_parcels
+                if p.hansen_land_area_ha is not None
+            )
+            maaamet_land_area_sum = sum(
+                p.maaamet_land_area_ha
+                for p in updated_parcels
+                if p.maaamet_land_area_ha is not None
+            )
+            if maaamet_land_area_sum and hansen_land_area_sum is not None:
+                land_area_diff_ha = hansen_land_area_sum - maaamet_land_area_sum
+                land_area_diff_pct = (
+                    land_area_diff_ha / maaamet_land_area_sum * 100.0
+                    if maaamet_land_area_sum > 0
+                    else None
                 )
             maaamet_top10_result = run_maaamet_top10(
                 aoi_geojson_path=geo_path,
@@ -1196,6 +1217,14 @@ def main(argv: list[str] | None = None) -> int:
         maaamet_block["parcel_count"] = len(maaamet_top10_result.parcels_all)
         parcel_rows = _parcel_table_rows(maaamet_top10_result.parcels)
         maaamet_block["parcels"] = parcel_rows
+        if maaamet_land_area_sum is not None:
+            maaamet_block["maaamet_land_area_ha_sum"] = round(maaamet_land_area_sum, 6)
+        if hansen_land_area_sum is not None:
+            maaamet_block["hansen_land_area_ha_sum"] = round(hansen_land_area_sum, 6)
+        if land_area_diff_ha is not None:
+            maaamet_block["land_area_diff_ha"] = round(land_area_diff_ha, 6)
+        if land_area_diff_pct is not None:
+            maaamet_block["land_area_diff_pct"] = round(land_area_diff_pct, 6)
         maaamet_block["cadastral_forest_ha_sum"] = round(
             sum(
                 p.forest_area_ha

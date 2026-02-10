@@ -8,57 +8,57 @@
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/inputs/aoi.geojson"
     },
     {
-      "bytes": 8484,
+      "bytes": 8814,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "d16f41c76f93660140d44b185c63fa24a84db8f2148bb7fa9fafe9af5cc973aa",
+      "sha256": "2e9ca814c0f834e1500a0543a69b78ab187dbb644585eb01fd5098f1c36bebef",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.html"
     },
     {
-      "bytes": 12563,
+      "bytes": 12598,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "1d63a2d20f8c205afad991dba63ba734ba70741face7cded862ec1fb2caca05f",
+      "sha256": "3b5e7bec64d1903716fb3fcb5430be889a2e1cbb2712e624dc2c12874e6505f5",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.json"
     },
     {
-      "bytes": 43,
+      "bytes": 318960,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson",
-      "sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+      "sha256": "e7b6efc8c9f9c5738576b8c767979b5f2b95f47799be75aee2a6ca18384a6c6b",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson"
     },
     {
-      "bytes": 43,
+      "bytes": 752528,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson",
-      "sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+      "sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson"
     },
     {
-      "bytes": 43,
+      "bytes": 752528,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson",
-      "sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+      "sha256": "62a4174f94b270f25a16a7021b8efead623fde67f6f9e97d15c4365818659323",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson"
     },
     {
-      "bytes": 43,
+      "bytes": 152466,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson",
-      "sha256": "6d6b80a88dc60e65991d34024fe7cf2eb86531ffba8b75efb697fe0a601f2799",
+      "sha256": "0948a4ede585c55020e38e88514614d2f215b0078895ce8b5cb53b19141ac567",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson"
     },
     {
-      "bytes": 688,
+      "bytes": 974,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json",
-      "sha256": "1132286cb052a1bfa3a7b9966cc67be5b60c6c321a84f0a08c5264b3c2dc9b37",
+      "sha256": "5554b07c8ea4858fad03c4d0763facf51e5f3f9633052d14c97e381f5ab71497",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json"
     },
     {
       "bytes": 1154,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
-      "sha256": "63329a11d53b790c57494e969a7d8de3174f310b7f9df845ad7432361ca517d6",
+      "sha256": "49b59bc3bc51449b190c935acedcc46516999dc4b9a2e12a236a5e7dd1dcaa55",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
     },
     {
-      "bytes": 196,
+      "bytes": 216,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json",
-      "sha256": "e6ad15a0c5230e5a0ae26fb697e79ec82454c5daa4e521a9780a8611c4e2ec11",
+      "sha256": "6c6174cd057296af79efbcde6112a33dfd2656a2c0401c5520a31370cee4f3be",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json"
     },
     {
@@ -68,9 +68,9 @@
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.csv"
     },
     {
-      "bytes": 337,
+      "bytes": 342,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json",
-      "sha256": "16b1495b00e01dda094b2cd6cc6cb5a425d3ea418e2bc9b4de17c0a029dd7514",
+      "sha256": "1cb14afa1e300ab8b2e5431814b7a1ea15f0745c66c0f6d5b9e2b6e87bb5fd22",
       "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json"
     },
     {
@@ -87,9 +87,9 @@
     }
   ],
   "bundle": "example",
-  "generated_utc": "2026-02-10T11:42:38+00:00",
+  "generated_utc": "2026-02-10T12:22:47+00:00",
   "source": {
     "published_report_url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/runs/example/report.html",
-    "retrieved_utc": "2026-02-10T12:22:50.349549+00:00"
+    "retrieved_utc": "2026-02-10T14:34:14.837846+00:00"
   }
 }
