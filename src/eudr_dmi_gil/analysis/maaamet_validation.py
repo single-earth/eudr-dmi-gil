@@ -161,7 +161,13 @@ class WfsMaaAmetProvider(MaaAmetProvider):
         url = f"{self._url}?{urllib.parse.urlencode(params)}"
         LOGGER.info("Maa-amet WFS request: %s", url)
         print(f"Maa-amet WFS request: {url}", flush=True)
-        with urllib.request.urlopen(url, timeout=WFS_TIMEOUT_SECONDS) as resp:  # noqa: S310
+        try:
+            response = urllib.request.urlopen(  # noqa: S310
+                url, timeout=WFS_TIMEOUT_SECONDS
+            )
+        except TypeError:
+            response = urllib.request.urlopen(url)  # noqa: S310
+        with response as resp:
             payload = resp.read().decode("utf-8")
         print("Maa-amet WFS response received.", flush=True)
         data = json.loads(payload)

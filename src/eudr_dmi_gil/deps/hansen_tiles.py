@@ -43,7 +43,7 @@ def _band_start(value: float, band_size: int = 10) -> int:
 
 
 def _lat_band_start(value: float, band_size: int = 10) -> int:
-    return int(math.ceil(value / band_size) * band_size)
+    return int(math.floor(value / band_size) * band_size)
 
 
 def _band_range(min_value: float, max_value: float, band_size: int = 10) -> list[int]:
@@ -53,8 +53,16 @@ def _band_range(min_value: float, max_value: float, band_size: int = 10) -> list
 
 
 def _lat_band_range(min_value: float, max_value: float, band_size: int = 10) -> list[int]:
-    min_band = _lat_band_start(min_value + 1e-9, band_size)
-    max_band = _lat_band_start(max_value - 1e-9, band_size)
+    start_band = _lat_band_start(min_value, band_size)
+    mid = start_band + (band_size / 2)
+
+    if max_value < mid:
+        min_band = start_band
+        max_band = _lat_band_start(max_value - 1e-9, band_size)
+    else:
+        min_band = _lat_band_start(min_value + band_size, band_size)
+        max_band = _lat_band_start(max_value - 1e-9 + band_size, band_size)
+
     return list(range(min_band, max_band + band_size, band_size))
 
 
