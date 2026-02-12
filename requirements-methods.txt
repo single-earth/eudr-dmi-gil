@@ -9,3 +9,4 @@ shapely
 rasterio
 duckdb
 minio
+numba

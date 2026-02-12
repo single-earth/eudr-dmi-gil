@@ -19,7 +19,10 @@ from .determinism import canonical_json_bytes, sha256_bytes, write_bytes, write_
 from eudr_dmi_gil.deps.hansen_acquire import build_entries_from_provenance, infer_hansen_latest_year
 from eudr_dmi_gil.deps.hansen_tiles import load_aoi_bbox
 from eudr_dmi_gil.geo.aoi_area import compute_aoi_geodesic_area_ha
-from eudr_dmi_gil.analysis.hansen_parcels import compute_hansen_parcel_stats
+from eudr_dmi_gil.analysis.hansen_parcels import (
+    compute_hansen_parcel_stats,
+    land_use_designation_counts,
+)
 from .policy_refs import collect_policy_mapping_refs
 
 
@@ -86,6 +89,44 @@ def _parcel_table_rows(parcels: list[object]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return str(value)
+
+
+def _build_maaamet_parcel_metadata(parcels: list[object]) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    for parcel in parcels:
+        props = getattr(parcel, "properties", {}) or {}
+        if not isinstance(props, dict):
+            props = {}
+        designation = props.get("siht1") or props.get("sihtotstarve")
+        municipality = props.get("ov_nimi") or props.get("ay_nimi") or props.get("omavalitsus")
+        entries.append(
+            {
+                "parcel_id": getattr(parcel, "parcel_id", ""),
+                "land_use_designation": designation,
+                "municipality": municipality,
+                "pindala_m2": getattr(parcel, "pindala_m2", None),
+                "maaamet_land_area_ha": getattr(parcel, "maaamet_land_area_ha", None),
+                "maaamet_forest_area_ha": getattr(parcel, "maaamet_forest_area_ha", None),
+                "forest_area_ha": getattr(parcel, "forest_area_ha", None),
+                "properties": _json_safe(props),
+            }
+        )
+
+    return {
+        "parcel_count": len(entries),
+        "land_use_designation_counts": land_use_designation_counts(parcels),
+        "parcels": entries,
+    }
 
 
 def _write_map_config(
@@ -563,6 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     maaamet_parcels_override = None
     maaamet_provider = None
     maaamet_parcels = None
+    maaamet_parcels_metadata_path: Path | None = None
     maaamet_land_area_sum: float | None = None
     hansen_land_area_sum: float | None = None
     land_area_diff_ha: float | None = None
@@ -588,6 +630,21 @@ def main(argv: list[str] | None = None) -> int:
         maaamet_provider = provider
         if provider is not None:
             maaamet_parcels = provider.fetch_parcel_features(aoi_geojson_path=geo_path)
+            designation_counts = land_use_designation_counts(maaamet_parcels)
+            if designation_counts:
+                sorted_counts = sorted(
+                    designation_counts.items(),
+                    key=lambda kv: (-kv[1], kv[0]),
+                )
+                unique_count = len(sorted_counts)
+                preview = ", ".join(
+                    f"{name} ({count})" for name, count in sorted_counts[:15]
+                )
+                print(
+                    "Maa-amet land-use designations: "
+                    f"{unique_count} (expected 9). Top: {preview}",
+                    flush=True,
+                )
 
     forest_loss_threshold_ha = 0.0
     forest_loss_percent_of_aoi: float | None = None
@@ -695,6 +752,16 @@ def main(argv: list[str] | None = None) -> int:
             aoi_geojson_path=geo_path,
             output_dir=bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet",
             provider=maaamet_provider,
+        )
+
+    if maaamet_top10_result is not None:
+        maaamet_metadata_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet"
+        maaamet_parcels_metadata_path = (
+            maaamet_metadata_dir / "maaamet_parcels_metadata.json"
+        )
+        write_json(
+            maaamet_parcels_metadata_path,
+            _build_maaamet_parcel_metadata(maaamet_top10_result.parcels),
         )
 
     if maaamet_top10_result is not None:
@@ -1241,8 +1308,18 @@ def main(argv: list[str] | None = None) -> int:
             maaamet_block["notes"] = (
                 f"WFS: {maaamet_wfs_url} layer={maaamet_wfs_layer}"
             )
+        if maaamet_parcels_metadata_path is not None:
+            maaamet_block["parcels_metadata_ref"] = {
+                "relpath": str(maaamet_parcels_metadata_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(maaamet_parcels_metadata_path),
+                "content_type": "application/json",
+            }
 
     artifact_paths: list[Path] = [geo_path]
+    if maaamet_parcels_metadata_path is not None:
+        artifact_paths.append(maaamet_parcels_metadata_path)
     if maaamet_top10_result is not None:
         artifact_paths.extend(
             [
@@ -1507,6 +1584,8 @@ def main(argv: list[str] | None = None) -> int:
             return "maaamet_top10_csv"
         if relpath.endswith("maaamet_fields_inventory.json"):
             return "maaamet_fields_inventory"
+        if relpath.endswith("maaamet_parcels_metadata.json"):
+            return "maaamet_parcels_metadata"
         return None
 
     # Populate evidence_artifacts in report JSON (exclude manifest to avoid circularity).

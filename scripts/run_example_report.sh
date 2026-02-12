@@ -59,6 +59,8 @@ mkdir -p "$EVIDENCE_ROOT"
 export EUDR_DMI_EVIDENCE_ROOT="$EVIDENCE_ROOT"
 export EUDR_DMI_AOI_STAGING_DIR="$OUTPUT_ROOT"
 export EUDR_DMI_HANSEN_TILE_DIR="$HANSEN_TILE_DIR"
+export MAAAMET_WFS_URL="${MAAAMET_WFS_URL:-https://gsavalik.envir.ee/geoserver/wfs}"
+export MAAAMET_WFS_LAYER="${MAAAMET_WFS_LAYER:-kataster:ky_kehtiv}"
 
 if [[ ! -f "$HANSEN_TILE_DIR/treecover2000.tif" || ! -f "$HANSEN_TILE_DIR/lossyear.tif" ]]; then
   python - <<'PY'

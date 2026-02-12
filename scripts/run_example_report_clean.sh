@@ -57,6 +57,8 @@ mkdir -p "$EVIDENCE_ROOT"
 
 export EUDR_DMI_EVIDENCE_ROOT="$EVIDENCE_ROOT"
 export EUDR_DMI_AOI_STAGING_DIR="$OUTPUT_ROOT"
+export MAAAMET_WFS_URL="${MAAAMET_WFS_URL:-https://gsavalik.envir.ee/geoserver/wfs}"
+export MAAAMET_WFS_LAYER="${MAAAMET_WFS_LAYER:-kataster:ky_kehtiv}"
 if ! "$PYTHON" scripts/ensure_hansen_for_aoi.py \
   --aoi-id "$AOI_ID" \
   --aoi-geojson "$AOI_PATH" \
