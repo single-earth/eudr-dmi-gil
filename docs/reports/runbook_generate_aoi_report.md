@@ -89,6 +89,13 @@ Wrapper script (runs the command, exports DT-staging output, validates JSON, and
 scripts/run_example_report_clean.sh
 ```
 
+Hansen defaults in the example runner:
+
+- Canopy threshold: `HANSEN_CANOPY_THRESHOLD` (default: `10`).
+- Reproject to projected CRS: `HANSEN_REPROJECT_TO_PROJECTED` (default: `1`).
+- Projected CRS: `HANSEN_PROJECTED_CRS` (default: `EPSG:6933`).
+- MinIO cache toggle: `HANSEN_MINIO_CACHE` (default: `1`).
+
 This prints:
 
 - input file path

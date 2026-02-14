@@ -55,12 +55,34 @@ fi
 
 rm -rf "$EVIDENCE_ROOT" "$OUTPUT_ROOT"
 mkdir -p "$EVIDENCE_ROOT"
-
+   python "$REPO_ROOT/scripts/export_aoi_reports_staging.py"
 export EUDR_DMI_EVIDENCE_ROOT="$EVIDENCE_ROOT"
 export EUDR_DMI_AOI_STAGING_DIR="$OUTPUT_ROOT"
 export EUDR_DMI_HANSEN_TILE_DIR="$HANSEN_TILE_DIR"
 export MAAAMET_WFS_URL="${MAAAMET_WFS_URL:-https://gsavalik.envir.ee/geoserver/wfs}"
 export MAAAMET_WFS_LAYER="${MAAAMET_WFS_LAYER:-kataster:ky_kehtiv}"
+HANSEN_MINIO_CACHE="${HANSEN_MINIO_CACHE:-1}"
+HANSEN_CANOPY_THRESHOLD="${HANSEN_CANOPY_THRESHOLD:-10}"
+HANSEN_REPROJECT_TO_PROJECTED="${HANSEN_REPROJECT_TO_PROJECTED:-1}"
+HANSEN_PROJECTED_CRS="${HANSEN_PROJECTED_CRS:-EPSG:6933}"
+if [[ "$HANSEN_MINIO_CACHE" == "1" ]]; then
+  export MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
+  export MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
+  export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
+  export MINIO_BUCKET="${MINIO_BUCKET:-eudr-dmi-gil}"
+  export MINIO_SECURE="${MINIO_SECURE:-false}"
+fi
+hansen_args=()
+if [[ "$HANSEN_MINIO_CACHE" == "1" ]]; then
+  hansen_args+=(--hansen-minio-cache)
+fi
+hansen_args+=(--hansen-canopy-threshold "$HANSEN_CANOPY_THRESHOLD")
+hansen_args+=(--hansen-projected-crs "$HANSEN_PROJECTED_CRS")
+if [[ "$HANSEN_REPROJECT_TO_PROJECTED" == "1" ]]; then
+  hansen_args+=(--hansen-reproject-to-projected)
+else
+  hansen_args+=(--hansen-no-reproject-to-projected)
+fi
 
 if [[ ! -f "$HANSEN_TILE_DIR/treecover2000.tif" || ! -f "$HANSEN_TILE_DIR/lossyear.tif" ]]; then
   python - <<'PY'
@@ -133,6 +155,7 @@ python -m eudr_dmi_gil.reports.cli \
   --bundle-id "$RUN_ID" \
   --out-format both \
   --enable-hansen-post-2020-loss \
+  "${hansen_args[@]}" \
   --metric area_ha=12.34:ha:example:deterministic \
   --metric forest_cover_fraction=0.56:fraction:example:deterministic
 
@@ -224,6 +247,20 @@ printf "%s\n" "- $abs_report_json"
 if [[ -f "$SUMMARY_JSON" ]]; then
   abs_summary_json="$(cd "$(dirname "$SUMMARY_JSON")" && pwd)/$(basename "$SUMMARY_JSON")"
   printf "%s\n" "- $abs_summary_json"
+fi
+
+set +e
+python3 "$REPO_ROOT/scripts/detect_example_bundle_artifact_changes.py" --local-run-root out/site_bundle/aoi_reports/runs/example
+detect_status=$?
+set -e
+if [[ $detect_status -eq 0 ]]; then
+  echo "DTE setup update: not required (no artifact change detected)."
+elif [[ $detect_status -eq 3 ]]; then
+  echo "DTE setup update REQUIRED: artifacts changed."
+  echo "Open: out/dte_update/dte_setup_patch.md (copy/paste into DTE GPT setup)"
+else
+  echo "ERROR: DTE update detection failed." >&2
+  exit 2
 fi
 
 if [[ "$PUBLISH_DT" == "1" ]]; then

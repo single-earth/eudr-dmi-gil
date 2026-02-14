@@ -87,6 +87,7 @@ def test_compute_forest_loss_post_2020(tmp_path: Path) -> None:
             canopy_threshold_percent=30,
             cutoff_year=2020,
             write_masks=True,
+            reproject_to_projected=False,
         ),
     )
 
@@ -179,6 +180,7 @@ def test_top10_parcels_mask_not_empty_or_explained(tmp_path: Path) -> None:
             canopy_threshold_percent=30,
             cutoff_year=2020,
             write_masks=True,
+            reproject_to_projected=False,
         ),
         zone_geom_wgs84=zone_geom,
         parcel_ids=["p1"],

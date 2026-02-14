@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -43,6 +44,7 @@ class ParcelFeature:
     maaamet_forest_area_ha: float | None
     hansen_land_area_ha: float | None
     hansen_forest_area_ha: float | None
+    hansen_forest_loss_ha: float | None
     fields_considered: list[str]
     forest_area_key_used: str | None
 
@@ -216,6 +218,38 @@ def _forest_related_keys(props: dict[str, Any]) -> list[str]:
     return sorted(keys)
 
 
+_HECTARE_FIELD_TOKEN_RE = re.compile(r"(?:^|[_\-])ha(?:$|[_\-])")
+
+
+def _is_forest_hectare_field(key: str) -> bool:
+    key_lower = key.lower()
+    if "mets" not in key_lower and "forest" not in key_lower:
+        return False
+    if key_lower.endswith("ha"):
+        return True
+    if _HECTARE_FIELD_TOKEN_RE.search(key_lower):
+        return True
+    return False
+
+
+def _normalize_forest_area_ha(
+    *,
+    area_value: float,
+    area_key: str,
+    maaamet_land_area_ha: float | None,
+) -> tuple[float, str]:
+    key_lower = area_key.lower()
+    if "m2" in key_lower or key_lower.endswith("_m"):
+        return area_value / 10_000.0, "reported_m2"
+
+    if maaamet_land_area_ha is not None and area_value > maaamet_land_area_ha:
+        converted = area_value / 10_000.0
+        if converted <= maaamet_land_area_ha:
+            return converted, "reported_m2_inferred"
+
+    return area_value, "reported_ha"
+
+
 def _analyze_parcel_feature(
     feature: dict[str, Any],
     *,
@@ -226,7 +260,7 @@ def _analyze_parcel_feature(
     if not geom:
         return None
     parcel_geom = shape(geom)
-    if not parcel_geom.intersects(aoi_geom):
+    if not aoi_geom.covers(parcel_geom):
         return None
     props = dict(feature.get("properties") or {})
     parcel_id = str(
@@ -238,6 +272,14 @@ def _analyze_parcel_feature(
     )
 
     fields_considered = _forest_related_keys(props)
+    geodesic_area_ha = _geodesic_area_ha(geom) if geom else None
+    pindala_m2 = _to_float(props.get("pindala"))
+    maaamet_land_area_ha: float | None = None
+    if pindala_m2 is not None:
+        maaamet_land_area_ha = pindala_m2 / 10_000.0
+    elif geodesic_area_ha is not None:
+        maaamet_land_area_ha = geodesic_area_ha
+
     mets_value = _to_float(props.get("mets"))
     mets_ha_value = _to_float(props.get("mets_ha"))
     forest_area_value = _to_float(props.get("forest_area_ha"))
@@ -248,34 +290,45 @@ def _analyze_parcel_feature(
     reference_method = "missing"
 
     if mets_value is not None:
-        forest_area_ha = mets_value / 10_000.0
+        forest_area_ha, reference_method = _normalize_forest_area_ha(
+            area_value=mets_value,
+            area_key="mets_m2",
+            maaamet_land_area_ha=maaamet_land_area_ha,
+        )
         forest_area_key_used = "mets"
         reference_source = "attribute:mets"
-        reference_method = "reported_m2"
     elif mets_ha_value is not None:
-        forest_area_ha = mets_ha_value
+        forest_area_ha, reference_method = _normalize_forest_area_ha(
+            area_value=mets_ha_value,
+            area_key="mets_ha",
+            maaamet_land_area_ha=maaamet_land_area_ha,
+        )
         forest_area_key_used = "mets_ha"
         reference_source = "attribute:mets_ha"
-        reference_method = "reported_ha"
     elif forest_area_value is not None:
-        forest_area_ha = forest_area_value
+        forest_area_ha, reference_method = _normalize_forest_area_ha(
+            area_value=forest_area_value,
+            area_key="forest_area_ha",
+            maaamet_land_area_ha=maaamet_land_area_ha,
+        )
         forest_area_key_used = "forest_area_ha"
         reference_source = "attribute:forest_area_ha"
-        reference_method = "reported_ha"
     else:
         for key in fields_considered:
-            if "ha" not in key.lower():
+            if not _is_forest_hectare_field(key):
                 continue
             candidate = _to_float(props.get(key))
             if candidate is None:
                 continue
-            forest_area_ha = candidate
+            forest_area_ha, reference_method = _normalize_forest_area_ha(
+                area_value=candidate,
+                area_key=str(key),
+                maaamet_land_area_ha=maaamet_land_area_ha,
+            )
             forest_area_key_used = str(key)
             reference_source = f"attribute:{key}"
-            reference_method = "reported_ha"
             break
 
-    geodesic_area_ha = _geodesic_area_ha(geom) if geom else None
     if forest_area_ha is None:
         if geodesic_area_ha is not None:
             forest_area_ha = geodesic_area_ha
@@ -283,12 +336,9 @@ def _analyze_parcel_feature(
             reference_source = "geometry"
             reference_method = "geodesic_wgs84_pyproj"
 
-    pindala_m2 = _to_float(props.get("pindala"))
-    maaamet_land_area_ha: float | None = None
-    if pindala_m2 is not None:
-        maaamet_land_area_ha = pindala_m2 / 10_000.0
-    elif geodesic_area_ha is not None:
-        maaamet_land_area_ha = geodesic_area_ha
+    if forest_area_ha is not None and maaamet_land_area_ha is not None and forest_area_ha > maaamet_land_area_ha:
+        forest_area_ha = maaamet_land_area_ha
+        reference_method = "capped_to_land_area"
 
     return ParcelFeature(
         parcel_id=parcel_id,
@@ -303,6 +353,7 @@ def _analyze_parcel_feature(
         maaamet_forest_area_ha=None if forest_area_ha is None else round(forest_area_ha, 6),
         hansen_land_area_ha=None,
         hansen_forest_area_ha=None,
+        hansen_forest_loss_ha=None,
         fields_considered=fields_considered,
         forest_area_key_used=forest_area_key_used,
     )
@@ -353,6 +404,7 @@ def _write_top10_geojson(path: Path, parcels: list[ParcelFeature], keys: list[st
             "maaamet_forest_area_ha": parcel.maaamet_forest_area_ha,
             "hansen_land_area_ha": parcel.hansen_land_area_ha,
             "hansen_forest_area_ha": parcel.hansen_forest_area_ha,
+            "hansen_forest_loss_ha": parcel.hansen_forest_loss_ha,
         }
         for key in keys:
             if key in parcel.properties:
@@ -378,6 +430,7 @@ def _write_top10_csv(path: Path, parcels: list[ParcelFeature], keys: list[str]) 
         "maaamet_forest_area_ha",
         "hansen_land_area_ha",
         "hansen_forest_area_ha",
+        "hansen_forest_loss_ha",
     ] + keys
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
@@ -392,6 +445,7 @@ def _write_top10_csv(path: Path, parcels: list[ParcelFeature], keys: list[str]) 
                 "maaamet_forest_area_ha": parcel.maaamet_forest_area_ha,
                 "hansen_land_area_ha": parcel.hansen_land_area_ha,
                 "hansen_forest_area_ha": parcel.hansen_forest_area_ha,
+                "hansen_forest_loss_ha": parcel.hansen_forest_loss_ha,
             }
             for key in keys:
                 row[key] = parcel.properties.get(key)

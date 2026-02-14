@@ -122,6 +122,11 @@ Notes:
 - Override the external data root with `EUDR_DMI_DATA_ROOT=/path/to/data`.
 - Override the Hansen URL template with `EUDR_DMI_HANSEN_URL_TEMPLATE`.
 - Outputs are written under `out/site_bundle/aoi_reports` and evidence under `.tmp/evidence_example`.
+- Hansen defaults in the example runner:
+	- MinIO cache enabled when `HANSEN_MINIO_CACHE=1` (default: `1`).
+	- Canopy threshold: `HANSEN_CANOPY_THRESHOLD` (default: `10`).
+	- Reproject to projected CRS: `HANSEN_REPROJECT_TO_PROJECTED` (default: `1`).
+	- Projected CRS: `HANSEN_PROJECTED_CRS` (default: `EPSG:6933`).
 
 ## AOI report regeneration contract
 

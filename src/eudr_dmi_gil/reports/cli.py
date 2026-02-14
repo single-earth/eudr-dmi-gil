@@ -5,6 +5,8 @@ import os
 import re
 import sys
 import subprocess
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +36,17 @@ def _utc_now_compact() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).strftime("%Y%m%dT%H%M%SZ")
 
 
+@contextmanager
+def _timed(label: str) -> Any:
+    start = time.perf_counter()
+    print(f"[profile] START {label}", flush=True)
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - start
+        print(f"[profile] DONE  {label} ({elapsed:.2f}s)", flush=True)
+
+
 def _git_commit() -> str:
     override = os.environ.get("EUDR_DMI_GIT_COMMIT")
     if override:
@@ -54,6 +67,32 @@ def _sanitize_id(value: str) -> str:
     if not value:
         raise ValueError("empty id")
     return re.sub(r"[^A-Za-z0-9._-]+", "_", value)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    return value in {"1", "true", "yes", "y", "on"}
+
+
+def _env_int(name: str) -> int | None:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _parcel_reference_sort_key(parcel: object) -> tuple[float, float, str]:
+    forest_area = getattr(parcel, "forest_area_ha", None) or 0.0
+    pindala = getattr(parcel, "pindala_m2", None) or 0.0
+    geodesic_area_ha = getattr(parcel, "geodesic_area_ha", None) or 0.0
+    tie_area = pindala if pindala > 0 else geodesic_area_ha * 10_000.0
+    parcel_id = str(getattr(parcel, "parcel_id", ""))
+    return (-float(forest_area), -float(tie_area), parcel_id)
 
 
 def _rel_href(from_path: Path, to_path: Path) -> str:
@@ -86,6 +125,7 @@ def _parcel_table_rows(parcels: list[object]) -> list[dict[str, Any]]:
                 "maaamet_land_area_ha": getattr(parcel, "maaamet_land_area_ha", None),
                 "hansen_forest_area_ha": getattr(parcel, "hansen_forest_area_ha", None),
                 "maaamet_forest_area_ha": getattr(parcel, "maaamet_forest_area_ha", None),
+                "hansen_forest_loss_ha": getattr(parcel, "hansen_forest_loss_ha", None),
             }
         )
     return rows
@@ -277,13 +317,14 @@ def _render_html_summary(
                 f"<td>{row.get('maaamet_land_area_ha','')}</td>",
                 f"<td>{row.get('hansen_forest_area_ha','')}</td>",
                 f"<td>{row.get('maaamet_forest_area_ha','')}</td>",
+                f"<td>{row.get('hansen_forest_loss_ha','')}</td>",
                 "</tr>",
             ]
         )
         for row in parcel_rows
     )
     if not parcels_table:
-        parcels_table = "<tr><td colspan=\"5\">(none)</td></tr>"
+        parcels_table = "<tr><td colspan=\"6\">(none)</td></tr>"
 
     map_block = ""
     if map_config_relpath:
@@ -327,7 +368,8 @@ def _render_html_summary(
                     const baseLayers = {{ 'Satellite': satellite }};
                     const addGeoJson = (label, url, options) => {{
                         if (!url) return;
-                        fetch(url)
+                        const resolvedUrl = new URL(url, configUrl).toString();
+                        fetch(resolvedUrl)
                             .then((r) => r.json())
                             .then((data) => {{
                                 const layer = L.geoJSON(data, options).addTo(map);
@@ -337,13 +379,13 @@ def _render_html_summary(
 
                       addGeoJson('Forest cover 2000', config.layers.forest_2000, {{ style: {{ color: '#2e7d32', weight: 1, fillOpacity: 0.3 }} }});
                       addGeoJson(`Forest cover ${{config.latest_year}}`, config.layers.forest_end_year, {{ style: {{ color: '#1b5e20', weight: 1, fillOpacity: 0.3 }} }});
-                    addGeoJson('Forest loss since 2020', config.layers.forest_loss_post_2020, {{ style: {{ color: '#c62828', weight: 1, fillOpacity: 0.4 }} }});
-                    addGeoJson('AOI boundary', config.layers.aoi_boundary, {{ style: {{ color: '#1976d2', weight: 2, fillOpacity: 0 }} }});
+                    addGeoJson('Forest loss since 2020', config.layers.forest_loss_post_2020, {{ style: {{ color: '#c62828', weight: 2, fillOpacity: 0.55 }} }});
+                    addGeoJson('AOI boundary', config.layers.aoi_boundary, {{ style: {{ color: '#00e5ff', weight: 4, opacity: 1, fillOpacity: 0 }} }});
                     addGeoJson('Maa-amet parcels', config.layers.parcels, {{
-                        style: {{ color: '#6a1b9a', weight: 1, fillOpacity: 0.05 }},
+                        style: {{ color: '#000000', weight: 3, opacity: 1, fillOpacity: 0 }},
                         onEachFeature: (feature, layer) => {{
                             const props = feature.properties || {{}};
-                            const label = `${{props.parcel_id || ''}} | forest_ha=${{props.hansen_forest_area_ha ?? ''}}`;
+                            const label = `${{props.parcel_id || ''}} | forest_ha=${{props.hansen_forest_area_ha ?? ''}} | loss_ha=${{props.hansen_forest_loss_ha ?? ''}}`;
                             layer.bindTooltip(label, {{ sticky: true }});
                         }},
                     }});
@@ -410,6 +452,7 @@ def _render_html_summary(
             <th>Maa-amet land area (ha)</th>
             <th>Hansen forest area (ha)</th>
             <th>Maa-amet forest area (ha)</th>
+            <th>Forest loss (ha)</th>
         </tr>
         {parcels_table}
     </table>
@@ -517,10 +560,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
+        "--hansen-minio-cache",
+        action="store_true",
+        help="Enable MinIO object-store cache for Hansen tiles.",
+    )
+    p.add_argument(
+        "--hansen-no-minio-cache",
+        dest="hansen_minio_cache",
+        action="store_false",
+        help="Disable MinIO object-store cache for Hansen tiles.",
+    )
+    env_minio_cache = _env_flag(
+        "EUDR_DMI_HANSEN_MINIO_CACHE",
+        default=_env_flag("HANSEN_MINIO_CACHE", default=False),
+    )
+    p.set_defaults(hansen_minio_cache=env_minio_cache)
+
+    p.add_argument(
         "--hansen-canopy-threshold",
         type=int,
-        default=30,
-        help="Tree cover canopy threshold percent for baseline forest mask (default: 30).",
+        default=10,
+        help="Tree cover canopy threshold percent for baseline forest mask (default: 10).",
     )
 
     p.add_argument(
@@ -528,6 +588,37 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=2020,
         help="Cutoff year for post-loss filter (default: 2020).",
+    )
+
+    env_hansen_parcel_top_n = _env_int("EUDR_DMI_HANSEN_PARCEL_TOP_N")
+    p.add_argument(
+        "--hansen-parcel-top-n",
+        type=int,
+        default=env_hansen_parcel_top_n if env_hansen_parcel_top_n is not None else 0,
+        help=(
+            "Optional: compute Hansen parcel stats only for top-N parcels by reference "
+            "forest area (0 means all parcels)."
+        ),
+    )
+
+    p.add_argument(
+        "--hansen-reproject-to-projected",
+        dest="hansen_reproject_to_projected",
+        action="store_true",
+        help="Reproject Hansen tiles to a projected CRS for constant pixel area.",
+    )
+    p.add_argument(
+        "--hansen-no-reproject-to-projected",
+        dest="hansen_reproject_to_projected",
+        action="store_false",
+        help="Disable Hansen tile reprojection to a projected CRS.",
+    )
+    p.set_defaults(hansen_reproject_to_projected=True)
+
+    p.add_argument(
+        "--hansen-projected-crs",
+        default="EPSG:6933",
+        help="Projected CRS for Hansen reprojection (default: EPSG:6933).",
     )
 
     return p
@@ -612,6 +703,30 @@ def main(argv: list[str] | None = None) -> int:
     parcel_rows: list[dict[str, Any]] = []
     maaamet_wfs_url = os.environ.get("MAAAMET_WFS_URL")
     maaamet_wfs_layer = os.environ.get("MAAAMET_WFS_LAYER") or "kataster:ky_kehtiv"
+    maaamet_parcel_limit = None
+    env_parcel_limit = os.environ.get("EUDR_DMI_MAAAMET_PARCEL_LIMIT", "").strip()
+    maaamet_top10_limit = None
+    env_top10_limit = os.environ.get("EUDR_DMI_MAAAMET_TOP10_LIMIT", "").strip()
+    if env_parcel_limit:
+        try:
+            parsed_limit = int(env_parcel_limit)
+            if parsed_limit > 0:
+                maaamet_parcel_limit = parsed_limit
+        except ValueError:
+            print(
+                f"WARNING: invalid EUDR_DMI_MAAAMET_PARCEL_LIMIT='{env_parcel_limit}' (ignored)",
+                flush=True,
+            )
+    if env_top10_limit:
+        try:
+            parsed_limit = int(env_top10_limit)
+            if parsed_limit > 0:
+                maaamet_top10_limit = parsed_limit
+        except ValueError:
+            print(
+                f"WARNING: invalid EUDR_DMI_MAAAMET_TOP10_LIMIT='{env_top10_limit}' (ignored)",
+                flush=True,
+            )
     if geo_kind == "geojson":
         from eudr_dmi_gil.analysis.maaamet_validation import (
             LocalFileMaaAmetProvider,
@@ -629,7 +744,17 @@ def main(argv: list[str] | None = None) -> int:
 
         maaamet_provider = provider
         if provider is not None:
-            maaamet_parcels = provider.fetch_parcel_features(aoi_geojson_path=geo_path)
+            with _timed("maaamet_fetch_parcels"):
+                maaamet_parcels = provider.fetch_parcel_features(aoi_geojson_path=geo_path)
+            if maaamet_parcel_limit is not None and maaamet_parcels is not None:
+                original_count = len(maaamet_parcels)
+                if original_count > maaamet_parcel_limit:
+                    maaamet_parcels = maaamet_parcels[:maaamet_parcel_limit]
+                    print(
+                        "Maa-amet parcel limit applied: "
+                        f"{maaamet_parcel_limit}/{original_count}",
+                        flush=True,
+                    )
             designation_counts = land_use_designation_counts(maaamet_parcels)
             if designation_counts:
                 sorted_counts = sorted(
@@ -674,20 +799,38 @@ def main(argv: list[str] | None = None) -> int:
             cutoff_year=args.hansen_cutoff_year,
             write_masks=True,
             aoi_geojson_path=geo_path,
+            minio_cache_enabled=args.hansen_minio_cache,
+            reproject_to_projected=args.hansen_reproject_to_projected,
+            projected_crs=args.hansen_projected_crs,
         )
         if maaamet_parcels is not None:
             end_year = infer_hansen_latest_year(
                 dataset_version=hansen_config.dataset_version,
                 tile_dir=hansen_config.tile_dir,
             )
-            hansen_stats = compute_hansen_parcel_stats(
-                parcels=maaamet_parcels,
-                tile_dir=hansen_config.tile_dir,
-                canopy_threshold_percent=hansen_config.canopy_threshold_percent,
-                end_year=end_year,
-            )
+            hansen_stats_parcels = maaamet_parcels
+            if args.hansen_parcel_top_n > 0:
+                eligible_for_topn = [
+                    p for p in maaamet_parcels if (getattr(p, "forest_area_ha", None) or 0.0) >= 3.0
+                ]
+                ranked_for_topn = sorted(eligible_for_topn, key=_parcel_reference_sort_key)
+                hansen_stats_parcels = ranked_for_topn[: args.hansen_parcel_top_n]
+                print(
+                    "Hansen parcel stats scope: "
+                    f"top-{args.hansen_parcel_top_n} parcels by reference forest area "
+                    f"({len(hansen_stats_parcels)}/{len(maaamet_parcels)})",
+                    flush=True,
+                )
+            with _timed("hansen_parcel_stats"):
+                hansen_stats = compute_hansen_parcel_stats(
+                    parcels=hansen_stats_parcels,
+                    tile_dir=hansen_config.tile_dir,
+                    canopy_threshold_percent=hansen_config.canopy_threshold_percent,
+                    end_year=end_year,
+                    cutoff_year=hansen_config.cutoff_year,
+                )
             updated_parcels = []
-            for parcel in maaamet_parcels:
+            for parcel in hansen_stats_parcels:
                 stat = hansen_stats.get(parcel.parcel_id)
                 updated_parcels.append(
                     ParcelFeature(
@@ -703,6 +846,7 @@ def main(argv: list[str] | None = None) -> int:
                         maaamet_forest_area_ha=parcel.maaamet_forest_area_ha,
                         hansen_land_area_ha=None if stat is None else round(stat.hansen_land_area_ha, 6),
                         hansen_forest_area_ha=None if stat is None else round(stat.hansen_forest_area_ha, 6),
+                        hansen_forest_loss_ha=None if stat is None else round(stat.hansen_forest_loss_ha, 6),
                         fields_considered=parcel.fields_considered,
                         forest_area_key_used=parcel.forest_area_key_used,
                     )
@@ -724,35 +868,59 @@ def main(argv: list[str] | None = None) -> int:
                     if maaamet_land_area_sum > 0
                     else None
                 )
-            maaamet_top10_result = run_maaamet_top10(
-                aoi_geojson_path=geo_path,
-                output_dir=bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet",
-                parcels_override=updated_parcels,
-                min_forest_ha=3.0,
-                prefer_hansen=True,
-            )
+            maaamet_top10_parcels = updated_parcels
+            if maaamet_top10_limit is not None:
+                original_count = len(updated_parcels)
+                if original_count > maaamet_top10_limit:
+                    maaamet_top10_parcels = updated_parcels[:maaamet_top10_limit]
+                    print(
+                        "Maa-amet top10 subset limit applied: "
+                        f"{maaamet_top10_limit}/{original_count}",
+                        flush=True,
+                    )
+            with _timed("maaamet_top10"):
+                maaamet_top10_result = run_maaamet_top10(
+                    aoi_geojson_path=geo_path,
+                    output_dir=bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet",
+                    parcels_override=maaamet_top10_parcels,
+                    min_forest_ha=3.0,
+                    prefer_hansen=True,
+                )
         hansen_output_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "hansen"
-        hansen_analysis = run_forest_loss_post_2020(
-            aoi_geojson_path=geo_path,
-            output_dir=hansen_output_dir,
-            config=hansen_config,
-            aoi_id=aoi_id,
-            run_id=bundle_id,
-            zone_geom_wgs84=maaamet_top10_result.union_geom
-            if maaamet_top10_result is not None
-            else None,
-            parcel_ids=maaamet_top10_result.parcel_ids
-            if maaamet_top10_result is not None
-            else None,
-        )
+        with _timed("hansen_forest_loss_post_2020"):
+            hansen_analysis = run_forest_loss_post_2020(
+                aoi_geojson_path=geo_path,
+                output_dir=hansen_output_dir,
+                config=hansen_config,
+                aoi_id=aoi_id,
+                run_id=bundle_id,
+                zone_geom_wgs84=maaamet_top10_result.union_geom
+                if maaamet_top10_result is not None
+                else None,
+                parcel_ids=maaamet_top10_result.parcel_ids
+                if maaamet_top10_result is not None
+                else None,
+            )
         hansen_result = hansen_analysis.raw
 
     if maaamet_top10_result is None and geo_kind == "geojson":
-        maaamet_top10_result = run_maaamet_top10(
-            aoi_geojson_path=geo_path,
-            output_dir=bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet",
-            provider=maaamet_provider,
-        )
+        maaamet_top10_parcels = maaamet_parcels
+        if maaamet_top10_limit is not None and maaamet_parcels is not None:
+            original_count = len(maaamet_parcels)
+            if original_count > maaamet_top10_limit:
+                maaamet_top10_parcels = maaamet_parcels[:maaamet_top10_limit]
+                print(
+                    "Maa-amet top10 subset limit applied: "
+                    f"{maaamet_top10_limit}/{original_count}",
+                    flush=True,
+                )
+        with _timed("maaamet_top10"):
+            maaamet_top10_result = run_maaamet_top10(
+                aoi_geojson_path=geo_path,
+                output_dir=bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet",
+                provider=maaamet_provider,
+                parcels_override=maaamet_top10_parcels,
+            )
 
     if maaamet_top10_result is not None:
         maaamet_metadata_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "maaamet"
@@ -866,8 +1034,8 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 "calculation": {
                     "method": "pixel_wise_intersection",
-                    "cutoff_date": f"{hansen_config.cutoff_year}-01-31",
-                    "cutoff_rule": "lossyear >= cutoff_year",
+                    "cutoff_date": f"{hansen_config.cutoff_year}-12-31",
+                    "cutoff_rule": "lossyear > (cutoff_year - 2000)",
                     "area_units": "ha",
                 },
                 "resolution": {"pixel_size_m": 30},
@@ -944,9 +1112,15 @@ def main(argv: list[str] | None = None) -> int:
             }
         }
 
+        cutoff_code = max(hansen_config.cutoff_year - 2000, 0)
+        first_post_cutoff_year = hansen_config.cutoff_year + 1
+
         hansen_acceptance_criteria_block = {
             "criteria_id": "forest_loss_post_2020_max_ha",
-            "description": "Forest loss post-2020 must be <= 0 ha.",
+            "description": (
+                f"Forest loss after {hansen_config.cutoff_year}-12-31 "
+                f"(lossyear >= {first_post_cutoff_year}) must be <= 0 ha."
+            ),
             "evidence_classes": ["forest_loss_post_2020"],
             "decision_type": "threshold",
         }
@@ -1001,9 +1175,9 @@ def main(argv: list[str] | None = None) -> int:
             "loss_2021_2024_ha": forest_metrics.loss_2021_2024_ha,
             "loss_2021_2024_pct_of_rfm": forest_metrics.loss_2021_2024_pct_of_rfm,
             "method": {
-                "area": "geodesic_pixel_area_wgs84",
-                "zonal": "rasterize_polygon_all_touched",
-                "notes": "area_ha = sum(pixel_area_m2 * mask * zone_mask)/10000",
+                "area": forest_metrics_params.method_area,
+                "zonal": forest_metrics_params.method_zonal,
+                "notes": forest_metrics_params.method_notes,
             },
             "inputs": {
                 "hansen_treecover2000": {
@@ -1025,7 +1199,7 @@ def main(argv: list[str] | None = None) -> int:
             "start_year": forest_metrics_params.start_year,
             "end_year": forest_metrics_params.end_year,
             "crs": forest_metrics_params.crs,
-            "area_method": "pipeline_a_raster_zonal_geodesic_wgs84",
+            "area_method": forest_metrics_params.method_area,
             "lossyear_mapping": (
                 f"0=no_loss; 1..{forest_metrics_params.end_year - 2000}="
                 f"2001..{forest_metrics_params.end_year} (year=lossyear+2000)"
@@ -1109,16 +1283,33 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
     if hansen_result is not None:
+        cutoff_code = max(hansen_config.cutoff_year - 2000, 0)
+        first_post_cutoff_year = hansen_config.cutoff_year + 1
         parameters["forest_loss_post_2020"] = {
             "canopy_threshold_percent": hansen_config.canopy_threshold_percent,
             "cutoff_year": hansen_config.cutoff_year,
             "acceptance_threshold_ha": forest_loss_threshold_ha,
-            "pixel_area_method": "geodesic_wgs84_pyproj",
-            "area_method": "pipeline_a_raster_zonal_geodesic_wgs84",
-            "lossyear_mapping": "0=no_loss; 21..24=2021..2024 (year=lossyear+2000)",
+            "pixel_area_method": (
+                hansen_analysis.raw.forest_metrics_params.method_area
+                if hansen_analysis is not None
+                else "unknown"
+            ),
+            "area_method": (
+                hansen_analysis.raw.forest_metrics_params.method_area
+                if hansen_analysis is not None
+                else "unknown"
+            ),
+            "lossyear_mapping": (
+                "0=no_loss; 1..end_year_code=2001..end_year "
+                "(year=lossyear+2000)"
+            ),
             "mask_definitions": {
                 "rfm_mask": "treecover2000 >= canopy_threshold_percent",
                 "loss_total": "rfm_mask & (lossyear > 0)",
+                "loss_post_cutoff": (
+                    f"rfm_mask & (lossyear > {cutoff_code}) "
+                    f"[{first_post_cutoff_year}+]"
+                ),
                 "loss_2021_2024": "rfm_mask & (lossyear in 21..24)",
                 "forest_2024": "rfm_mask & (lossyear == 0)",
             },
@@ -1144,7 +1335,11 @@ def main(argv: list[str] | None = None) -> int:
             "threshold_ha": forest_loss_threshold_ha,
             "status": forest_loss_status,
             "uncertainty": {
-                "pixel_area_method": "geodesic_wgs84_pyproj",
+                "pixel_area_method": (
+                    hansen_analysis.raw.forest_metrics_params.method_area
+                    if hansen_analysis is not None
+                    else "unknown"
+                ),
                 "nodata": "masked_as_no_loss",
                 "projection": "EPSG:4326",
                 "conservative_bounds": "area estimates are lower-bound for masked/no-data pixels",
@@ -1437,15 +1632,16 @@ def main(argv: list[str] | None = None) -> int:
         computed_current_forest = (
             hansen_result.current_tree_cover_ha if hansen_result is not None else None
         )
-        maaamet_result = run_maaamet_crosscheck(
-            aoi_geojson_path=geo_path,
-            output_dir=maaamet_dir,
-            computed_forest_area_ha=computed_current_forest,
-            provider=maaamet_provider,
-            parcels_override=maaamet_parcels_override,
-            fields_used_override=maaamet_fields_used,
-            top10_result=maaamet_top10_result,
-        )
+        with _timed("maaamet_crosscheck"):
+            maaamet_result = run_maaamet_crosscheck(
+                aoi_geojson_path=geo_path,
+                output_dir=maaamet_dir,
+                computed_forest_area_ha=computed_current_forest,
+                provider=maaamet_provider,
+                parcels_override=maaamet_parcels_override,
+                fields_used_override=maaamet_fields_used,
+                top10_result=maaamet_top10_result,
+            )
         crosscheck_block = {
             "source": "maaamet",
             "fields_used": maaamet_result.fields_used,
@@ -1478,7 +1674,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # metrics.csv (portable, deterministic) lives alongside the report outputs.
     metrics_csv_path = bdir / "reports" / "aoi_report_v2" / aoi_id / "metrics.csv"
-    _write_metrics_csv(metrics_csv_path, metric_rows)
+    with _timed("write_metrics_csv"):
+        _write_metrics_csv(metrics_csv_path, metric_rows)
     artifact_paths.append(metrics_csv_path)
 
     if hansen_result is not None and hansen_external_dependencies is not None:
@@ -1507,12 +1704,13 @@ def main(argv: list[str] | None = None) -> int:
             if maaamet_top10_result is not None
             else None,
         }
-        _write_map_config(
-            path=map_config_path,
-            aoi_bbox=aoi_bbox,
-            latest_year=hansen_result.forest_metrics.end_year,
-            layers=layers,
-        )
+        with _timed("write_map_config"):
+            _write_map_config(
+                path=map_config_path,
+                aoi_bbox=aoi_bbox,
+                latest_year=hansen_result.forest_metrics.end_year,
+                layers=layers,
+            )
         map_config_relpath = str(map_config_path.relative_to(bdir)).replace("\\", "/")
         map_config_href = _rel_href(report_html_path, map_config_path)
         report["map_assets"] = {
@@ -1529,25 +1727,27 @@ def main(argv: list[str] | None = None) -> int:
         artifact_paths.append(map_config_path)
 
     if args.out_format in ("json", "both"):
-        report_json_path.parent.mkdir(parents=True, exist_ok=True)
-        report_json_bytes = canonical_json_bytes(report) + b"\n"
-        report_json_path.write_bytes(report_json_bytes)
-        artifact_paths.append(report_json_path)
+        with _timed("write_report_json"):
+            report_json_path.parent.mkdir(parents=True, exist_ok=True)
+            report_json_bytes = canonical_json_bytes(report) + b"\n"
+            report_json_path.write_bytes(report_json_bytes)
+            artifact_paths.append(report_json_path)
 
     # HTML output
     if args.out_format in ("html", "both"):
-        report_html_path.parent.mkdir(parents=True, exist_ok=True)
-        # Link to whatever artifacts are already known; report JSON is included if produced.
-        known_artifacts_for_html = list(artifact_paths)
-        html = _render_html_summary(
-            report,
-            html_path=report_html_path,
-            artifact_paths=known_artifacts_for_html,
-            map_config_relpath=map_config_href,
-            parcel_rows=parcel_rows,
-        )
-        report_html_path.write_text(html, encoding="utf-8")
-        artifact_paths.append(report_html_path)
+        with _timed("write_report_html"):
+            report_html_path.parent.mkdir(parents=True, exist_ok=True)
+            # Link to whatever artifacts are already known; report JSON is included if produced.
+            known_artifacts_for_html = list(artifact_paths)
+            html = _render_html_summary(
+                report,
+                html_path=report_html_path,
+                artifact_paths=known_artifacts_for_html,
+                map_config_relpath=map_config_href,
+                parcel_rows=parcel_rows,
+            )
+            report_html_path.write_text(html, encoding="utf-8")
+            artifact_paths.append(report_html_path)
 
     def _artifact_role(relpath: str) -> str | None:
         if relpath == geo_rel.as_posix():
@@ -1607,16 +1807,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # If we wrote report JSON, rewrite it now that evidence_artifacts is populated.
     if args.out_format in ("json", "both"):
-        report_json_path.write_bytes(canonical_json_bytes(report) + b"\n")
+        with _timed("rewrite_report_json"):
+            report_json_path.write_bytes(canonical_json_bytes(report) + b"\n")
 
     # Validate contract.
     from .validate import validate_aoi_report
 
-    validate_aoi_report(report)
+    with _timed("validate_report"):
+        validate_aoi_report(report)
 
     # Manifest written by bundle writer.
     # Exclude manifest itself from artifacts passed to the writer.
-    write_manifest(bdir, sorted(set(artifact_paths), key=lambda p: p.as_posix()))
+    with _timed("write_manifest"):
+        write_manifest(bdir, sorted(set(artifact_paths), key=lambda p: p.as_posix()))
 
     print(str(bdir))
     return 0

@@ -9,10 +9,13 @@ from typing import Any
 
 import numpy as np
 import rasterio
+from rasterio.crs import CRS
 from pyproj import Geod
+from rasterio.enums import Resampling
 from rasterio.errors import RasterioIOError
 from rasterio.mask import mask as rio_mask
-from rasterio.warp import transform_geom
+from rasterio.transform import array_bounds
+from rasterio.warp import calculate_default_transform, reproject, transform_geom
 from shapely.geometry import mapping, shape
 from shapely.ops import unary_union
 
@@ -24,6 +27,7 @@ from eudr_dmi_gil.deps.hansen_acquire import (
     infer_hansen_latest_year,
     resolve_hansen_url_template,
 )
+from eudr_dmi_gil.deps.hansen_bootstrap import ensure_hansen_for_aoi
 from eudr_dmi_gil.deps.hansen_tiles import hansen_tile_ids_for_bbox, load_aoi_bbox
 from eudr_dmi_gil.geo.forest_area_core import (
     forest_2024_mask,
@@ -45,7 +49,7 @@ LOGGER = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class HansenConfig:
     tile_dir: Path
-    canopy_threshold_percent: int = 30
+    canopy_threshold_percent: int = 10
     cutoff_year: int = 2020
     write_masks: bool = False
     dataset_version: str = "unknown"
@@ -53,6 +57,9 @@ class HansenConfig:
     tile_entries: list[HansenLayerEntry] | None = None
     tile_ids: list[str] | None = None
     url_template: str = ""
+    minio_cache_enabled: bool = False
+    reproject_to_projected: bool = True
+    projected_crs: str | int = "EPSG:6933"
 
 
 @dataclass(frozen=True)
@@ -275,10 +282,139 @@ def _pixel_area_ha_geographic(transform: Any, mask: np.ndarray) -> float:
     return total_area_m2 / 10000.0
 
 
-def _compute_area_ha(dataset: rasterio.io.DatasetReader, transform: Any, mask: np.ndarray) -> float:
-    if dataset.crs and dataset.crs.is_projected:
+def _compute_area_ha(crs: Any, transform: Any, mask: np.ndarray) -> float:
+    if crs is not None and getattr(crs, "is_projected", False):
         return float(mask.sum()) * _pixel_area_ha_projected(transform)
     return _pixel_area_ha_geographic(transform, mask)
+
+
+def _entries_from_manifest(manifest_path: Path) -> tuple[list[str] | None, list[HansenLayerEntry]]:
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries_raw = payload.get("entries", [])
+    entries: list[HansenLayerEntry] = []
+    for entry in entries_raw:
+        entries.append(
+            HansenLayerEntry(
+                tile_id=str(entry.get("tile_id", "")),
+                layer=str(entry.get("layer", "")),
+                local_path=str(entry.get("local_path", "")),
+                sha256=str(entry.get("sha256", "")),
+                size_bytes=int(entry.get("size_bytes", 0) or 0),
+                source_url=str(entry.get("source_url", "")),
+                status=str(entry.get("status", "")),
+            )
+        )
+    tile_ids = payload.get("tile_ids")
+    if isinstance(tile_ids, list):
+        tile_ids = [str(tile_id) for tile_id in tile_ids]
+    else:
+        tile_ids = None
+    return tile_ids, entries
+
+
+def _reproject_to_projected(
+    *,
+    tree_ds: rasterio.io.DatasetReader,
+    loss_ds: rasterio.io.DatasetReader,
+    tree_values: np.ndarray,
+    loss_values: np.ndarray,
+    tree_mask: np.ndarray,
+    loss_mask: np.ndarray,
+    src_transform: rasterio.Affine,
+    src_crs: CRS,
+    target_crs: str | int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, rasterio.Affine, object]:
+    if src_crs is None:
+        return tree_values, loss_values, tree_mask, loss_mask, src_transform, src_crs
+
+    def _attempt_reproject(
+        target: CRS,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, rasterio.Affine, CRS] | None:
+        if target == src_crs:
+            return None
+
+        src_height = int(tree_values.shape[0])
+        src_width = int(tree_values.shape[1])
+        src_bounds = array_bounds(src_height, src_width, src_transform)
+
+        dst_transform, dst_width, dst_height = calculate_default_transform(
+            src_crs,
+            target,
+            src_width,
+            src_height,
+            *src_bounds,
+        )
+        if dst_width <= 0 or dst_height <= 0:
+            return None
+
+        dst_tree = np.zeros((dst_height, dst_width), dtype=tree_values.dtype)
+        dst_loss = np.zeros((dst_height, dst_width), dtype=loss_values.dtype)
+        dst_tree_mask = np.zeros((dst_height, dst_width), dtype=np.uint8)
+        dst_loss_mask = np.zeros((dst_height, dst_width), dtype=np.uint8)
+
+        reproject(
+            source=tree_values,
+            destination=dst_tree,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=target,
+            resampling=Resampling.nearest,
+        )
+        reproject(
+            source=loss_values,
+            destination=dst_loss,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=target,
+            resampling=Resampling.nearest,
+        )
+        reproject(
+            source=tree_mask.astype(np.uint8),
+            destination=dst_tree_mask,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=target,
+            resampling=Resampling.nearest,
+        )
+        reproject(
+            source=loss_mask.astype(np.uint8),
+            destination=dst_loss_mask,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=dst_transform,
+            dst_crs=target,
+            resampling=Resampling.nearest,
+        )
+
+        return (
+            dst_tree,
+            dst_loss,
+            dst_tree_mask.astype(bool),
+            dst_loss_mask.astype(bool),
+            dst_transform,
+            target,
+        )
+
+    target = CRS.from_user_input(target_crs)
+    try:
+        result = _attempt_reproject(target)
+    except Exception:
+        result = None
+
+    if result is None:
+        fallback = CRS.from_epsg(3857)
+        try:
+            result = _attempt_reproject(fallback)
+        except Exception:
+            result = None
+
+    if result is None:
+        return tree_values, loss_values, tree_mask, loss_mask, src_transform, src_crs
+
+    return result
 
 
 def _mask_features(mask: np.ndarray, transform: Any, crs: Any) -> list[dict[str, Any]]:
@@ -358,19 +494,22 @@ def compute_forest_loss_post_2020(
     end_year_features: list[dict[str, Any]] = []
 
     cutoff_threshold = max(config.cutoff_year - 2000, 0)
+    used_projected = False
 
     for tree_path, loss_path in pairs:
         try:
             with rasterio.open(tree_path) as tree_ds, rasterio.open(loss_path) as loss_ds:
                 tree_data, tree_transform = _mask_raster(tree_ds, geom)
-                loss_data, loss_transform = _mask_raster(loss_ds, geom)
+                loss_data, _ = _mask_raster(loss_ds, geom)
 
                 if tree_data.shape != loss_data.shape:
                     raise RuntimeError("Mismatched raster shapes for treecover2000 and lossyear")
 
                 tree_band = tree_data[0]
                 loss_band = loss_data[0]
-                valid = (~tree_band.mask) & (~loss_band.mask)
+                tree_mask = np.ma.getmaskarray(tree_band)
+                loss_mask = np.ma.getmaskarray(loss_band)
+                valid_original = (~tree_mask) & (~loss_mask)
 
                 loss_band_optional = _extract_loss_band(loss_ds)
                 if loss_band_optional is not None:
@@ -378,38 +517,65 @@ def compute_forest_loss_post_2020(
                     _warn_loss_consistency(
                         np.ma.filled(loss_band, 0),
                         loss_optional_values,
-                        valid & (~loss_band_optional.mask),
+                        valid_original & (~loss_band_optional.mask),
                     )
-
-                raster_shapes.append((int(tree_band.shape[0]), int(tree_band.shape[1])))
-                if tree_ds.crs:
-                    crs_values.append(tree_ds.crs.to_string())
 
                 tree_values = np.ma.filled(tree_band, 0)
                 loss_values = np.ma.filled(loss_band, 0)
+                active_transform = tree_transform
+                active_crs = tree_ds.crs
+                if (
+                    config.reproject_to_projected
+                    and active_crs is not None
+                    and active_crs.is_geographic
+                ):
+                    (
+                        tree_values,
+                        loss_values,
+                        tree_mask,
+                        loss_mask,
+                        active_transform,
+                        active_crs,
+                    ) = _reproject_to_projected(
+                        tree_ds=tree_ds,
+                        loss_ds=loss_ds,
+                        tree_values=tree_values,
+                        loss_values=loss_values,
+                        tree_mask=tree_mask,
+                        loss_mask=loss_mask,
+                        src_transform=active_transform,
+                        src_crs=active_crs,
+                        target_crs=config.projected_crs,
+                    )
+                    used_projected = True
+
+                valid = (~tree_mask) & (~loss_mask)
+                raster_shapes.append((int(tree_values.shape[0]), int(tree_values.shape[1])))
+                if active_crs:
+                    crs_values.append(active_crs.to_string())
 
                 rfm = rfm_mask(tree_values, config.canopy_threshold_percent)
                 baseline = valid & rfm
-                loss_post_2020 = baseline & (loss_values >= cutoff_threshold)
+                loss_post_2020 = baseline & (loss_values > cutoff_threshold)
                 current_cover = baseline & (loss_values == 0)
 
                 if zone_shape is None or zone_shape.is_empty:
-                    zone_mask = np.zeros(tree_band.shape, dtype=bool)
+                    zone_mask = np.zeros(tree_values.shape, dtype=bool)
                 else:
                     zone_geom = mapping(zone_shape)
-                    zone_in_crs = transform_geom("EPSG:4326", tree_ds.crs, zone_geom)
+                    zone_in_crs = transform_geom("EPSG:4326", active_crs, zone_geom)
                     zone_mask = rasterize_zone_mask(
                         zone_in_crs,
-                        out_shape=tree_band.shape,
-                        transform=tree_transform,
+                        out_shape=tree_values.shape,
+                        transform=active_transform,
                         all_touched=True,
                     )
 
                 pixel_area_m2 = pixel_area_m2_raster(
-                    tree_transform,
-                    height=tree_band.shape[0],
-                    width=tree_band.shape[1],
-                    crs=tree_ds.crs,
+                    active_transform,
+                    height=tree_values.shape[0],
+                    width=tree_values.shape[1],
+                    crs=active_crs,
                 )
                 rfm_zone_mask = rfm & valid
                 loss_total_mask_bool = loss_total_mask(
@@ -463,8 +629,8 @@ def compute_forest_loss_post_2020(
                 loss_post_2020_true_pixels += int(
                     np.count_nonzero(loss_post_2020_zone & zone_mask)
                 )
-                tree_nodata_pixels += int(np.count_nonzero(tree_band.mask & zone_mask))
-                lossyear_nodata_pixels += int(np.count_nonzero(loss_band.mask & zone_mask))
+                tree_nodata_pixels += int(np.count_nonzero(tree_mask & zone_mask))
+                lossyear_nodata_pixels += int(np.count_nonzero(loss_mask & zone_mask))
 
                 rfm_area_ha += np.float64(zonal_area_ha(rfm_zone_mask, pixel_area_m2, zone_mask))
                 loss_total_2001_2024_ha += np.float64(
@@ -480,9 +646,9 @@ def compute_forest_loss_post_2020(
                     zonal_area_ha(forest_2024_mask_bool, pixel_area_m2, zone_mask)
                 )
 
-                area_loss = _compute_area_ha(tree_ds, tree_transform, loss_post_2020_zone)
-                area_initial = _compute_area_ha(tree_ds, tree_transform, baseline_zone)
-                area_current = _compute_area_ha(tree_ds, tree_transform, current_cover_zone)
+                area_loss = _compute_area_ha(active_crs, active_transform, loss_post_2020_zone)
+                area_initial = _compute_area_ha(active_crs, active_transform, baseline_zone)
+                area_current = _compute_area_ha(active_crs, active_transform, current_cover_zone)
 
                 forest_loss_ha += area_loss
                 initial_cover_ha += area_initial
@@ -490,16 +656,16 @@ def compute_forest_loss_post_2020(
 
                 if config.write_masks:
                     loss_features.extend(
-                        _mask_features(loss_post_2020_zone, tree_transform, tree_ds.crs)
+                        _mask_features(loss_post_2020_zone, active_transform, active_crs)
                     )
                     current_features.extend(
-                        _mask_features(current_cover_zone, tree_transform, tree_ds.crs)
+                        _mask_features(current_cover_zone, active_transform, active_crs)
                     )
                     baseline_features.extend(
-                        _mask_features(baseline_zone, tree_transform, tree_ds.crs)
+                        _mask_features(baseline_zone, active_transform, active_crs)
                     )
                     end_year_features.extend(
-                        _mask_features(forest_end_mask & zone_mask, tree_transform, tree_ds.crs)
+                        _mask_features(forest_end_mask & zone_mask, active_transform, active_crs)
                     )
         except RasterioIOError as exc:
             raise RuntimeError(f"Failed to read Hansen tile: {exc}") from exc
@@ -585,14 +751,20 @@ def compute_forest_loss_post_2020(
     )
 
     crs_used = sorted(set([c for c in crs_values if c]))
+    method_area = "projected_constant_pixel_area" if used_projected else "geodesic_pixel_area_wgs84"
+    method_notes = (
+        "area_ha = sum(mask) * pixel_area_ha (projected; approx for AOI < 50k ha)"
+        if used_projected
+        else "area_ha = sum(pixel_area_m2 * mask * zone_mask)/10000"
+    )
     forest_metrics_params = ForestMetricsParams(
         canopy_threshold_pct=config.canopy_threshold_percent,
         start_year=2001,
         end_year=end_year,
         crs=crs_used[0] if crs_used else "",
-        method_area="geodesic_pixel_area_wgs84",
+        method_area=method_area,
         method_zonal="rasterize_polygon_all_touched",
-        method_notes="area_ha = sum(pixel_area_m2 * mask * zone_mask)/10000",
+        method_notes=method_notes,
         loss_year_code_basis=2000,
     )
     pixel_area_mean = float(pixel_area_sum) / float(pixel_area_count) if pixel_area_count else 0.0
@@ -641,28 +813,43 @@ def load_hansen_config(
     write_masks: bool = False,
     aoi_geojson_path: Path | None = None,
     download: bool = True,
+    minio_cache_enabled: bool = False,
+    minio_offline: bool = False,
+    reproject_to_projected: bool = True,
+    projected_crs: str | int = "EPSG:6933",
 ) -> HansenConfig:
     tile_entries: list[HansenLayerEntry] | None = None
     tile_ids: list[str] | None = None
+    tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "").strip()
 
     if tile_dir is None:
         if aoi_geojson_path is None:
             raise RuntimeError("AOI GeoJSON is required to derive Hansen tile IDs")
-        bbox = load_aoi_bbox(aoi_geojson_path)
-        tile_ids = hansen_tile_ids_for_bbox(bbox)
         tile_dir = hansen_default_base_dir() / "tiles"
-        tile_entries = []
-        for tile_id in tile_ids:
-            tile_entries.extend(
-                ensure_hansen_layers_present(
-                    tile_id,
-                    ["treecover2000", "lossyear"],
-                    download=download,
-                )
+        if minio_cache_enabled:
+            manifest_path = ensure_hansen_for_aoi(
+                aoi_id=aoi_geojson_path.stem,
+                aoi_geojson_path=aoi_geojson_path,
+                layers=["treecover2000", "lossyear"],
+                download=download,
+                minio_cache_enabled=True,
+                offline=minio_offline,
             )
-        tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "local")
-    else:
-        tile_source = os.environ.get("EUDR_DMI_HANSEN_TILE_SOURCE", "local")
+            tile_ids, tile_entries = _entries_from_manifest(manifest_path)
+        else:
+            bbox = load_aoi_bbox(aoi_geojson_path)
+            tile_ids = hansen_tile_ids_for_bbox(bbox)
+            tile_entries = []
+            for tile_id in tile_ids:
+                tile_entries.extend(
+                    ensure_hansen_layers_present(
+                        tile_id,
+                        ["treecover2000", "lossyear"],
+                        download=download,
+                    )
+                )
+    if not tile_source:
+        tile_source = "minio-cache" if minio_cache_enabled else "local"
 
     dataset_version = os.environ.get(
         "EUDR_DMI_HANSEN_DATASET_VERSION", DATASET_VERSION_DEFAULT
@@ -678,4 +865,7 @@ def load_hansen_config(
         tile_entries=tile_entries,
         tile_ids=tile_ids,
         url_template=url_template,
+        minio_cache_enabled=minio_cache_enabled,
+        reproject_to_projected=reproject_to_projected,
+        projected_crs=projected_crs,
     )

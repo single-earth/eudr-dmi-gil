@@ -212,3 +212,35 @@ def test_maaamet_top10_selection_wfs(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     top_ids = [p.parcel_id for p in result.parcels]
     expected = [f"p{idx}" for idx in range(12, 2, -1)]
     assert top_ids == expected
+
+
+def test_maaamet_does_not_treat_haritav_as_forest_ha(tmp_path: Path) -> None:
+    aoi_path = tmp_path / "aoi.geojson"
+    _write_simple_aoi(aoi_path)
+
+    feature = _parcel_feature("p1", mets=None, pindala=886903)
+    feature["properties"]["haritav"] = 842831
+    feature["properties"]["rohumaa"] = 19636
+
+    parcels_path = tmp_path / "parcels.json"
+    _write_geojson(
+        parcels_path,
+        {
+            "type": "FeatureCollection",
+            "features": [feature],
+        },
+    )
+
+    provider = LocalFileMaaAmetProvider(parcels_path)
+    result = run_maaamet_top10(
+        aoi_geojson_path=aoi_path,
+        output_dir=tmp_path / "out",
+        provider=provider,
+    )
+    assert result is not None
+    assert len(result.parcels) == 1
+    parcel = result.parcels[0]
+    assert parcel.maaamet_land_area_ha == pytest.approx(88.6903)
+    assert parcel.maaamet_forest_area_ha is not None
+    assert parcel.maaamet_forest_area_ha <= parcel.maaamet_land_area_ha
+    assert parcel.maaamet_forest_area_ha != pytest.approx(842831.0)
