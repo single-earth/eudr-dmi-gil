@@ -364,33 +364,110 @@ def _render_html_summary(
                     ]);
                     map.fitBounds(bounds);
 
-                    const overlays = {{}};
-                    const baseLayers = {{ 'Satellite': satellite }};
-                    const addGeoJson = (label, url, options) => {{
+                    const layerDefs = [
+                        {{
+                            key: 'forest_2000',
+                            label: 'Forest cover 2000',
+                            color: '#2e7d32',
+                            defaultOn: true,
+                            options: {{ style: {{ color: '#2e7d32', weight: 1, fillOpacity: 0.3 }} }},
+                        }},
+                        {{
+                            key: 'forest_end_year',
+                            label: `Forest cover ${{config.latest_year}}`,
+                            color: '#1b5e20',
+                            defaultOn: true,
+                            options: {{ style: {{ color: '#1b5e20', weight: 1, fillOpacity: 0.3 }} }},
+                        }},
+                        {{
+                            key: 'forest_loss_post_2020',
+                            label: 'Forest loss since 2020',
+                            color: '#c62828',
+                            defaultOn: true,
+                            options: {{ style: {{ color: '#c62828', weight: 2, fillOpacity: 0.55 }} }},
+                        }},
+                        {{
+                            key: 'aoi_boundary',
+                            label: 'AOI boundary',
+                            color: '#00e5ff',
+                            defaultOn: true,
+                            options: {{ style: {{ color: '#00e5ff', weight: 4, opacity: 1, fillOpacity: 0 }} }},
+                        }},
+                        {{
+                            key: 'parcels',
+                            label: 'Maa-amet parcels',
+                            color: '#000000',
+                            defaultOn: false,
+                            options: {{
+                                style: {{ color: '#000000', weight: 3, opacity: 1, fillOpacity: 0 }},
+                                onEachFeature: (feature, layer) => {{
+                                    const props = feature.properties || {{}};
+                                    const label = `${{props.parcel_id || ''}} | forest_ha=${{props.hansen_forest_area_ha ?? ''}} | loss_ha=${{props.hansen_forest_loss_ha ?? ''}}`;
+                                    layer.bindTooltip(label, {{ sticky: true }});
+                                }},
+                            }},
+                        }},
+                    ];
+
+                    const overlayGroups = {{}};
+                    layerDefs.forEach((def) => {{
+                        const group = L.layerGroup();
+                        overlayGroups[def.key] = group;
+                        if (def.defaultOn) {{
+                            group.addTo(map);
+                        }}
+                    }});
+
+                    const addGeoJson = (def, url) => {{
                         if (!url) return;
                         const resolvedUrl = new URL(url, configBaseUrl).toString();
                         fetch(resolvedUrl)
                             .then((r) => r.json())
                             .then((data) => {{
-                                const layer = L.geoJSON(data, options).addTo(map);
-                                overlays[label] = layer;
+                                L.geoJSON(data, def.options).addTo(overlayGroups[def.key]);
+                            }})
+                            .catch((err) => {{
+                                console.warn(`Layer load failed: ${{def.label}}`, err);
                             }});
                     }};
 
-                      addGeoJson('Forest cover 2000', config.layers.forest_2000, {{ style: {{ color: '#2e7d32', weight: 1, fillOpacity: 0.3 }} }});
-                      addGeoJson(`Forest cover ${{config.latest_year}}`, config.layers.forest_end_year, {{ style: {{ color: '#1b5e20', weight: 1, fillOpacity: 0.3 }} }});
-                    addGeoJson('Forest loss since 2020', config.layers.forest_loss_post_2020, {{ style: {{ color: '#c62828', weight: 2, fillOpacity: 0.55 }} }});
-                    addGeoJson('AOI boundary', config.layers.aoi_boundary, {{ style: {{ color: '#00e5ff', weight: 4, opacity: 1, fillOpacity: 0 }} }});
-                    addGeoJson('Maa-amet parcels', config.layers.parcels, {{
-                        style: {{ color: '#000000', weight: 3, opacity: 1, fillOpacity: 0 }},
-                        onEachFeature: (feature, layer) => {{
-                            const props = feature.properties || {{}};
-                            const label = `${{props.parcel_id || ''}} | forest_ha=${{props.hansen_forest_area_ha ?? ''}} | loss_ha=${{props.hansen_forest_loss_ha ?? ''}}`;
-                            layer.bindTooltip(label, {{ sticky: true }});
-                        }},
-                    }});
+                    layerDefs.forEach((def) => addGeoJson(def, config.layers?.[def.key]));
 
-                    L.control.layers(baseLayers, overlays, {{ collapsed: false }}).addTo(map);
+                    const legend = L.control({{ position: 'topright' }});
+                    legend.onAdd = function () {{
+                        const div = L.DomUtil.create('div', 'map-legend');
+                        div.innerHTML = '<strong>Map layers</strong>';
+                        layerDefs.forEach((def, idx) => {{
+                            const hasUrl = Boolean(config.layers?.[def.key]);
+                            if (!hasUrl) return;
+                            const checked = map.hasLayer(overlayGroups[def.key]) ? 'checked' : '';
+                            const item = document.createElement('label');
+                            item.className = 'map-legend-item';
+                            item.innerHTML = `
+                                <input type="checkbox" data-layer-key="${{def.key}}" ${{checked}} />
+                                <span class="map-legend-swatch" style="background:${{def.color}}"></span>
+                                <span>${{def.label}}</span>
+                            `;
+                            div.appendChild(item);
+                        }});
+                        L.DomEvent.disableClickPropagation(div);
+                        L.DomEvent.disableScrollPropagation(div);
+
+                        div.querySelectorAll('input[type="checkbox"]').forEach((el) => {{
+                            el.addEventListener('change', (event) => {{
+                                const key = event.target.getAttribute('data-layer-key');
+                                const group = overlayGroups[key];
+                                if (!group) return;
+                                if (event.target.checked) {{
+                                    map.addLayer(group);
+                                }} else {{
+                                    map.removeLayer(group);
+                                }}
+                            }});
+                        }});
+                        return div;
+                    }};
+                    legend.addTo(map);
                 }});
         }})();
     </script>
@@ -410,6 +487,10 @@ def _render_html_summary(
     h2 {{ margin-top: 28px; }}
     code {{ background: #f6f6f6; padding: 1px 4px; border-radius: 4px; }}
     .muted {{ color: #666; }}
+        .map-legend {{ background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.2); font-size: 12px; line-height: 1.4; }}
+        .map-legend-item {{ display: flex; align-items: center; gap: 6px; margin-top: 6px; }}
+        .map-legend-item input {{ margin: 0; }}
+        .map-legend-swatch {{ display: inline-block; width: 12px; height: 12px; border: 1px solid #333; }}
         #map {{ height: 420px; border: 1px solid #ddd; border-radius: 8px; margin: 12px 0 16px; background: #fafafa; }}
   </style>
 </head>
@@ -1695,13 +1776,13 @@ def main(argv: list[str] | None = None) -> int:
         map_config_path = map_dir / "map_config.json"
         aoi_bbox = load_aoi_bbox(geo_path)
         layers = {
-            "forest_2000": _rel_href(report_html_path, hansen_analysis.forest_2000_mask_path),
+            "forest_2000": _rel_href(map_config_path, hansen_analysis.forest_2000_mask_path),
             "forest_end_year": _rel_href(
-                report_html_path, hansen_analysis.forest_end_year_mask_path
+                map_config_path, hansen_analysis.forest_end_year_mask_path
             ),
-            "forest_loss_post_2020": _rel_href(report_html_path, hansen_analysis.loss_mask_path),
-            "aoi_boundary": _rel_href(report_html_path, geo_path),
-            "parcels": _rel_href(report_html_path, maaamet_top10_result.geojson_path)
+            "forest_loss_post_2020": _rel_href(map_config_path, hansen_analysis.loss_mask_path),
+            "aoi_boundary": _rel_href(map_config_path, geo_path),
+            "parcels": _rel_href(map_config_path, maaamet_top10_result.geojson_path)
             if maaamet_top10_result is not None
             else None,
         }
