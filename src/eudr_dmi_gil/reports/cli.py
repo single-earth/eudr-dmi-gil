@@ -355,8 +355,8 @@ def _render_html_summary(
             ).addTo(map);
             const configUrl = '{map_href}';
             fetch(configUrl)
-                .then((resp) => resp.json())
-                .then((config) => {{
+                .then((resp) => resp.json().then((config) => ({{ config, configBaseUrl: resp.url }})))
+                .then(({{ config, configBaseUrl }}) => {{
                     const bbox = config.aoi_bbox;
                     const bounds = L.latLngBounds([
                         [bbox.min_lat, bbox.min_lon],
@@ -368,7 +368,7 @@ def _render_html_summary(
                     const baseLayers = {{ 'Satellite': satellite }};
                     const addGeoJson = (label, url, options) => {{
                         if (!url) return;
-                        const resolvedUrl = new URL(url, configUrl).toString();
+                        const resolvedUrl = new URL(url, configBaseUrl).toString();
                         fetch(resolvedUrl)
                             .then((r) => r.json())
                             .then((data) => {{
@@ -936,6 +936,7 @@ def main(argv: list[str] | None = None) -> int:
         maaamet_fields_used = maaamet_top10_result.fields_used
         maaamet_parcels_override = maaamet_top10_result.parcels_all
 
+    if hansen_result is not None:
         if aoi_area_ha:
             forest_loss_percent_of_aoi = (
                 hansen_result.forest_loss_post_2020_ha / aoi_area_ha
