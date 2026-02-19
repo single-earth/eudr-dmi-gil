@@ -7,7 +7,7 @@ DT_SITE_ROOT="${DT_REPO}/docs/site"
 DT_RUNS_DIR="${DT_SITE_ROOT}/aoi_reports/runs"
 
 WORK_ROOT="${REPO_ROOT}/out/site_bundle/dt_publish_work"
-FINAL_BUNDLE_ROOT="${REPO_ROOT}/out/site_bundle/aoi_reports"
+FINAL_BUNDLE_ROOT="${REPO_ROOT}/out/site_bundle/dt_publish_final/aoi_reports"
 
 RUN_SPECS=(
   "example|aoi_json_examples/estonia_testland1.geojson|estonia_testland1|estonia_aoi_report.json"
@@ -78,7 +78,7 @@ main() {
   log "Publishing four AOI runs to DT repo"
   (
     cd "$DT_REPO"
-    scripts/clean_aoi_reports.sh
+    bash scripts/clean_aoi_reports.sh
     mkdir -p "$DT_RUNS_DIR"
 
     for spec in "${RUN_SPECS[@]}"; do
@@ -86,12 +86,12 @@ main() {
       rsync -a --delete "${FINAL_BUNDLE_ROOT}/runs/${run_id}/" "${DT_RUNS_DIR}/${run_id}/"
     done
 
-    scripts/rebuild_aoi_reports_index.py --site-root "$DT_SITE_ROOT"
-    scripts/validate_aoi_run_artifacts.py --runs-dir "$DT_RUNS_DIR"
+    python3 scripts/rebuild_aoi_reports_index.py --site-root "$DT_SITE_ROOT"
+    python3 scripts/validate_aoi_run_artifacts.py --runs-dir "$DT_RUNS_DIR"
 
     for spec in "${RUN_SPECS[@]}"; do
       IFS="|" read -r run_id _aoi_rel _aoi_id _report_json_name <<< "$spec"
-      scripts/check_nav_links.py --site-root "$DT_SITE_ROOT" --run-id "$run_id"
+      python3 scripts/check_nav_links.py --site-root "$DT_SITE_ROOT" --run-id "$run_id"
     done
   )
 
