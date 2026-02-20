@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 from dataclasses import replace
@@ -100,7 +101,7 @@ def _download_esri_satellite_png(
     width_px: int,
     height_px: int,
     output_path: Path,
-) -> bool:
+) -> bytes | None:
     min_lon, min_lat, max_lon, max_lat = bbox
     lon_pad = max((max_lon - min_lon) * 0.08, 1e-6)
     lat_pad = max((max_lat - min_lat) * 0.08, 1e-6)
@@ -122,11 +123,11 @@ def _download_esri_satellite_png(
         with urlopen(url, timeout=20) as response:
             image_bytes = response.read()
         if not image_bytes:
-            return False
+            return None
         output_path.write_bytes(image_bytes)
-        return True
+        return image_bytes
     except Exception:
-        return False
+        return None
 
 
 def _write_static_deforestation_map_svg(
@@ -178,12 +179,17 @@ def _write_static_deforestation_map_svg(
 
     satellite_name = "deforestation_map_satellite.png"
     satellite_path = out_dir / satellite_name
-    has_satellite = _download_esri_satellite_png(
+    satellite_bytes = _download_esri_satellite_png(
         bbox=bbox,
         width_px=int(plot_w),
         height_px=int(plot_h),
         output_path=satellite_path,
     )
+    has_satellite = satellite_bytes is not None
+    satellite_data_uri = None
+    if satellite_bytes is not None:
+        encoded = base64.b64encode(satellite_bytes).decode("ascii")
+        satellite_data_uri = f"data:image/png;base64,{encoded}"
 
     def project(lon: float, lat: float) -> tuple[float, float]:
         x = pad + ((lon - min_lon) / span_lon) * plot_w
@@ -213,7 +219,7 @@ def _write_static_deforestation_map_svg(
     latest_year = int(_properties_dict(config).get("latest_year") or 2024)
 
     svg_lines = [
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1100\" height=\"760\" viewBox=\"0 0 1100 760\" role=\"img\" aria-label=\"Deforestation evidence map\">",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"1100\" height=\"760\" viewBox=\"0 0 1100 760\" role=\"img\" aria-label=\"Deforestation evidence map\">",
         "  <rect x=\"0\" y=\"0\" width=\"1100\" height=\"760\" fill=\"#ffffff\" />",
         "  <defs>",
         "    <clipPath id=\"map-clip\">",
@@ -224,7 +230,7 @@ def _write_static_deforestation_map_svg(
     ]
     if has_satellite:
         svg_lines.append(
-            f"  <image href=\"{satellite_name}\" x=\"{pad:.2f}\" y=\"{pad:.2f}\" width=\"{plot_w:.2f}\" height=\"{plot_h:.2f}\" preserveAspectRatio=\"none\" clip-path=\"url(#map-clip)\" />"
+            f"  <image href=\"{satellite_data_uri}\" xlink:href=\"{satellite_data_uri}\" x=\"{pad:.2f}\" y=\"{pad:.2f}\" width=\"{plot_w:.2f}\" height=\"{plot_h:.2f}\" preserveAspectRatio=\"none\" clip-path=\"url(#map-clip)\" />"
         )
     if forest_path:
         svg_lines.append(
