@@ -48,7 +48,7 @@ endobj
 endobj
 9 0 obj
 <<
-/Length 4595
+/Length 4688
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -59,7 +59,7 @@ BT 1 0 0 1 40 781.8898 Tm (Report ID: demo_2026-02-20::demo_plot_02) Tj T* ET
 BT /F1 10 Tf 12 TL ET
 BT 1 0 0 1 40 767.8898 Tm (Run ID: demo_2026-02-20) Tj T* ET
 BT /F1 10 Tf 12 TL ET
-BT 1 0 0 1 40 753.8898 Tm (Generated UTC: 2026-02-20T09:37:53+00:00) Tj T* ET
+BT 1 0 0 1 40 753.8898 Tm (Generated UTC: 2026-02-20T09:52:40+00:00) Tj T* ET
 BT /F1 10 Tf 12 TL ET
 BT 1 0 0 1 40 739.8898 Tm  T* ET
 BT /F2 10 Tf 12 TL ET
@@ -143,7 +143,9 @@ BT 1 0 0 1 40 229.8898 Tm (- report.pdf) Tj T* ET
 BT /F1 10 Tf 12 TL ET
 BT 1 0 0 1 40 215.8898 Tm (- deforestation_map.svg) Tj T* ET
 BT /F1 10 Tf 12 TL ET
-BT 1 0 0 1 40 201.8898 Tm (Manifest pointer: manifest.sha256) Tj T* ET
+BT 1 0 0 1 40 201.8898 Tm (- deforestation_map_satellite.png) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 40 187.8898 Tm (Manifest pointer: manifest.sha256) Tj T* ET
  
 endstream
 endobj
@@ -170,5 +172,5 @@ trailer
 /Size 10
 >>
 startxref
-5651
+5744
 %%EOF

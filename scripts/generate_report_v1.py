@@ -7,6 +7,8 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -92,15 +94,50 @@ def _bbox_from_rings(rings: list[list[list[float]]]) -> tuple[float, float, floa
     return min(lon_values), min(lat_values), max(lon_values), max(lat_values)
 
 
+def _download_esri_satellite_png(
+    *,
+    bbox: tuple[float, float, float, float],
+    width_px: int,
+    height_px: int,
+    output_path: Path,
+) -> bool:
+    min_lon, min_lat, max_lon, max_lat = bbox
+    lon_pad = max((max_lon - min_lon) * 0.08, 1e-6)
+    lat_pad = max((max_lat - min_lat) * 0.08, 1e-6)
+
+    params = {
+        "bbox": f"{min_lon - lon_pad},{min_lat - lat_pad},{max_lon + lon_pad},{max_lat + lat_pad}",
+        "bboxSR": "4326",
+        "imageSR": "4326",
+        "size": f"{width_px},{height_px}",
+        "format": "png32",
+        "f": "image",
+    }
+    url = (
+        "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?"
+        + urlencode(params)
+    )
+
+    try:
+        with urlopen(url, timeout=20) as response:
+            image_bytes = response.read()
+        if not image_bytes:
+            return False
+        output_path.write_bytes(image_bytes)
+        return True
+    except Exception:
+        return False
+
+
 def _write_static_deforestation_map_svg(
     *,
     analysis: dict[str, Any],
     analysis_path: Path,
     out_dir: Path,
-) -> str | None:
+) -> tuple[str | None, list[str]]:
     config, layer_paths = _resolve_static_map_sources(analysis, analysis_path)
     if "aoi_boundary" not in layer_paths:
-        return None
+        return None, []
 
     layer_data: dict[str, list[list[list[float]]]] = {}
     for key, path in layer_paths.items():
@@ -110,7 +147,7 @@ def _write_static_deforestation_map_svg(
     for rings in layer_data.values():
         all_rings.extend(rings)
     if not all_rings:
-        return None
+        return None, []
 
     cfg_bbox = _properties_dict(config.get("aoi_bbox"))
     bbox = None
@@ -127,7 +164,7 @@ def _write_static_deforestation_map_svg(
     if bbox is None:
         bbox = _bbox_from_rings(all_rings)
     if bbox is None:
-        return None
+        return None, []
 
     min_lon, min_lat, max_lon, max_lat = bbox
     span_lon = max(1e-12, max_lon - min_lon)
@@ -138,6 +175,15 @@ def _write_static_deforestation_map_svg(
     pad = 40.0
     plot_w = width - (2 * pad)
     plot_h = height - (2 * pad)
+
+    satellite_name = "deforestation_map_satellite.png"
+    satellite_path = out_dir / satellite_name
+    has_satellite = _download_esri_satellite_png(
+        bbox=bbox,
+        width_px=int(plot_w),
+        height_px=int(plot_h),
+        output_path=satellite_path,
+    )
 
     def project(lon: float, lat: float) -> tuple[float, float]:
         x = pad + ((lon - min_lon) / span_lon) * plot_w
@@ -169,18 +215,28 @@ def _write_static_deforestation_map_svg(
     svg_lines = [
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1100\" height=\"760\" viewBox=\"0 0 1100 760\" role=\"img\" aria-label=\"Deforestation evidence map\">",
         "  <rect x=\"0\" y=\"0\" width=\"1100\" height=\"760\" fill=\"#ffffff\" />",
+        "  <defs>",
+        "    <clipPath id=\"map-clip\">",
+        f"      <rect x=\"{pad:.2f}\" y=\"{pad:.2f}\" width=\"{plot_w:.2f}\" height=\"{plot_h:.2f}\" />",
+        "    </clipPath>",
+        "  </defs>",
+        f"  <rect x=\"{pad:.2f}\" y=\"{pad:.2f}\" width=\"{plot_w:.2f}\" height=\"{plot_h:.2f}\" fill=\"#f4f4f4\" stroke=\"#d0d7de\" stroke-width=\"1\" />",
     ]
+    if has_satellite:
+        svg_lines.append(
+            f"  <image href=\"{satellite_name}\" x=\"{pad:.2f}\" y=\"{pad:.2f}\" width=\"{plot_w:.2f}\" height=\"{plot_h:.2f}\" preserveAspectRatio=\"none\" clip-path=\"url(#map-clip)\" />"
+        )
     if forest_path:
         svg_lines.append(
-            f"  <path d=\"{forest_path}\" fill=\"#1b5e20\" fill-opacity=\"0.30\" stroke=\"#1b5e20\" stroke-width=\"1\" />"
+            f"  <path d=\"{forest_path}\" fill=\"#1b5e20\" fill-opacity=\"0.30\" stroke=\"#1b5e20\" stroke-width=\"1\" clip-path=\"url(#map-clip)\" />"
         )
     if loss_path:
         svg_lines.append(
-            f"  <path d=\"{loss_path}\" fill=\"#c62828\" fill-opacity=\"0.55\" stroke=\"#c62828\" stroke-width=\"1.2\" />"
+            f"  <path d=\"{loss_path}\" fill=\"#c62828\" fill-opacity=\"0.55\" stroke=\"#c62828\" stroke-width=\"1.2\" clip-path=\"url(#map-clip)\" />"
         )
     if aoi_path:
         svg_lines.append(
-            f"  <path d=\"{aoi_path}\" fill=\"none\" stroke=\"#00e5ff\" stroke-width=\"2.4\" />"
+            f"  <path d=\"{aoi_path}\" fill=\"none\" stroke=\"#00e5ff\" stroke-width=\"2.4\" clip-path=\"url(#map-clip)\" />"
         )
 
     svg_lines.extend(
@@ -190,6 +246,7 @@ def _write_static_deforestation_map_svg(
             f"  <text x=\"42\" y=\"76\" font-size=\"14\" font-family=\"Arial, sans-serif\" fill=\"#1b5e20\">■ Forest Cover {latest_year}</text>",
             "  <text x=\"42\" y=\"98\" font-size=\"14\" font-family=\"Arial, sans-serif\" fill=\"#c62828\">■ Forest loss since 2020</text>",
             "  <text x=\"42\" y=\"120\" font-size=\"14\" font-family=\"Arial, sans-serif\" fill=\"#00acc1\">■ AOI boundary</text>",
+            "  <text x=\"42\" y=\"142\" font-size=\"11\" font-family=\"Arial, sans-serif\" fill=\"#666\">Basemap: Esri World Imagery</text>",
             "</svg>",
             "",
         ]
@@ -197,7 +254,8 @@ def _write_static_deforestation_map_svg(
 
     static_name = "deforestation_map.svg"
     (out_dir / static_name).write_text("\n".join(svg_lines), encoding="utf-8")
-    return static_name
+    extra_artifacts = [satellite_name] if has_satellite else []
+    return static_name, extra_artifacts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -232,8 +290,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     static_map_name: str | None = None
+    static_extra_artifacts: list[str] = []
     if isinstance(analysis, dict) and analysis_path is not None and analysis_path.is_file():
-        static_map_name = _write_static_deforestation_map_svg(
+        static_map_name, static_extra_artifacts = _write_static_deforestation_map_svg(
             analysis=analysis,
             analysis_path=analysis_path,
             out_dir=out_dir,
@@ -246,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         report = replace(
             report,
             deforestation_assessment=replace(report.deforestation_assessment, evidence_maps=current_maps),
-            artifacts=[*report.artifacts, static_map_name],
+            artifacts=[*report.artifacts, static_map_name, *static_extra_artifacts],
         )
 
     report_json = out_dir / "report.json"
