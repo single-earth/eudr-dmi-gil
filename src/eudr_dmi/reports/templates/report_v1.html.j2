@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EUDR Report V1 — {{ report.report_id }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+    h1, h2, h3 { margin-bottom: 8px; }
+    section { margin-bottom: 24px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f5f5f5; width: 260px; }
+    .meta { color: #444; margin-bottom: 12px; }
+    .muted { color: #666; }
+    ul { margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>EUDR Compliance Report V1</h1>
+  <p class="meta">
+    <b>Report ID:</b> {{ report.report_id }}<br />
+    <b>Run ID:</b> {{ report.run_id }}<br />
+    <b>Plot ID:</b> {{ report.plot_id }}<br />
+    <b>Generated (UTC):</b> {{ report.generated_at_utc }}<br />
+    <b>Data sources:</b> {{ report.data_sources_summary | join('; ') }}
+  </p>
+
+  <section>
+    <h2>1) Company data</h2>
+    <table>
+      <tr><th>Operator</th><td>{{ report.company.operator }}</td></tr>
+      <tr><th>Address</th><td>{{ report.company.address }}</td></tr>
+      <tr>
+        <th>Identifiers</th>
+        <td>
+          <table>
+            {% for key, value in report.company.identifiers.items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>2) Commodity data</h2>
+    <table>
+      <tr><th>Commodity type</th><td>{{ report.commodity.commodity_type }}</td></tr>
+      <tr><th>Country region label</th><td>{{ report.commodity.country_region_label }}</td></tr>
+      <tr><th>HS code</th><td>{{ report.commodity.hs_code }}</td></tr>
+      <tr><th>Volume</th><td>{{ report.commodity.volume }}</td></tr>
+      <tr><th>Country of production</th><td>{{ report.commodity.country_of_production }}</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>3) Plot geolocation references</h2>
+    {% for plot in report.plots %}
+      <h3>{{ plot.plot_name }}</h3>
+      <table>
+        <tr><th>GeoJSON name</th><td>{{ plot.geojson_name }}</td></tr>
+        <tr><th>Centroid (lat, lon)</th><td>{{ plot.centroid_lat }}, {{ plot.centroid_lon }}</td></tr>
+        <tr><th>Area (ha)</th><td>{{ plot.area_ha }}</td></tr>
+        <tr><th>Area method</th><td>{{ plot.area_method }}</td></tr>
+        <tr><th>Polygon count</th><td>{{ plot.polygon_count }}</td></tr>
+      </table>
+      <h4>Feature properties / metadata</h4>
+      {% if plot.metadata %}
+      <table>
+        {% for key, value in plot.metadata.items() %}
+        <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p class="muted">N/A</p>
+      {% endif %}
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>4) Deforestation assessment</h2>
+    <table>
+      <tr><th>Cutoff date</th><td>{{ report.deforestation_assessment.cutoff_date }}</td></tr>
+      <tr><th>Deforestation detected?</th><td>{{ report.deforestation_assessment.deforestation_detected }}</td></tr>
+      <tr>
+        <th>Evidence maps</th>
+        <td>
+          {% if report.deforestation_assessment.evidence_maps %}
+          <ul>
+            {% for item in report.deforestation_assessment.evidence_maps %}
+            <li>
+              {% set lower_item = item|lower %}
+              {% if lower_item.endswith('.png') or lower_item.endswith('.jpg') or lower_item.endswith('.jpeg') or lower_item.endswith('.svg') %}
+              <div style="margin-bottom:8px;"><a href="{{ item }}">{{ item }}</a></div>
+              <img src="{{ item }}" alt="Deforestation evidence map" style="max-width:100%; height:auto; border:1px solid #ddd;" />
+              {% else %}
+              {{ item }}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          N/A
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Summary metrics</th>
+        <td>
+          <table>
+            {% for key, value in report.deforestation_assessment.summary_metrics.items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>5) Risk level</h2>
+    <p>{{ report.risk_level }}</p>
+  </section>
+
+  <section>
+    <h2>6) Compliance readiness indicator</h2>
+    <p>{{ report.compliance_readiness }}</p>
+  </section>
+
+  <footer>
+    <h3>Deterministic artifacts</h3>
+    <ul>
+      {% for artifact in report.artifacts %}
+      <li>{{ artifact }}</li>
+      {% endfor %}
+    </ul>
+    <p><b>Manifest pointer:</b> {{ report.manifest_path }}</p>
+  </footer>
+</body>
+</html>
