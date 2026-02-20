@@ -38,7 +38,7 @@ the pipeline stores and retrieves tiles and manifests under keys such as:
 This cache is read-through/write-through: missing objects are downloaded from the
 upstream source, written to MINIO, and then used locally.
 
-Local MinIO data root (Docker volume mapping in [infra/minio/docker-compose.yml](infra/minio/docker-compose.yml)):
+Local MinIO data root (Docker volume mapping in [infra/minio/docker-compose.yml](../infra/minio/docker-compose.yml)):
 
 - `/Users/server/projects/eudr-dmi-gil/infra/minio/minio_data/`
 - Buckets are stored under: `/Users/server/projects/eudr-dmi-gil/infra/minio/minio_data/<MINIO_BUCKET>/`

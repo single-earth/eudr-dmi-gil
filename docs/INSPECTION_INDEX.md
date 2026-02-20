@@ -14,7 +14,7 @@ This repository is the authoritative implementation for EUDR-DMI-GIL. The Digita
 
 DAO proposals are produced via the DTE workflow and must be grounded in the Digital Twin inspection surface.
 
-- Digital Twin DTE Instructions (Canonical): https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin/blob/main/docs/governance/dte_instructions.md
+- Digital Twin DTE Instructions (Canonical): https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin/blob/main/docs/dte_instructions.md
 
 All implementation changes should be traceable back to a DAO proposal grounded via the DTE workflow.
 

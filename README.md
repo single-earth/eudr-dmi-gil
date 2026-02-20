@@ -225,7 +225,7 @@ This repository is the authoritative implementation.
 Stakeholder Q/A, proposals, and acceptance criteria are governed by the DTE instructions.
 Developers should use these links to interpret DAO proposals correctly.
 
-- Digital Twin DTE Instructions (Canonical): https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin/blob/main/docs/governance/dte_instructions.md
+- Digital Twin DTE Instructions (Canonical): https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin/blob/main/docs/dte_instructions.md
 - Digital Twin Inspection Index: https://github.com/GeorgeMadlis/eudr-dmi-gil-digital-twin/blob/main/docs/INSPECTION_INDEX.md
 
 ## Relationship to the portal

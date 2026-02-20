@@ -8,4 +8,4 @@ EUDR-related reports and Digital Twin artefacts.
 - This repository does not provide certification, legal advice, or compliance decisions.
 
 For the canonical privacy and governance policy, see:
-https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/privacy.html
+https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/privacy.html
