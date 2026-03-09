@@ -19,23 +19,51 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _parse_endpoint(raw: str) -> tuple[str, bool | None]:
+    """Strip URL scheme from endpoint and return (host, secure_from_scheme).
+
+    The Minio Python client accepts a bare host[:port], not a full URL.
+    MINIO_ENDPOINT is often set to a full URL (e.g. https://s3.pilw.io) because
+    the Node.js AWS SDK accepts that form. This helper normalises it.
+
+    Returns (host, True) for https://, (host, False) for http://, or
+    (raw, None) if no scheme is present (caller decides secure flag).
+    """
+    raw = raw.strip().rstrip("/")
+    if raw.startswith("https://"):
+        return raw[len("https://"):], True
+    if raw.startswith("http://"):
+        return raw[len("http://"):], False
+    return raw, None
+
+
+def _resolve_secure(scheme_secure: bool | None) -> bool:
+    """Resolve the secure flag: explicit MINIO_SECURE env var wins, else use scheme."""
+    secure_env = os.environ.get("MINIO_SECURE", "").strip().lower()
+    if secure_env:
+        return secure_env not in {"0", "false", "no"}
+    if scheme_secure is not None:
+        return scheme_secure
+    return True  # default to TLS
+
+
 def _client_from_env() -> Minio:
-    endpoint = os.environ.get("MINIO_ENDPOINT", "").strip()
+    raw_endpoint = os.environ.get("MINIO_ENDPOINT", "").strip()
     access_key = os.environ.get("MINIO_ACCESS_KEY", "").strip()
     secret_key = os.environ.get("MINIO_SECRET_KEY", "").strip()
-    secure_env = os.environ.get("MINIO_SECURE", "true").strip().lower()
-    secure = secure_env not in {"0", "false", "no"}
 
-    if not endpoint or not access_key or not secret_key:
+    if not raw_endpoint or not access_key or not secret_key:
         raise RuntimeError("Missing MINIO_ENDPOINT/MINIO_ACCESS_KEY/MINIO_SECRET_KEY")
 
+    endpoint, scheme_secure = _parse_endpoint(raw_endpoint)
+    secure = _resolve_secure(scheme_secure)
     return Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
 
 
 def ensure_bucket(endpoint: str, access_key: str, secret_key: str, bucket: str) -> None:
-    secure_env = os.environ.get("MINIO_SECURE", "true").strip().lower()
-    secure = secure_env not in {"0", "false", "no"}
-    client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
+    host, scheme_secure = _parse_endpoint(endpoint)
+    secure = _resolve_secure(scheme_secure)
+    client = Minio(host, access_key=access_key, secret_key=secret_key, secure=secure)
     if not client.bucket_exists(bucket):
         client.make_bucket(bucket)
 
