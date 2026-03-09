@@ -125,18 +125,11 @@ def ensure_hansen_for_aoi(
             for layer in layers_list:
                 local_path = resolve_tile_dir(tile_id) / f"{layer}.tif"
                 source_url = url_template.format(layer=layer, tile_id=tile_id)
-                if local_path.is_file():
-                    entries.append(
-                        _entry_from_local(
-                            tile_id,
-                            layer,
-                            local_path,
-                            status="present",
-                            source_url=source_url,
-                        )
-                    )
-                    continue
                 key = _cache_key(tile_id, layer)
+                # get_file_if_exists handles all three cases:
+                #   1. Local file present and SHA-256 matches stored metadata → skip download.
+                #   2. Local file present but SHA-256 mismatch → delete and re-download.
+                #   3. Local file absent → download from MinIO.
                 if minio_cache.get_file_if_exists(bucket, key, local_path):
                     entries.append(
                         _entry_from_local(
