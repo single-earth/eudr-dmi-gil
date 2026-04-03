@@ -1,0 +1,32 @@
+name: Check Digital Twin freshness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check-dt-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project with dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Generate example AOI bundle
+        run: scripts/run_example_report.sh
+
+      - name: Compare generated example bundle to published Digital Twin content
+        run: python scripts/detect_example_bundle_artifact_changes.py
