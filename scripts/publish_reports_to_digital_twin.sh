@@ -9,7 +9,7 @@ set -euo pipefail
 # - performs a local filesystem sync only
 
 SRC_DIR_DEFAULT="docs/site_bundle_reports"
-DT_TARGET_DEFAULT="../eudr-dmi-gil-digital-twin/site/aoi_reports"
+DT_TARGET_DEFAULT="../eudr-dmi-gil-digital-twin/site/bundles"
 
 SRC_DIR="${EUDR_DMI_SITE_BUNDLE_DIR:-$SRC_DIR_DEFAULT}"
 DT_TARGET_DIR="${EUDR_DMI_DIGITAL_TWIN_AOI_REPORTS_DIR:-$DT_TARGET_DEFAULT}"

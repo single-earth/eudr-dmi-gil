@@ -40,7 +40,7 @@ if [[ "$PUBLISH" == "1" ]]; then
   echo "\nNext steps (run in DT repo):"
   echo "cd $DT_REPO"
   echo "git status"
-  echo "git add docs/site/aoi_reports/"
+  echo "git add docs/site/bundles/"
   echo "git commit -m \"Publish AOI run example\""
   echo "git push"
 fi

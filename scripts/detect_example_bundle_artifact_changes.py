@@ -434,7 +434,7 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--published-report-url",
         default=(
-            "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/aoi_reports/"
+            "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/"
             "runs/example/report.html"
         ),
     )

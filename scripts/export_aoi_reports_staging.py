@@ -95,7 +95,7 @@ def _render_index(entry: RunEntry, *, report_json_filename: str) -> str:
   <main>
     <div class=\"wrap\">
       <h1>AOI Reports</h1>
-      <p class=\"muted\">Portable bundle. Links assume this folder is mounted at <code>docs/site/aoi_reports/</code>.</p>
+      <p class=\"muted\">Portable bundle. Links assume this folder is mounted at <code>docs/site/bundles/</code>.</p>
       <div class=\"card\">
         <h2>Runs</h2>
         <ul>

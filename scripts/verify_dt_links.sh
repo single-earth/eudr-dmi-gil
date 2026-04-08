@@ -8,8 +8,8 @@ usage() {
 Usage: scripts/verify_dt_links.sh --dt-repo /path/to/eudr-dmi-gil-digital-twin
 
 Runs the portable link checker and verifies AOI report navigation:
-- docs/site/index.html -> docs/site/aoi_reports/index.html
-- docs/site/aoi_reports/index.html -> runs/*/report.html
+- docs/site/index.html -> docs/site/bundles/index.html
+- docs/site/bundles/index.html -> runs/*/report.html
 EOF
 }
 
@@ -64,7 +64,7 @@ from pathlib import Path
 
 site_root = Path(sys.argv[1]).resolve()
 index_path = site_root / "index.html"
-aoi_index_path = site_root / "aoi_reports" / "index.html"
+aoi_index_path = site_root / "bundles" / "index.html"
 
 if not index_path.is_file():
     raise SystemExit(f"ERROR: missing {index_path}")
@@ -92,7 +92,7 @@ aoi_links = _extract_links(aoi_index_path)
 
 has_aoi_link = False
 for href in index_links:
-    if "aoi_reports/index.html" in href:
+    if "bundles/index.html" in href:
         target = (index_path.parent / href).resolve()
         if target == aoi_index_path:
             has_aoi_link = True

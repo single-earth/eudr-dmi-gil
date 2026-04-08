@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DT_REPO="${DT_REPO:-/Users/server/projects/eudr-dmi-gil-digital-twin}"
 DT_SITE_ROOT="${DT_REPO}/docs/site"
-DT_RUNS_DIR="${DT_SITE_ROOT}/aoi_reports/runs"
+DT_RUNS_DIR="${DT_SITE_ROOT}/bundles/runs"
 
 WORK_ROOT="${REPO_ROOT}/out/site_bundle/dt_publish_work"
 FINAL_BUNDLE_ROOT="${REPO_ROOT}/out/site_bundle/dt_publish_final/aoi_reports"

@@ -14,10 +14,10 @@ Publishes demo reports generated in:
   out/reports/<run_id>/
 
 to Digital Twin path:
-  <digital-twin-root>/docs/site/dao_reports/runs/<run_id>/
+  <digital-twin-root>/docs/site/sample_reports/runs/<run_id>/
 
 Then regenerates:
-  <digital-twin-root>/docs/site/dao_reports/index.html
+  <digital-twin-root>/docs/site/sample_reports/index.html
 EOF
 }
 
@@ -45,7 +45,7 @@ done
 
 SOURCE_RUN_DIR="$REPO_ROOT/out/reports/$RUN_ID"
 DT_SITE_ROOT="$DIGITAL_TWIN_ROOT/docs/site"
-DT_DAO_ROOT="$DT_SITE_ROOT/dao_reports"
+DT_DAO_ROOT="$DT_SITE_ROOT/sample_reports"
 DT_RUNS_DIR="$DT_DAO_ROOT/runs"
 DT_TARGET_RUN_DIR="$DT_RUNS_DIR/$RUN_ID"
 
@@ -150,7 +150,7 @@ content = f"""<!doctype html>
     <div class=\"wrap\">
       <nav>
         <a href=\"../index.html\">Home</a>
-        <a href=\"../aoi_reports/index.html\">AOI Reports</a>
+        <a href=\"../bundles/index.html\">AOI Reports</a>
         <a href=\"index.html\" class=\"active\">DAO Reports</a>
         <a href=\"../dao_stakeholders/index.html\">DAO (Stakeholders)</a>
         <a href=\"../dao_dev/index.html\">DAO (Developers)</a>

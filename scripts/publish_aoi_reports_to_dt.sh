@@ -6,13 +6,13 @@ set -euo pipefail
 # Requirements enforced:
 # - Source runs live in out/site_bundle/aoi_reports/runs/
 # - Exactly two run directories must exist
-# - DT target path: /Users/server/projects/eudr-dmi-gil-digital-twin/docs/site/aoi_reports/runs/
+# - DT target path: /Users/server/projects/eudr-dmi-gil-digital-twin/docs/site/bundles/runs/
 # - Do not touch audit/evidence/
 
 SOURCE_RUNS_DIR="/Users/server/projects/eudr-dmi-gil/out/site_bundle/aoi_reports/runs"
 DT_REPO="/Users/server/projects/eudr-dmi-gil-digital-twin"
 DT_SITE_ROOT="${DT_REPO}/docs/site"
-DT_RUNS_DIR="${DT_SITE_ROOT}/aoi_reports/runs"
+DT_RUNS_DIR="${DT_SITE_ROOT}/bundles/runs"
 
 if [[ ! -d "$SOURCE_RUNS_DIR" ]]; then
   echo "ERROR: source runs dir not found: $SOURCE_RUNS_DIR" >&2
@@ -70,7 +70,7 @@ done
 scripts/rebuild_aoi_reports_index.py --site-root "$DT_SITE_ROOT"
 
 # Link check: index -> each run -> report.html must resolve
-index_file="$DT_SITE_ROOT/aoi_reports/index.html"
+index_file="$DT_SITE_ROOT/bundles/index.html"
 if [[ ! -f "$index_file" ]]; then
   echo "ERROR: missing index file: $index_file" >&2
   exit 2
@@ -91,7 +91,7 @@ done
 
 # Stage, commit, and push changes
 
-git add docs/site/aoi_reports/
+git add docs/site/bundles/
 
 if git diff --cached --quiet; then
   echo "ERROR: no changes staged (nothing to publish)" >&2
