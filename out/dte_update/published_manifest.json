@@ -5,37 +5,37 @@
       "bytes": 356,
       "relative_path": "inputs/aoi.geojson",
       "sha256": "f57dc8c1708c6f3bcbb8a5b4b571ad8c3c70935b8a27738d2c473d06f39a1a9c",
-      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/inputs/aoi.geojson"
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/inputs/aoi.geojson"
     },
     {
-      "bytes": 16273,
+      "bytes": 16289,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "793bc3d5f9616524bde5b1eead815071bd46df1e03f1393d39b8a47d209d7cd1",
-      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.html"
+      "sha256": "c511f71664e3be65eff3b8ec5e413a1a7777be6871b34aaae8454c02ddc76ba0",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.html"
     },
     {
-      "bytes": 21553,
+      "bytes": 21276,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "13b28cf08fe7e55582dfaac74a14ba65de7bf2c5b107661e62d23c392dcf2c1f",
-      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.json"
+      "sha256": "da3de069fc75ab4b68f7656f335bdd541b7af5fb16a09dc7c69e1b550eff89ee",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.json"
     },
     {
-      "bytes": 1030,
+      "bytes": 1021,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
-      "sha256": "c1d6855babde2b0e71e454e0e35349ba9d4c9979cebb32d902ce2b0d72f0c09c",
-      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
+      "sha256": "f0856451015e2378717b557de664b62945d054347251a5b207ffae283ee16cce",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
     },
     {
-      "bytes": 919,
+      "bytes": 821,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv",
-      "sha256": "0fc7a1f4f66b7f50c29e25449238ae3b4a7afca2335301737b0722b56bc33709",
-      "url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv"
+      "sha256": "857b097dcccc83662b64c7e66a663b966ecb8c022cd40495c409fa1f92ca4e8c",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv"
     }
   ],
   "bundle": "example",
   "generated_utc": "2026-02-19T12:47:49+00:00",
   "source": {
-    "published_report_url": "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html",
-    "retrieved_utc": "2026-06-30T10:06:48.214293+00:00"
+    "published_report_url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html",
+    "retrieved_utc": "2026-06-30T10:14:10.132621+00:00"
   }
 }

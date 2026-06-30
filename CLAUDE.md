@@ -107,7 +107,7 @@ Each report run produces (inside `out/site_bundle/aoi_reports/runs/<run_id>/`):
 ## Publish to Digital Twin
 
 The Digital Twin is the public-facing GitHub Pages site at:
-`https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/`
+`https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/`
 
 **Publish flow (human-in-the-loop — not automated):**
 1. Run regression test: `bash scripts/run_example_report_clean.sh`

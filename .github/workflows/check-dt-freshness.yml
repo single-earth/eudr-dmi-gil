@@ -34,5 +34,5 @@ jobs:
 
       - name: Compare generated example bundle to published Digital Twin content
         env:
-          EUDR_DMI_PUBLISHED_REPORT_URL: "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html"
+          EUDR_DMI_PUBLISHED_REPORT_URL: "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html"
         run: python scripts/detect_example_bundle_artifact_changes.py

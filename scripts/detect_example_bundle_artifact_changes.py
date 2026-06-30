@@ -18,7 +18,7 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 DEFAULT_PUBLISHED_REPORT_URL = (
-    "https://georgemadlis.github.io/eudr-dmi-gil-digital-twin/site/bundles/"
+    "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/"
     "runs/example/report.html"
 )
 

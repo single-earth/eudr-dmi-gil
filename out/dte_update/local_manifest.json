@@ -35,7 +35,7 @@
   "bundle": "example",
   "generated_utc": "2026-02-19T12:47:49+00:00",
   "source": {
-    "local_run_root": "/Users/server/projects/eudr-dmi-gil/out/site_bundle/aoi_reports/runs/example",
-    "retrieved_utc": "2026-06-30T10:06:48.662327+00:00"
+    "local_run_root": "out/site_bundle/aoi_reports/runs/example",
+    "retrieved_utc": "2026-06-30T10:14:11.243534+00:00"
   }
 }
