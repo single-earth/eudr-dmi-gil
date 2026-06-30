@@ -37,3 +37,4 @@ line-length = 100
 
 [tool.pytest.ini_options]
 norecursedirs = ["docs/operations/_external"]
+pythonpath = ["."]
