@@ -45,7 +45,7 @@ python scripts/generate_report_v1.py \
 # Publish to Digital Twin (keep 2 most recent runs)
 python tools/publish_latest_aoi_reports_to_dt.py \
   --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin \
-  --dt-aoi-dir docs/site/aoi_reports \
+  --dt-aoi-dir docs/site/bundles \
   --source-dir out/site_bundle/aoi_reports \
   --keep 2
 
@@ -118,7 +118,7 @@ The Digital Twin is the public-facing GitHub Pages site at:
    # or more flexibly:
    python tools/publish_latest_aoi_reports_to_dt.py \
      --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin \
-     --dt-aoi-dir docs/site/aoi_reports --source-dir out/site_bundle/aoi_reports --keep 2
+     --dt-aoi-dir docs/site/bundles --source-dir out/site_bundle/aoi_reports --keep 2
    ```
 4. Verify links: `bash scripts/verify_dt_links.sh --dt-repo /Users/server/projects/eudr-dmi-gil-digital-twin`
 5. The script auto-commits and pushes to the DT repo; GitHub Pages redeploys automatically.

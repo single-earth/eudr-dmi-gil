@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "/Users/server/projects/eudr-dmi-gil-digital-twin"
+		},
+		{
+			"path": "../../eudr-client-portal"
 		}
 	],
 	"settings": {
