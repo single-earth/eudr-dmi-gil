@@ -4,6 +4,8 @@ import csv
 import json
 import os
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -20,6 +22,7 @@ from eudr_dmi_gil.reports.determinism import write_json
 
 LOGGER = logging.getLogger(__name__)
 WFS_TIMEOUT_SECONDS = int(os.environ.get("EUDR_DMI_MAAAMET_WFS_TIMEOUT", "60"))
+WFS_MAX_RETRIES = int(os.environ.get("EUDR_DMI_MAAAMET_WFS_RETRIES", "3"))
 
 
 @dataclass(frozen=True)
@@ -163,14 +166,24 @@ class WfsMaaAmetProvider(MaaAmetProvider):
         url = f"{self._url}?{urllib.parse.urlencode(params)}"
         LOGGER.info("Maa-amet WFS request: %s", url)
         print(f"Maa-amet WFS request: {url}", flush=True)
-        try:
-            response = urllib.request.urlopen(  # noqa: S310
-                url, timeout=WFS_TIMEOUT_SECONDS
-            )
-        except TypeError:
-            response = urllib.request.urlopen(url)  # noqa: S310
-        with response as resp:
-            payload = resp.read().decode("utf-8")
+        last_exc: Exception | None = None
+        for attempt in range(1, WFS_MAX_RETRIES + 1):
+            try:
+                try:
+                    response = urllib.request.urlopen(url, timeout=WFS_TIMEOUT_SECONDS)  # noqa: S310
+                except TypeError:
+                    response = urllib.request.urlopen(url)  # noqa: S310
+                with response as resp:
+                    payload = resp.read().decode("utf-8")
+                break
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                if attempt < WFS_MAX_RETRIES:
+                    delay = 10 * attempt
+                    print(f"Maa-amet WFS attempt {attempt} failed ({exc}); retrying in {delay}s", flush=True)
+                    time.sleep(delay)
+        else:
+            raise RuntimeError(f"Maa-amet WFS failed after {WFS_MAX_RETRIES} attempts") from last_exc
         print("Maa-amet WFS response received.", flush=True)
         data = json.loads(payload)
         return _analyze_parcels_from_geojson(data, aoi_geom)
