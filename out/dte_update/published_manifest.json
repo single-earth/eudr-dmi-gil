@@ -8,16 +8,46 @@
       "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/inputs/aoi.geojson"
     },
     {
-      "bytes": 16289,
+      "bytes": 14948,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "c511f71664e3be65eff3b8ec5e413a1a7777be6871b34aaae8454c02ddc76ba0",
+      "sha256": "e3862cbfa98c78a2af2bfe9a2b771838e5404b2ff1005c93598079e5b6666077",
       "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.html"
     },
     {
-      "bytes": 21276,
+      "bytes": 28173,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "da3de069fc75ab4b68f7656f335bdd541b7af5fb16a09dc7c69e1b550eff89ee",
+      "sha256": "bf2ab8bc2e8cf4f15d576617ec6ce138fdb7439504afc9f7d1a7bc902f39eb16",
       "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1.json"
+    },
+    {
+      "bytes": 47192,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson",
+      "sha256": "fd26e7b31337d8634c68f5b6bbdfd1898aea398e455b62e1ff04f1f1a9ccd692",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson"
+    },
+    {
+      "bytes": 78521,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson",
+      "sha256": "e7ed3e364911731d7e6800d90d84eb1e9c54dc6a5b541246f91279d9ad155ada",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson"
+    },
+    {
+      "bytes": 78521,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson",
+      "sha256": "e7ed3e364911731d7e6800d90d84eb1e9c54dc6a5b541246f91279d9ad155ada",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson"
+    },
+    {
+      "bytes": 11914,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson",
+      "sha256": "892f98f3acecaeba2c547f95995bea2bebf078f638db9224d8cca2cd4bfb6ea7",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson"
+    },
+    {
+      "bytes": 708,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json",
+      "sha256": "0032bc69ce165faf5d1700cb8636668aa938164b4000c9534332b0ee2d149299",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json"
     },
     {
       "bytes": 1021,
@@ -26,9 +56,57 @@
       "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json"
     },
     {
-      "bytes": 821,
+      "bytes": 374,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json",
+      "sha256": "c03dfc5ce6d92bf8e639e0704363f99d9395a97690128224953b56de349cf2eb",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json"
+    },
+    {
+      "bytes": 203,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_fields_inventory.json",
+      "sha256": "999a81429968b3655cb8bd67a038269c592254033b312fde6cebeafd22152c43",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_fields_inventory.json"
+    },
+    {
+      "bytes": 213703,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.csv",
+      "sha256": "1515accf93a51336c1f845ceee153f8ad4afec7c88ffda999046440353a8a0e7",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.csv"
+    },
+    {
+      "bytes": 376,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json",
+      "sha256": "cc11adaf7be8e3f71bce77de73712eb1955a3b682d853044f1481152fc99b4c1",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json"
+    },
+    {
+      "bytes": 9317,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_parcels_metadata.json",
+      "sha256": "880053505b6b6268dbf120c95e756e798de5549ddd5173a7c28587764a7feb5a",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_parcels_metadata.json"
+    },
+    {
+      "bytes": 1398,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.csv",
+      "sha256": "7ef80171b5753a4ce851b1bb5c78a2fd1146da9b080494f5972360ffc931b9ca",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.csv"
+    },
+    {
+      "bytes": 13628,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.geojson",
+      "sha256": "5c16f16740c1f2034dc3f79ee0146ad1b1b1a7fa597c1ec3e223fbaa72c99818",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.geojson"
+    },
+    {
+      "bytes": 462,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/map/map_config.json",
+      "sha256": "c1950efd07b40a84ee7b18149afad245b83cc2e20ea25c3feff9934e41d6b912",
+      "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/map/map_config.json"
+    },
+    {
+      "bytes": 809,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/metrics.csv",
-      "sha256": "857b097dcccc83662b64c7e66a663b966ecb8c022cd40495c409fa1f92ca4e8c",
+      "sha256": "13ada0c56626712b26d716f672a208ae6765fa907146bdcf03dd3c6fd66c55c3",
       "url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv"
     }
   ],
@@ -36,6 +114,6 @@
   "generated_utc": "2026-02-19T12:47:49+00:00",
   "source": {
     "published_report_url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html",
-    "retrieved_utc": "2026-07-01T06:18:36.690367+00:00"
+    "retrieved_utc": "2026-07-01T06:28:55.123443+00:00"
   }
 }

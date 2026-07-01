@@ -11,19 +11,97 @@
       "bytes": 16289,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.html",
-      "sha256": "3e79e61e125f482fd089ed1c07885dbb4b5b94787a7d502d3d5159e6cbd1cad9"
+      "sha256": "f5d884845382fb8d5c03623da9e0db5dad9b394c5a58c11390cd84e40b8ccdff"
     },
     {
       "bytes": 21251,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1.json",
-      "sha256": "3dd1292d86dda95d1b9266ad290c9fd6f89af6d03913d9e41ca35795d417b615"
+      "sha256": "5d854cb714a2efe9c6d9c6b69097d2a972a9f7b1ffca65d03317bb057461b150"
+    },
+    {
+      "bytes": 47192,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_2000_tree_cover_mask.geojson",
+      "sha256": "fd26e7b31337d8634c68f5b6bbdfd1898aea398e455b62e1ff04f1f1a9ccd692"
+    },
+    {
+      "bytes": 78521,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_current_tree_cover_mask.geojson",
+      "sha256": "e7ed3e364911731d7e6800d90d84eb1e9c54dc6a5b541246f91279d9ad155ada"
+    },
+    {
+      "bytes": 78521,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_end_year_tree_cover_mask.geojson",
+      "sha256": "e7ed3e364911731d7e6800d90d84eb1e9c54dc6a5b541246f91279d9ad155ada"
+    },
+    {
+      "bytes": 11914,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_mask.geojson",
+      "sha256": "892f98f3acecaeba2c547f95995bea2bebf078f638db9224d8cca2cd4bfb6ea7"
+    },
+    {
+      "bytes": 708,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json",
+      "sha256": "0032bc69ce165faf5d1700cb8636668aa938164b4000c9534332b0ee2d149299"
     },
     {
       "bytes": 1021,
       "missing": false,
       "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_tiles.json",
       "sha256": "f0856451015e2378717b557de664b62945d054347251a5b207ffae283ee16cce"
+    },
+    {
+      "bytes": 374,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/hansen/forest_mask_debug.json",
+      "sha256": "c03dfc5ce6d92bf8e639e0704363f99d9395a97690128224953b56de349cf2eb"
+    },
+    {
+      "bytes": 203,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_fields_inventory.json",
+      "sha256": "999a81429968b3655cb8bd67a038269c592254033b312fde6cebeafd22152c43"
+    },
+    {
+      "bytes": 213703,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.csv",
+      "sha256": "1515accf93a51336c1f845ceee153f8ad4afec7c88ffda999046440353a8a0e7"
+    },
+    {
+      "bytes": 376,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_forest_area_crosscheck.json",
+      "sha256": "cc11adaf7be8e3f71bce77de73712eb1955a3b682d853044f1481152fc99b4c1"
+    },
+    {
+      "bytes": 9317,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_parcels_metadata.json",
+      "sha256": "880053505b6b6268dbf120c95e756e798de5549ddd5173a7c28587764a7feb5a"
+    },
+    {
+      "bytes": 1398,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.csv",
+      "sha256": "7ef80171b5753a4ce851b1bb5c78a2fd1146da9b080494f5972360ffc931b9ca"
+    },
+    {
+      "bytes": 13628,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/maaamet/maaamet_top10_parcels.geojson",
+      "sha256": "5c16f16740c1f2034dc3f79ee0146ad1b1b1a7fa597c1ec3e223fbaa72c99818"
+    },
+    {
+      "bytes": 462,
+      "missing": false,
+      "relative_path": "reports/aoi_report_v2/estonia_testland1/map/map_config.json",
+      "sha256": "c1950efd07b40a84ee7b18149afad245b83cc2e20ea25c3feff9934e41d6b912"
     },
     {
       "bytes": 821,
@@ -36,6 +114,6 @@
   "generated_utc": "2026-02-19T12:47:49+00:00",
   "source": {
     "local_run_root": "/Users/server/projects/eudr-dmi-gil/out/site_bundle/aoi_reports/runs/example",
-    "retrieved_utc": "2026-07-01T06:18:37.968005+00:00"
+    "retrieved_utc": "2026-07-01T06:28:58.743739+00:00"
   }
 }

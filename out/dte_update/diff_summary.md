@@ -12,8 +12,9 @@ Published report: https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/
 - (none)
 
 ## Hash changed
-- reports/aoi_report_v2/estonia_testland1.html: published=c511f71664e3be65eff3b8ec5e413a1a7777be6871b34aaae8454c02ddc76ba0 local=3e79e61e125f482fd089ed1c07885dbb4b5b94787a7d502d3d5159e6cbd1cad9
-- reports/aoi_report_v2/estonia_testland1.json: published=da3de069fc75ab4b68f7656f335bdd541b7af5fb16a09dc7c69e1b550eff89ee local=3dd1292d86dda95d1b9266ad290c9fd6f89af6d03913d9e41ca35795d417b615
+- reports/aoi_report_v2/estonia_testland1.html: published=e3862cbfa98c78a2af2bfe9a2b771838e5404b2ff1005c93598079e5b6666077 local=f5d884845382fb8d5c03623da9e0db5dad9b394c5a58c11390cd84e40b8ccdff
+- reports/aoi_report_v2/estonia_testland1.json: published=bf2ab8bc2e8cf4f15d576617ec6ce138fdb7439504afc9f7d1a7bc902f39eb16 local=5d854cb714a2efe9c6d9c6b69097d2a972a9f7b1ffca65d03317bb057461b150
+- reports/aoi_report_v2/estonia_testland1/metrics.csv: published=13ada0c56626712b26d716f672a208ae6765fa907146bdcf03dd3c6fd66c55c3 local=857b097dcccc83662b64c7e66a663b966ecb8c022cd40495c409fa1f92ca4e8c
 
 ## Missing locally
 - (none)
