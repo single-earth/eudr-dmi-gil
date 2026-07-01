@@ -45,5 +45,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dt-diff-summary
-          path: out/dte_update/
+          path: |
+            out/dte_update/
+            out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv
+            out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json
           if-no-files-found: ignore
