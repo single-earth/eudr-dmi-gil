@@ -47,6 +47,8 @@ jobs:
           name: dt-diff-summary
           path: |
             out/dte_update/
+            out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.html
+            out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1.json
             out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/metrics.csv
             out/site_bundle/aoi_reports/runs/example/reports/aoi_report_v2/estonia_testland1/hansen/forest_loss_post_2020_summary.json
           if-no-files-found: ignore
