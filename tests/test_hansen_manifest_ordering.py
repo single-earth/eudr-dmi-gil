@@ -41,7 +41,7 @@ def test_tiles_manifest_ordering(tmp_path: Path) -> None:
     write_tiles_manifest(
         manifest_path,
         entries=entries,
-        dataset_version="2024-v1.12",
+        dataset_version="2025-v1.13",
         tile_source="external",
         aoi_id="aoi-123",
         run_id="run-123",

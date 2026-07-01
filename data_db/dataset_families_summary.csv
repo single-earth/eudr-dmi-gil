@@ -17,7 +17,7 @@ GEOBON_EBV,1,0,https://portal.geobon.org/
 GFW_Forest_Carbon,2,1,https://datasets.wri.org/datasets/gfw-forest-carbon-gross-removals
 Google Satellite Embeddings,1,1,https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_SATELLITE_EMBEDDING_V1_ANNUAL
 Google_Solar,1,0,https://developers.google.com/maps/documentation/solar/overview
-Hansen_GFC,2,1,https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html
+Hansen_GFC,2,1,https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/download.html
 Maa-amet Geoportaal,1,1,https://geoportaal.maaamet.ee/est/teenused/wms-wfs-wcs-teenused-p65.html
 Other_or_unsorted,9,8,http://euroveg.org/eva-database-re-survey-europe
 Our World in Data,6,2,https://global-change-data-lab.org/

@@ -51,7 +51,7 @@ def test_suggest_dependency_updates_history(tmp_path: Path, monkeypatch: pytest.
                 "sources": [
                     {
                         "id": "hansen_gfc_definitions",
-                        "url": "https://example.org/GFC-2024-v1.12/download.html",
+                        "url": "https://example.org/GFC-2025-v1.13/download.html",
                         "expected_content_type": "text/html",
                         "server_audit_path": "/audit/hansen",
                     }
@@ -68,7 +68,7 @@ def test_suggest_dependency_updates_history(tmp_path: Path, monkeypatch: pytest.
     sources_csv.parent.mkdir(parents=True, exist_ok=True)
     sources_csv.write_text(
         "dependency_id,url,expected_content_type,server_audit_path,description,family_or_tag,used_by,update_policy,version_pattern,last_verified_utc\n"
-        "hansen_gfc_definitions,https://example.org/GFC-2024-v1.12/download.html,text/html,/audit/hansen,desc,forest,docs/dependencies/hansen_gfc.yaml,probe_yearly,GFC-YYYY-v1.12,\n",
+        "hansen_gfc_definitions,https://example.org/GFC-2025-v1.13/download.html,text/html,/audit/hansen,desc,forest,docs/dependencies/hansen_gfc.yaml,probe_yearly,GFC-YYYY-v1.13,\n",
         encoding="utf-8",
     )
 

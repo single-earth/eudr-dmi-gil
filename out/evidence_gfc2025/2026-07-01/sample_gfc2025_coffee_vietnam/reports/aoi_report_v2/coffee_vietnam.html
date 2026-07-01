@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AOI Report — coffee_vietnam</title>
+    <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 24px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { background: #f6f6f6; text-align: left; width: 240px; }
+    h2 { margin-top: 28px; }
+    code { background: #f6f6f6; padding: 1px 4px; border-radius: 4px; }
+    .muted { color: #666; }
+        .map-legend { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.2); font-size: 12px; line-height: 1.4; }
+        .map-legend-item { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+        .map-legend-item input { margin: 0; }
+        .map-legend-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid #333; }
+        #map { height: 420px; border: 1px solid #ddd; border-radius: 8px; margin: 12px 0 16px; background: #fafafa; }
+  </style>
+</head>
+<body>
+  <h1>AOI Report</h1>
+  <table>
+    <tr><th>AOI</th><td>coffee_vietnam</td></tr>
+    <tr><th>Bundle</th><td>sample_gfc2025_coffee_vietnam</td></tr>
+    <tr><th>Generated (UTC)</th><td>2026-07-01T12:00:00+00:00</td></tr>
+    <tr><th>Report Version</th><td>aoi_report_v2</td></tr>
+    <tr><th>Geometry Ref</th><td>geojson: inputs/aoi.geojson</td></tr>
+    <tr><th>AOI area (ha)</th><td>38939.809945</td></tr>
+    <tr><th>AOI area method</th><td>geodesic_wgs84_pyproj</td></tr>
+  </table>
+
+  <h2>Deforestation-free (post-2020)</h2>
+  <table>
+    <tr><th>Definition</th><td>Forest loss after 2020-12-31 (pixel-wise intersection)</td></tr>
+<tr><th>Forest loss (ha)</th><td>0.0</td></tr>
+<tr><th>Percent of AOI</th><td>0.0</td></tr>
+<tr><th>Threshold (ha)</th><td>0.0</td></tr>
+<tr><th>Status</th><td>pass</td></tr>
+<tr><th>Uncertainty</th><td>{'pixel_area_method': 'geodesic_pixel_area_wgs84', 'nodata': 'masked_as_no_loss', 'projection': 'EPSG:4326', 'conservative_bounds': 'area estimates are lower-bound for masked/no-data pixels'}</td></tr>
+  </table>
+
+  <h2>Forest baseline / forest mask</h2>
+  <table>
+    <tr><th>Tree cover threshold (%)</th><td>10</td></tr>
+    <tr><th>Baseline year</th><td>2000</td></tr>
+    <tr><th>Cutoff year</th><td>2020</td></tr>
+  </table>
+
+    <h2>Forest area and loss (pixel-based, AOI intersection)</h2>
+    <table>
+        <tr><th>Tree cover threshold (%)</th><td>10</td></tr>
+<tr><th>Reference forest mask year</th><td>2000</td></tr>
+<tr><th>RFM area (ha)</th><td>0.0</td></tr>
+<tr><th>Loss 2021-2025 (ha)</th><td>0.0 (0.0% of RFM)</td></tr>
+<tr><th>Forest end-year area (ha)</th><td>0.0</td></tr>
+<tr><th>Method summary</th><td>area_ha = sum(pixel_area_m2 * mask * zone_mask)/10000</td></tr>
+    </table>
+
+    
+    <h2>Map (interactive)</h2>
+    <div id="map"></div>
+    <p class="muted">Map layers are loaded from <a href="coffee_vietnam/map/map_config.json">coffee_vietnam/map/map_config.json</a>.</p>
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
+    <script>
+        (function () {
+            const map = L.map('map', { zoomControl: true });
+            const satellite = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                {
+                    attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+                },
+            ).addTo(map);
+            const configUrl = 'coffee_vietnam/map/map_config.json';
+            fetch(configUrl)
+                .then((resp) => resp.json().then((config) => ({ config, configBaseUrl: resp.url })))
+                .then(({ config, configBaseUrl }) => {
+                    const bbox = config.aoi_bbox;
+                    const bounds = L.latLngBounds([
+                        [bbox.min_lat, bbox.min_lon],
+                        [bbox.max_lat, bbox.max_lon],
+                    ]);
+                    map.fitBounds(bounds);
+
+                    const layerDefs = [
+                        {
+                            key: 'forest_2000',
+                            label: 'Forest cover 2000',
+                            color: '#2e7d32',
+                            defaultOn: true,
+                            options: { style: { color: '#2e7d32', weight: 1, fillOpacity: 0.3 } },
+                        },
+                        {
+                            key: 'forest_end_year',
+                            label: `Forest cover ${config.latest_year}`,
+                            color: '#1b5e20',
+                            defaultOn: true,
+                            options: { style: { color: '#1b5e20', weight: 1, fillOpacity: 0.3 } },
+                        },
+                        {
+                            key: 'forest_loss_post_2020',
+                            label: 'Forest loss since 2020',
+                            color: '#c62828',
+                            defaultOn: true,
+                            options: { style: { color: '#c62828', weight: 2, fillOpacity: 0.55 } },
+                        },
+                        {
+                            key: 'aoi_boundary',
+                            label: 'AOI boundary',
+                            color: '#00e5ff',
+                            defaultOn: true,
+                            options: { style: { color: '#00e5ff', weight: 4, opacity: 1, fillOpacity: 0 } },
+                        },
+                        {
+                            key: 'parcels',
+                            label: 'Maa-amet parcels',
+                            color: '#000000',
+                            defaultOn: false,
+                            options: {
+                                style: { color: '#000000', weight: 3, opacity: 1, fillOpacity: 0 },
+                                onEachFeature: (feature, layer) => {
+                                    const props = feature.properties || {};
+                                    const label = `${props.parcel_id || ''} | forest_ha=${props.hansen_forest_area_ha ?? ''} | loss_ha=${props.hansen_forest_loss_ha ?? ''}`;
+                                    layer.bindTooltip(label, { sticky: true });
+                                },
+                            },
+                        },
+                    ];
+
+                    const overlayGroups = {};
+                    layerDefs.forEach((def) => {
+                        const group = L.layerGroup();
+                        overlayGroups[def.key] = group;
+                        if (def.defaultOn) {
+                            group.addTo(map);
+                        }
+                    });
+
+                    const addGeoJson = (def, url) => {
+                        if (!url) return;
+                        const resolvedUrl = new URL(url, configBaseUrl).toString();
+                        fetch(resolvedUrl)
+                            .then((r) => r.json())
+                            .then((data) => {
+                                L.geoJSON(data, def.options).addTo(overlayGroups[def.key]);
+                            })
+                            .catch((err) => {
+                                console.warn(`Layer load failed: ${def.label}`, err);
+                            });
+                    };
+
+                    layerDefs.forEach((def) => addGeoJson(def, config.layers?.[def.key]));
+
+                    const legend = L.control({ position: 'topright' });
+                    legend.onAdd = function () {
+                        const div = L.DomUtil.create('div', 'map-legend');
+                        div.innerHTML = '<strong>Map layers</strong>';
+                        layerDefs.forEach((def, idx) => {
+                            const hasUrl = Boolean(config.layers?.[def.key]);
+                            if (!hasUrl) return;
+                            const checked = map.hasLayer(overlayGroups[def.key]) ? 'checked' : '';
+                            const item = document.createElement('label');
+                            item.className = 'map-legend-item';
+                            item.innerHTML = `
+                                <input type="checkbox" data-layer-key="${def.key}" ${checked} />
+                                <span class="map-legend-swatch" style="background:${def.color}"></span>
+                                <span>${def.label}</span>
+                            `;
+                            div.appendChild(item);
+                        });
+                        L.DomEvent.disableClickPropagation(div);
+                        L.DomEvent.disableScrollPropagation(div);
+
+                        div.querySelectorAll('input[type="checkbox"]').forEach((el) => {
+                            el.addEventListener('change', (event) => {
+                                const key = event.target.getAttribute('data-layer-key');
+                                const group = overlayGroups[key];
+                                if (!group) return;
+                                if (event.target.checked) {
+                                    map.addLayer(group);
+                                } else {
+                                    map.removeLayer(group);
+                                }
+                            });
+                        });
+                        return div;
+                    };
+                    legend.addTo(map);
+                });
+        })();
+    </script>
+
+
+    <h2>Parcels (top 10 with forest ≥ 3 ha)</h2>
+    <table>
+        <tr>
+            <th>Parcel ID</th>
+            <th>Hansen land area (ha)</th>
+            <th>Maa-amet land area (ha)</th>
+            <th>Hansen forest area (ha)</th>
+            <th>Maa-amet forest area (ha)</th>
+            <th>Forest loss (ha)</th>
+        </tr>
+        <tr><td colspan="6">(none)</td></tr>
+    </table>
+
+  <h2>Data sources & provenance</h2>
+  <table>
+    <tr><th>dataset_id</th><th>version</th><th>retrieved_at_utc</th><th>license</th><th>source_url</th></tr>
+    <tr><td>aoi_geometry_input</td><td>user_supplied</td><td>2026-07-01T12:00:00+00:00</td><td>user_supplied</td><td>inputs/aoi.geojson</td></tr>
+<tr><td>hansen_gfc_2025_v1_13</td><td>2025-v1.13</td><td>2026-07-01T12:00:00+00:00</td><td>Hansen GFC (public)</td><td>https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/</td></tr>
+  </table>
+
+  <h2>Methods & parameters</h2>
+  <table>
+    <tr><th>aoi_area_method</th><td>geodesic_wgs84_pyproj</td></tr>
+<tr><th>forest_loss_post_2020</th><td>{'canopy_threshold_percent': 10, 'cutoff_year': 2020, 'acceptance_threshold_ha': 0.0, 'pixel_area_method': 'geodesic_pixel_area_wgs84', 'area_method': 'geodesic_pixel_area_wgs84', 'lossyear_mapping': '0=no_loss; 1..end_year_code=2001..end_year (year=lossyear+2000)', 'mask_definitions': {'rfm_mask': 'treecover2000 >= canopy_threshold_percent', 'loss_total': 'rfm_mask & (lossyear > 0)', 'loss_post_cutoff': 'rfm_mask & (lossyear > 20) [2021+]', 'loss_2021_2025': 'rfm_mask & (lossyear in 21..25)', 'forest_2025': 'rfm_mask & (lossyear == 0)'}, 'end_year': 2025, 'forest_end_year_ha': 0.0}</td></tr>
+<tr><th>implementation</th><td>{'forest_loss_post_2020': 'v1', 'git_commit': ''}</td></tr>
+  </table>
+
+  <h2>Traceability to EUDR Articles</h2>
+  <table>
+    <tr><th>Article</th><th>Requirement</th><th>Evidence fields</th><th>Artifacts</th><th>Status</th></tr>
+    <tr><td>EUDR Article 9</td><td>AOI geometry is declared and traceable</td><td>aoi_geometry_ref, inputs.sources</td><td><a href="../../inputs/aoi.geojson">inputs/aoi.geojson</a></td><td>pass</td></tr>
+<tr><td>EUDR Article 3</td><td>Deforestation-free after 2020-01-31</td><td>results_summary.deforestation_free_post_2020, computed.forest_loss_post_2020.pixel_forest_loss_post_2020_ha</td><td><a href="coffee_vietnam/hansen/forest_loss_post_2020_mask.geojson">reports/aoi_report_v2/coffee_vietnam/hansen/forest_loss_post_2020_mask.geojson</a>, <a href="coffee_vietnam/hansen/forest_loss_post_2020_tiles.json">reports/aoi_report_v2/coffee_vietnam/hansen/forest_loss_post_2020_tiles.json</a></td><td>pass</td></tr>
+  </table>
+
+  <h2>Evidence artifact index</h2>
+  <table>
+    <tr><th>relpath</th><th>sha256</th><th>size_bytes</th><th>role</th></tr>
+    <tr><td colspan="4">(none)</td></tr>
+  </table>
+
+  <h2>Bundle artifacts</h2>
+  <ul>
+    <li><a href="../../inputs/aoi.geojson">../../inputs/aoi.geojson</a></li>
+<li><a href="coffee_vietnam.json">coffee_vietnam.json</a></li>
+<li><a href="coffee_vietnam/hansen/forest_2000_tree_cover_mask.geojson">coffee_vietnam/hansen/forest_2000_tree_cover_mask.geojson</a></li>
+<li><a href="coffee_vietnam/hansen/forest_current_tree_cover_mask.geojson">coffee_vietnam/hansen/forest_current_tree_cover_mask.geojson</a></li>
+<li><a href="coffee_vietnam/hansen/forest_end_year_tree_cover_mask.geojson">coffee_vietnam/hansen/forest_end_year_tree_cover_mask.geojson</a></li>
+<li><a href="coffee_vietnam/hansen/forest_loss_post_2020_mask.geojson">coffee_vietnam/hansen/forest_loss_post_2020_mask.geojson</a></li>
+<li><a href="coffee_vietnam/hansen/forest_loss_post_2020_summary.json">coffee_vietnam/hansen/forest_loss_post_2020_summary.json</a></li>
+<li><a href="coffee_vietnam/hansen/forest_loss_post_2020_tiles.json">coffee_vietnam/hansen/forest_loss_post_2020_tiles.json</a></li>
+<li><a href="coffee_vietnam/hansen/forest_mask_debug.json">coffee_vietnam/hansen/forest_mask_debug.json</a></li>
+<li><a href="coffee_vietnam/maaamet/maaamet_forest_area_crosscheck.csv">coffee_vietnam/maaamet/maaamet_forest_area_crosscheck.csv</a></li>
+<li><a href="coffee_vietnam/maaamet/maaamet_forest_area_crosscheck.json">coffee_vietnam/maaamet/maaamet_forest_area_crosscheck.json</a></li>
+<li><a href="coffee_vietnam/map/map_config.json">coffee_vietnam/map/map_config.json</a></li>
+<li><a href="coffee_vietnam/metrics.csv">coffee_vietnam/metrics.csv</a></li>
+  </ul>
+</body>
+</html>

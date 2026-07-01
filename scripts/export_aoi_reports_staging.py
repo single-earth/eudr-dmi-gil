@@ -155,13 +155,18 @@ def _render_report_html(report: dict[str, Any], *, rel_artifacts: list[str]) -> 
 
     forest_rows: list[str] = []
     if isinstance(forest_metrics, dict) and forest_metrics:
-      loss_recent = forest_metrics.get("loss_2021_2024_ha")
-      loss_recent_pct = forest_metrics.get("loss_2021_2024_pct_of_rfm")
+      end_year = int(forest_metrics.get("end_year") or 2024)
+      loss_recent = forest_metrics.get(f"loss_2021_{end_year}_ha")
+      if loss_recent is None:
+        loss_recent = forest_metrics.get("loss_2021_2024_ha")
+      loss_recent_pct = forest_metrics.get(f"loss_2021_{end_year}_pct_of_rfm")
+      if loss_recent_pct is None:
+        loss_recent_pct = forest_metrics.get("loss_2021_2024_pct_of_rfm")
       forest_rows.extend(
         [
           f"<li><b>Tree cover threshold (%):</b> {forest_metrics.get('canopy_threshold_pct')}</li>",
           f"<li><b>RFM area (ha):</b> {forest_metrics.get('rfm_area_ha')}</li>",
-          f"<li><b>Loss 2021–2024 (ha):</b> {loss_recent} ({loss_recent_pct}% of RFM)</li>",
+          f"<li><b>Loss 2021-{end_year} (ha):</b> {loss_recent} ({loss_recent_pct}% of RFM)</li>",
           f"<li><b>Forest end-year area (ha):</b> {forest_metrics.get('forest_end_year_area_ha')}</li>",
         ]
       )

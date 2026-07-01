@@ -1,0 +1,1 @@
+{"aoi_bbox":{"max_lat":3.65,"max_lon":-76.25,"min_lat":3.48,"min_lon":-76.45},"latest_year":2025,"layers":{"aoi_boundary":"../../../../inputs/aoi.geojson","forest_2000":"../hansen/forest_2000_tree_cover_mask.geojson","forest_end_year":"../hansen/forest_current_tree_cover_mask.geojson","forest_loss_post_2020":"../hansen/forest_loss_post_2020_mask.geojson","parcels":null}}

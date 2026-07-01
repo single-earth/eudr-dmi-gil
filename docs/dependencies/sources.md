@@ -16,7 +16,7 @@ Server audit root (convention): `/Users/server/audit/eudr_dmi`
 
 | id | url | expected content type | server audit path |
 |---|---|---|---|
-| `hansen_gfc_definitions` | https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html | `text/html` | `/Users/server/audit/eudr_dmi/dependencies/hansen_gfc_definitions` |
+| `hansen_gfc_definitions` | https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/download.html | `text/html` | `/Users/server/audit/eudr_dmi/dependencies/hansen_gfc_definitions` |
 | `maa-amet/forest/v1` | https://gsavalik.envir.ee/geoserver/wfs | `application/xml` | `/Users/server/audit/eudr_dmi/dependencies/maa_amet_forest_v1` |
 
 Notes:

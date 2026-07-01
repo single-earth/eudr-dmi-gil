@@ -1,0 +1,1 @@
+{"comparison":{"diff_pct":null,"status":"not_comparable","tolerance_percent":5.0},"computed":{"forest_area_ha":0.0},"csv_relpath":"maaamet_forest_area_crosscheck.csv","fields_used":["forest_area_ha"],"outcome":"not_comparable","reason":"missing_reference_forest_area","reference":{"method":"missing","source":"missing","value_ha":null}}

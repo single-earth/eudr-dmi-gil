@@ -61,7 +61,7 @@ AOI_PATH="${AOI_GEOJSON:-$REPO_ROOT/aoi_json_examples/estonia_testland1.geojson}
 EVIDENCE_ROOT="$REPO_ROOT/.tmp/evidence_example"
 OUTPUT_ROOT="${EUDR_DMI_AOI_STAGING_DIR:-$REPO_ROOT/out/site_bundle/aoi_reports}"
 export EUDR_DMI_DATA_ROOT="${EUDR_DMI_DATA_ROOT:-/Users/server/data/eudr-dmi}"
-HANSEN_TILE_DIR="${EUDR_DMI_HANSEN_TILE_DIR:-$EUDR_DMI_DATA_ROOT/hansen/hansen_gfc_2024_v1_12/tiles}"
+HANSEN_TILE_DIR="${EUDR_DMI_HANSEN_TILE_DIR:-$EUDR_DMI_DATA_ROOT/hansen/hansen_gfc_2025_v1_13/tiles}"
 DT_REPO="${DT_REPO:-/Users/server/projects/eudr-dmi-gil-digital-twin}"
 
 RUN_ID="${RUN_ID:-example}"

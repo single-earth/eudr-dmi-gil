@@ -291,8 +291,13 @@ def _render_html_summary(
     forest_metrics_rows = []
     if isinstance(forest_metrics, dict) and forest_metrics:
         method_block = forest_metrics.get("method", {}) if isinstance(forest_metrics.get("method"), dict) else {}
-        loss_recent = forest_metrics.get("loss_2021_2024_ha")
-        loss_recent_pct = forest_metrics.get("loss_2021_2024_pct_of_rfm")
+        end_year = int(forest_metrics.get("end_year") or 2024)
+        loss_recent = forest_metrics.get(f"loss_2021_{end_year}_ha")
+        if loss_recent is None:
+            loss_recent = forest_metrics.get("loss_2021_2024_ha")
+        loss_recent_pct = forest_metrics.get(f"loss_2021_{end_year}_pct_of_rfm")
+        if loss_recent_pct is None:
+            loss_recent_pct = forest_metrics.get("loss_2021_2024_pct_of_rfm")
         forest_end_year_value = forest_metrics.get("forest_end_year_ha")
         if forest_end_year_value is None:
             forest_end_year_value = forest_metrics.get("forest_end_year_area_ha")
@@ -302,7 +307,7 @@ def _render_html_summary(
                 row("Reference forest mask year", str(forest_metrics.get("reference_forest_mask_year"))),
                 row("RFM area (ha)", str(forest_metrics.get("rfm_area_ha"))),
                 row(
-                    "Loss 2021–2024 (ha)",
+                    f"Loss 2021-{end_year} (ha)",
                     f"{loss_recent} ({loss_recent_pct}% of RFM)" if loss_recent is not None else "",
                 ),
                 row(
@@ -1080,7 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
                     notes="rfm_mask & (lossyear > 0)",
                 ),
                 MetricRow(
-                    variable="loss_2021_2024_ha",
+                    variable=f"loss_2021_{hansen_analysis.raw.forest_metrics.end_year}_ha",
                     value=hansen_analysis.raw.forest_metrics.loss_2021_2024_ha,
                     unit="ha",
                     source="hansen_gfc",
@@ -1270,6 +1275,9 @@ def main(argv: list[str] | None = None) -> int:
             "loss_total_2001_2024_ha": forest_metrics.loss_total_2001_2024_ha,
             "loss_2021_2024_ha": forest_metrics.loss_2021_2024_ha,
             "loss_2021_2024_pct_of_rfm": forest_metrics.loss_2021_2024_pct_of_rfm,
+            f"loss_total_2001_{forest_metrics.end_year}_ha": forest_metrics.loss_total_2001_2024_ha,
+            f"loss_2021_{forest_metrics.end_year}_ha": forest_metrics.loss_2021_2024_ha,
+            f"loss_2021_{forest_metrics.end_year}_pct_of_rfm": forest_metrics.loss_2021_2024_pct_of_rfm,
             "method": {
                 "area": forest_metrics_params.method_area,
                 "zonal": forest_metrics_params.method_zonal,
@@ -1277,13 +1285,13 @@ def main(argv: list[str] | None = None) -> int:
             },
             "inputs": {
                 "hansen_treecover2000": {
-                    "source": "hansen_gfc_2024_v1_12",
+                    "source": "hansen_gfc_2025_v1_13",
                     "tile_refs": tile_refs_treecover,
                     "hash": tiles_manifest_ref["sha256"],
                     "tiles_manifest_ref": tiles_manifest_ref,
                 },
                 "hansen_lossyear": {
-                    "source": "hansen_gfc_2024_v1_12",
+                    "source": "hansen_gfc_2025_v1_13",
                     "tile_refs": tile_refs_lossyear,
                     "hash": tiles_manifest_ref["sha256"],
                     "tiles_manifest_ref": tiles_manifest_ref,
@@ -1322,6 +1330,7 @@ def main(argv: list[str] | None = None) -> int:
             "areas_ha": {
                 "rfm": forest_metrics_debug.rfm_area_ha,
                 "loss_total_2001_2024": forest_metrics_debug.loss_total_2001_2024_ha,
+                f"loss_total_2001_{forest_metrics.end_year}": forest_metrics_debug.loss_total_2001_2024_ha,
                 "loss_total": forest_metrics_debug.loss_total_ha,
                 "loss_2021_end_year": forest_metrics_debug.loss_2021_2024_ha,
                 "forest_end_year": forest_metrics_debug.forest_end_year_area_ha,
@@ -1332,7 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
 
         hansen_external_dependencies = [
             {
-                "dependency_id": "hansen_gfc_2024_v1_12",
+                "dependency_id": "hansen_gfc_2025_v1_13",
                 "dataset_version": hansen_config.dataset_version,
                 "tile_source": hansen_config.tile_source,
                 "aoi_geojson_sha256": geo_sha,
@@ -1363,11 +1372,11 @@ def main(argv: list[str] | None = None) -> int:
     if hansen_result is not None:
         datasets.append(
             {
-                "dataset_id": "hansen_gfc_2024_v1_12",
+                "dataset_id": "hansen_gfc_2025_v1_13",
                 "version": hansen_config.dataset_version,
                 "retrieved_at_utc": generated_at_utc,
                 "license": "Hansen GFC (public)",
-                "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/",
+                "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/",
             }
         )
 
@@ -1381,6 +1390,10 @@ def main(argv: list[str] | None = None) -> int:
     if hansen_result is not None:
         cutoff_code = max(hansen_config.cutoff_year - 2000, 0)
         first_post_cutoff_year = hansen_config.cutoff_year + 1
+        hansen_end_year = (
+            hansen_analysis.raw.forest_metrics.end_year if hansen_analysis is not None else hansen_config.dataset_end_year
+        )
+        hansen_end_year_code = max(hansen_end_year - 2000, 0)
         parameters["forest_loss_post_2020"] = {
             "canopy_threshold_percent": hansen_config.canopy_threshold_percent,
             "cutoff_year": hansen_config.cutoff_year,
@@ -1406,8 +1419,10 @@ def main(argv: list[str] | None = None) -> int:
                     f"rfm_mask & (lossyear > {cutoff_code}) "
                     f"[{first_post_cutoff_year}+]"
                 ),
-                "loss_2021_2024": "rfm_mask & (lossyear in 21..24)",
-                "forest_2024": "rfm_mask & (lossyear == 0)",
+                f"loss_2021_{hansen_end_year}": (
+                    f"rfm_mask & (lossyear in 21..{hansen_end_year_code})"
+                ),
+                f"forest_{hansen_end_year}": "rfm_mask & (lossyear == 0)",
             },
         }
         if hansen_analysis is not None:
@@ -1673,7 +1688,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             report["external_dependencies"] = [
                 {
-                    "dependency_id": "hansen_gfc_2024_v1_12",
+                    "dependency_id": "hansen_gfc_2025_v1_13",
                     "dataset_version": hansen_config.dataset_version,
                     "tile_source": hansen_config.tile_source,
                     "aoi_geojson_sha256": geo_sha,

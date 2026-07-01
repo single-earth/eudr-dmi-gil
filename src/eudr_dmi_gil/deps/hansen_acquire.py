@@ -11,12 +11,12 @@ from typing import Iterable
 from eudr_dmi_gil.io import data_plane
 from eudr_dmi_gil.reports.determinism import sha256_file, write_json
 
-DATASET_VERSION_DEFAULT = "2024-v1.12"
-HANSEN_BASE_DIR_NAME = "hansen_gfc_2024_v1_12"
+DATASET_VERSION_DEFAULT = "2025-v1.13"
+HANSEN_BASE_DIR_NAME = "hansen_gfc_2025_v1_13"
 HANSEN_URL_TEMPLATE_ENV = "EUDR_DMI_HANSEN_URL_TEMPLATE"
 DEFAULT_HANSEN_URL_TEMPLATE = (
     "https://storage.googleapis.com/earthenginepartners-hansen/"
-    "GFC-2024-v1.12/Hansen_GFC-2024-v1.12_{layer}_{url_tile_id}.tif"
+    "GFC-2025-v1.13/Hansen_GFC-2025-v1.13_{layer}_{url_tile_id}.tif"
 )
 
 
@@ -62,8 +62,8 @@ def infer_hansen_latest_year(
     """Infer the most recent Hansen year from local context.
 
     Preference order:
-    1) Explicit dataset_version (e.g., "2024-v1.12")
-    2) Tile directory path parts (e.g., hansen_gfc_2024_v1_12)
+    1) Explicit dataset_version (e.g., "2025-v1.13")
+    2) Tile directory path parts (e.g., hansen_gfc_2025_v1_13)
     3) External root hansen directories
     4) DATASET_VERSION_DEFAULT
     """

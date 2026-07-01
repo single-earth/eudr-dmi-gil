@@ -21,7 +21,7 @@ from . import minio_cache
 
 DEFAULT_HANSEN_URL_TEMPLATE = (
     "https://storage.googleapis.com/earthenginepartners-hansen/"
-    "GFC-2024-v1.12/Hansen_GFC-2024-v1.12_{layer}_{url_tile_id}.tif"
+    "GFC-2025-v1.13/Hansen_GFC-2025-v1.13_{layer}_{url_tile_id}.tif"
 )
 
 
@@ -72,11 +72,11 @@ def _minio_env() -> tuple[str, str, str, str]:
 
 
 def _cache_key(tile_id: str, layer: str) -> str:
-    return f"deps/hansen/gfc_2024_v1_12/tiles/{tile_id}/{layer}.tif"
+    return f"deps/hansen/gfc_2025_v1_13/tiles/{tile_id}/{layer}.tif"
 
 
 def _manifest_key(aoi_id: str) -> str:
-    return f"deps/hansen/gfc_2024_v1_12/manifests/{aoi_id}/tiles_manifest.json"
+    return f"deps/hansen/gfc_2025_v1_13/manifests/{aoi_id}/tiles_manifest.json"
 
 
 def _entry_from_local(tile_id: str, layer: str, local_path: Path, *, status: str, source_url: str) -> HansenLayerEntry:

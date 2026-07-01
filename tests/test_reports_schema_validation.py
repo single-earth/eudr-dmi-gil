@@ -28,8 +28,8 @@ def _golden_aoi_report_v2() -> dict:
             "sources": [
                 {
                     "source_id": "hansen_gfc_definitions",
-                    "version": "GFC-2024-v1.12",
-                    "uri": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/download.html",
+                    "version": "GFC-2025-v1.13",
+                    "uri": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/download.html",
                 },
                 {
                     "source_id": "maa-amet/forest/v1",
@@ -195,7 +195,7 @@ def _inject_hansen_blocks(report: dict) -> None:
         },
         "inputs": {
             "hansen_treecover2000": {
-                "source": "hansen_gfc_2024_v1_12",
+                "source": "hansen_gfc_2025_v1_13",
                 "tile_refs": [
                     {
                         "tile_id": "N50_E020",
@@ -203,7 +203,7 @@ def _inject_hansen_blocks(report: dict) -> None:
                         "local_path": "/tmp/tiles/N50_E020/treecover2000.tif",
                         "sha256": "0" * 64,
                         "size_bytes": 123,
-                        "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/Hansen_GFC-2024-v1.12_treecover2000_50N_020E.tif",
+                        "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/Hansen_GFC-2025-v1.13_treecover2000_50N_020E.tif",
                     }
                 ],
                 "hash": "0" * 64,
@@ -213,7 +213,7 @@ def _inject_hansen_blocks(report: dict) -> None:
                 },
             },
             "hansen_lossyear": {
-                "source": "hansen_gfc_2024_v1_12",
+                "source": "hansen_gfc_2025_v1_13",
                 "tile_refs": [
                     {
                         "tile_id": "N50_E020",
@@ -221,7 +221,7 @@ def _inject_hansen_blocks(report: dict) -> None:
                         "local_path": "/tmp/tiles/N50_E020/lossyear.tif",
                         "sha256": "0" * 64,
                         "size_bytes": 456,
-                        "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/Hansen_GFC-2024-v1.12_lossyear_50N_020E.tif",
+                        "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/Hansen_GFC-2025-v1.13_lossyear_50N_020E.tif",
                     }
                 ],
                 "hash": "0" * 64,
@@ -245,7 +245,7 @@ def _inject_hansen_blocks(report: dict) -> None:
     report["methodology"] = {
         "forest_loss_post_2020": {
             "data_sources": ["hansen_global_forest_change"],
-            "dataset_version": "2024-v1.12",
+            "dataset_version": "2025-v1.13",
             "forest_definition": {"tree_cover_threshold_percent": 30},
             "calculation": {
                 "method": "pixel_wise_intersection",
@@ -313,8 +313,8 @@ def test_schema_accepts_external_dependencies_for_hansen() -> None:
     _inject_hansen_blocks(ok)
     ok["external_dependencies"] = [
         {
-            "dependency_id": "hansen_gfc_2024_v1_12",
-            "dataset_version": "2024-v1.12",
+            "dependency_id": "hansen_gfc_2025_v1_13",
+            "dataset_version": "2025-v1.13",
             "tile_source": "local",
             "aoi_geojson_sha256": "0" * 64,
             "tiles_manifest": {
@@ -328,7 +328,7 @@ def test_schema_accepts_external_dependencies_for_hansen() -> None:
                     "local_path": "/tmp/tiles/N50_E020/treecover2000.tif",
                     "sha256": "0" * 64,
                     "size_bytes": 123,
-                    "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2024-v1.12/Hansen_GFC-2024-v1.12_treecover2000_50N_020E.tif",
+                    "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/Hansen_GFC-2025-v1.13_treecover2000_50N_020E.tif",
                 }
             ],
         }
@@ -353,8 +353,8 @@ def test_schema_rejects_empty_source_url_for_local_tiles() -> None:
     _inject_hansen_blocks(bad)
     bad["external_dependencies"] = [
         {
-            "dependency_id": "hansen_gfc_2024_v1_12",
-            "dataset_version": "2024-v1.12",
+            "dependency_id": "hansen_gfc_2025_v1_13",
+            "dataset_version": "2025-v1.13",
             "tile_source": "local",
             "aoi_geojson_sha256": "0" * 64,
             "tiles_manifest": {

@@ -454,6 +454,9 @@
         "loss_total_2001_2024_ha": { "type": "number" },
         "loss_2021_2024_ha": { "type": "number" },
         "loss_2021_2024_pct_of_rfm": { "type": "number" },
+        "loss_total_2001_2025_ha": { "type": "number" },
+        "loss_2021_2025_ha": { "type": "number" },
+        "loss_2021_2025_pct_of_rfm": { "type": "number" },
         "method": {
           "type": "object",
           "additionalProperties": false,

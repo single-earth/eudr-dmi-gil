@@ -1,0 +1,61 @@
+{
+  "type": "FeatureCollection",
+  "name": "Mixed-crop sample AOI (Colombia)",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "aoi_name": "Mixed-crop sample AOI (Colombia)",
+        "commodity": "mixed_crops",
+        "country": "Colombia",
+        "max_area_constraint_ha": 50000,
+        "approx_area_ha": 41772.05,
+        "note": "Sample AOI polygon for portal testing (not a verified farm boundary).",
+        "reference_sources": [
+          {
+            "title": "Colombia.co \u2014 Colombian farming overview (mentions Valle del Cauca as major agricultural producer; multiple crops)",
+            "url": "https://colombia.co/en/colombia-country/colombia-culture/gastronomy/food-colombian-farming"
+          },
+          {
+            "title": "The Worldfolio \u2014 Valle del Cauca profile (regional agricultural production across commodities)",
+            "url": "https://www.theworldfolio.com/news/valle-del-cauca/691/"
+          }
+        ],
+        "commodity_rationale": "AOI placed within a well-documented regional production belt for the stated commodity; not a verified farm boundary."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -76.45,
+              3.48
+            ],
+            [
+              -76.25,
+              3.48
+            ],
+            [
+              -76.25,
+              3.65
+            ],
+            [
+              -76.45,
+              3.65
+            ],
+            [
+              -76.45,
+              3.48
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

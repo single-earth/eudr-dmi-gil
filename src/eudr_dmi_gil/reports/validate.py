@@ -261,7 +261,7 @@ def _ensure_external_dependency_refs(report: Mapping[str, Any]) -> None:
     for dep in deps:
         if not isinstance(dep, Mapping):
             continue
-        if dep.get("dependency_id") == "hansen_gfc_2024_v1_12":
+        if dep.get("dependency_id") == "hansen_gfc_2025_v1_13":
             has_hansen = True
         if dep.get("tile_source") == "local":
             tiles_used = dep.get("tiles_used")
@@ -281,7 +281,7 @@ def _ensure_external_dependency_refs(report: Mapping[str, Any]) -> None:
                 raise ValidationError(f"Missing evidence_artifacts relpath: {relpath}")
 
     if not has_hansen:
-        raise ValidationError("external_dependencies must include hansen_gfc_2024_v1_12")
+        raise ValidationError("external_dependencies must include hansen_gfc_2025_v1_13")
 
 
 def _ensure_validation_refs(report: Mapping[str, Any]) -> None:

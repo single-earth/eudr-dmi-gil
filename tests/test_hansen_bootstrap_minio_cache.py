@@ -61,7 +61,7 @@ def test_hansen_bootstrap_minio_cache(monkeypatch: pytest.MonkeyPatch, tmp_path:
     monkeypatch.setenv(
         "EUDR_DMI_HANSEN_URL_TEMPLATE",
         "https://storage.googleapis.com/earthenginepartners-hansen/"
-        "GFC-2024-v1.12/Hansen_GFC-2024-v1.12_{layer}_{tile_id}.tif",
+        "GFC-2025-v1.13/Hansen_GFC-2025-v1.13_{layer}_{tile_id}.tif",
     )
     monkeypatch.setenv("MINIO_ENDPOINT", "minio.local")
     monkeypatch.setenv("MINIO_ACCESS_KEY", "access")

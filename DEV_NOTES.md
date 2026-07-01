@@ -7,7 +7,7 @@
 
 ## Most recent Hansen year
 - New helper: `infer_hansen_latest_year()` in src/eudr_dmi_gil/deps/hansen_acquire.py.
-- It prefers the explicit dataset version (e.g., 2024-v1.12) or year embedded in the tile_dir path, and only scans the external Hansen root if neither is available.
+- It prefers the explicit dataset version (e.g., 2025-v1.13) or year embedded in the tile_dir path, and only scans the external Hansen root if neither is available.
 - Unit tests in tests/test_hansen_tiles.py cover dataset version priority and external-root fallback.
 
 ## Map integration (HTML bundle)

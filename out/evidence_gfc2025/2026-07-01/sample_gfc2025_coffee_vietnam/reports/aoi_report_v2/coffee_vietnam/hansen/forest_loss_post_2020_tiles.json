@@ -1,0 +1,1 @@
+{"aoi_id":"coffee_vietnam","created_utc":"2026-07-01T12:00:00Z","dataset_version":"2025-v1.13","derived_relpaths":{"current_mask":"forest_current_tree_cover_mask.geojson","loss_mask":"forest_loss_post_2020_mask.geojson","summary":"forest_loss_post_2020_summary.json"},"entries":[],"run_id":"sample_gfc2025_coffee_vietnam","tile_ids":[],"tile_source":"local"}
