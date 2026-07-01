@@ -274,12 +274,19 @@ def _build_deforestation(analysis: dict[str, Any] | None) -> DeforestationAssess
         and summary_defaults["area_loss_post_2020_ha"] == NA_VALUE
         and summary_defaults["area_aoi_ha"] == NA_VALUE
     ):
+        end_year = forest_metrics.get("end_year")
+        end_year_suffix = str(end_year) if isinstance(end_year, int) else ""
         forest_area = _first_present(
+            forest_metrics.get(f"forest_{end_year_suffix}_ha") if end_year_suffix else None,
             forest_metrics.get("forest_end_year_area_ha"),
             forest_metrics.get("forest_end_year_ha"),
             forest_metrics.get("forest_2024_ha"),
         )
         loss_area = _first_present(
+            forest_metrics.get(f"loss_2021_{end_year_suffix}_ha") if end_year_suffix else None,
+            _properties_dict(metrics_block.get(f"loss_2021_{end_year_suffix}_ha")).get("value")
+            if end_year_suffix
+            else None,
             forest_metrics.get("loss_2021_2024_ha"),
             _properties_dict(metrics_block.get("loss_2021_2024_ha")).get("value"),
         )
