@@ -107,7 +107,7 @@ At minimum, the portal needs:
 - `APP_BASE_URL` or `NEXTAUTH_URL`
 - object storage variables such as `MINIO_ENDPOINT`, `MINIO_BUCKET_PRIVATE`, `MINIO_ACCESS_KEY`, and `MINIO_SECRET_KEY`
 - `EUDR_DMI_GIL_REPO`, normally `../eudr-dmi-gil`
-- `EUDR_DMI_GIL_INTERFACE_CMD`, normally `python -m eudr_dmi_gil.reports.cli`
+- `EUDR_PYTHON_BIN`, if the portal should use a specific Python interpreter. If unset, the portal should prefer `../eudr-dmi-gil/.venv/bin/python` when that virtualenv exists, then fall back to `python3`.
 
 If the local database is new, generate Prisma client code and apply migrations from the portal repo:
 
