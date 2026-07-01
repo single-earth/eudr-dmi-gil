@@ -14,15 +14,29 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def canonical_json_bytes(obj: object) -> bytes:
+def _normalise_floats(obj: object, precision: int) -> object:
+    """Recursively round all floats to suppress platform-specific GDAL/PROJ noise."""
+    if isinstance(obj, float):
+        return round(obj, precision)
+    if isinstance(obj, dict):
+        return {k: _normalise_floats(v, precision) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalise_floats(v, precision) for v in obj]
+    return obj
+
+
+def canonical_json_bytes(obj: object, float_precision: int = 6) -> bytes:
     """Encode JSON deterministically.
 
     - UTF-8
     - stable key ordering
     - no insignificant whitespace
+    - floats rounded to `float_precision` dp (default 6) to eliminate
+      platform-specific pyproj/GDAL floating-point noise in last digits
     """
 
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+    normalised = _normalise_floats(obj, float_precision)
+    return json.dumps(normalised, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
         "utf-8"
     )
 

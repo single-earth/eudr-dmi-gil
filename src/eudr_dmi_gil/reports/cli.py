@@ -2033,8 +2033,10 @@ def _stable_value_str(value: int | float) -> str:
         return "true" if value else "false"
     if isinstance(value, int):
         return str(value)
-    # Use a stable representation; keep it simple for now.
-    return str(value)
+    # Round to 6 dp to suppress platform-specific pyproj/GDAL floating-point
+    # noise in the last 1-3 significant digits (last 10+ chars of repr).
+    # 6 dp = ~0.01 mm² precision for area-in-ha values, matching pixel_* fields.
+    return f"{value:.6f}"
 
 
 if __name__ == "__main__":
