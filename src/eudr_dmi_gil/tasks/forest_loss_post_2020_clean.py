@@ -417,6 +417,22 @@ def _reproject_to_projected(
     return result
 
 
+def _round_coords(geom: Any, precision: int = 7) -> Any:
+    """Round all coordinate values in a GeoJSON geometry to fixed precision.
+
+    PROJ-based reprojection produces platform-specific floating-point results.
+    Rounding to 7 dp (~1cm at equator) normalises across macOS and Linux.
+    """
+    if isinstance(geom, (list, tuple)):
+        rounded = [_round_coords(c, precision) for c in geom]
+        return type(geom)(rounded)
+    if isinstance(geom, float):
+        return round(geom, precision)
+    if isinstance(geom, dict) and "coordinates" in geom:
+        return {**geom, "coordinates": _round_coords(geom["coordinates"], precision)}
+    return geom
+
+
 def _mask_features(mask: np.ndarray, transform: Any, crs: Any) -> list[dict[str, Any]]:
     from rasterio.features import shapes
 
@@ -425,7 +441,7 @@ def _mask_features(mask: np.ndarray, transform: Any, crs: Any) -> list[dict[str,
     for geom, value in shapes_iter:
         if value != 1:
             continue
-        geom_wgs84 = transform_geom(crs, "EPSG:4326", geom)
+        geom_wgs84 = _round_coords(transform_geom(crs, "EPSG:4326", geom))
         features.append({"type": "Feature", "properties": {}, "geometry": geom_wgs84})
     return features
 
