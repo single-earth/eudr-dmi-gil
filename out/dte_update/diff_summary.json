@@ -2,22 +2,44 @@
   "aoi": "estonia_testland1",
   "baseline_diff": {
     "added_path": [],
-    "hash_changed": [],
+    "hash_changed": [
+      {
+        "baseline_sha256": "3e79e61e125f482fd089ed1c07885dbb4b5b94787a7d502d3d5159e6cbd1cad9",
+        "published_sha256": "c511f71664e3be65eff3b8ec5e413a1a7777be6871b34aaae8454c02ddc76ba0",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
+      },
+      {
+        "baseline_sha256": "3dd1292d86dda95d1b9266ad290c9fd6f89af6d03913d9e41ca35795d417b615",
+        "published_sha256": "da3de069fc75ab4b68f7656f335bdd541b7af5fb16a09dc7c69e1b550eff89ee",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
+      }
+    ],
     "removed_path": []
   },
   "bundle": "example",
-  "changes_detected": false,
+  "changes_detected": true,
   "diff": {
     "added_path": [],
-    "hash_changed": [],
+    "hash_changed": [
+      {
+        "local_sha256": "3e79e61e125f482fd089ed1c07885dbb4b5b94787a7d502d3d5159e6cbd1cad9",
+        "published_sha256": "c511f71664e3be65eff3b8ec5e413a1a7777be6871b34aaae8454c02ddc76ba0",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.html"
+      },
+      {
+        "local_sha256": "3dd1292d86dda95d1b9266ad290c9fd6f89af6d03913d9e41ca35795d417b615",
+        "published_sha256": "da3de069fc75ab4b68f7656f335bdd541b7af5fb16a09dc7c69e1b550eff89ee",
+        "relative_path": "reports/aoi_report_v2/estonia_testland1.json"
+      }
+    ],
     "missing_locally": [],
     "removed_path": []
   },
   "dte_instructions": {
-    "path": "docs/baselines/dte_gpt_instructions.txt",
+    "path": "/Users/server/projects/eudr-dmi-gil/docs/baselines/dte_gpt_instructions.txt",
     "sha256": "eb58f2581c9d420caf81a16de9760869af8363889dd63402de9eaeb2b0cf6c97"
   },
   "generated_utc": "2026-02-19T12:47:49+00:00",
   "published_report_url": "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html",
-  "retrieved_utc": "2026-06-30T10:14:10.132621+00:00"
+  "retrieved_utc": "2026-07-01T06:18:36.690367+00:00"
 }

@@ -502,6 +502,12 @@ def compute_forest_loss_post_2020(
                 tree_data, tree_transform = _mask_raster(tree_ds, geom)
                 loss_data, _ = _mask_raster(loss_ds, geom)
 
+                if tree_data.shape == (1, 1, 1) and np.ma.getmaskarray(tree_data).all():
+                    # Tile does not intersect the AOI geometry (recursive tile-dir
+                    # globbing can surface unrelated tiles from a shared cache);
+                    # skip it entirely so it is not recorded in tile provenance.
+                    continue
+
                 if tree_data.shape != loss_data.shape:
                     raise RuntimeError("Mismatched raster shapes for treecover2000 and lossyear")
 

@@ -22,15 +22,17 @@ jobs:
 
       - name: Install project with dev dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          pip install -r requirements-methods.txt
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -e ".[dev]"
+          .venv/bin/pip install -r requirements-methods.txt
 
       - name: Generate example AOI bundle
         env:
           HANSEN_MINIO_CACHE: "0"
-          RUN_DTE_UPDATE_DETECTION: "0"
-        run: scripts/run_example_report.sh
+          ALLOW_SYNTHETIC_HANSEN_FALLBACK: "0"
+          EUDR_DMI_DATA_ROOT: ${{ github.workspace }}/.cache/eudr-dmi-data
+        run: scripts/run_example_report_clean.sh --no-publish-dt
 
       - name: Compare generated example bundle to published Digital Twin content
         env:
