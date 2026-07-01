@@ -96,6 +96,7 @@ Flow (deterministic, human-in-the-loop):
 - [docs/dependencies/sources.md](docs/dependencies/sources.md)
 - [docs/dependencies/flow.md](docs/dependencies/flow.md)
 - [docs/operations/environment_setup.md](docs/operations/environment_setup.md)
+- [docs/operations/start_eudr_portal_browser.md](docs/operations/start_eudr_portal_browser.md)
 - [docs/operations/minio_setup.md](docs/operations/minio_setup.md)
 - [docs/operations/migration_runbook.md](docs/operations/migration_runbook.md)
 - [docs/reports/README.md](docs/reports/README.md)

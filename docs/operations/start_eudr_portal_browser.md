@@ -10,22 +10,89 @@ The browser portal lives in the sibling repository:
 
 This repository, `eudr-dmi-gil`, remains the authoritative report generator. The portal delegates report generation here and stores private run artifacts through its own database and object-storage configuration.
 
+## Current Access Model
+
+The current working configuration assumes two machines:
+
+- Local MacBook Pro: runs the browser, such as Google Chrome.
+- Remote Mac Mini: runs the portal process and repositories, accessed from the MacBook over SSH.
+
+Run terminal commands in the SSH session on the Mac Mini unless a step explicitly says to run it on the MacBook. Do not expect `open -a "Google Chrome"` to work on the Mac Mini unless Chrome is installed there; Chrome is normally opened on the MacBook.
+
+If the portal is started on the Mac Mini with `npm run dev -- --port 3100`, Next.js may print both a local and network URL:
+
+```text
+Local:   http://localhost:3100
+Network: http://192.168.1.50:3100
+```
+
+From Chrome on the MacBook, try the network URL first:
+
+```text
+http://192.168.1.50:3100/dashboard
+```
+
+If the network URL is not reachable from the MacBook, create an SSH port forward from the MacBook:
+
+```sh
+ssh -L 3100:localhost:3100 server@192.168.1.50
+```
+
+Then open this on the MacBook:
+
+```text
+http://localhost:3100/dashboard
+```
+
 ## 1. Start the Portal
 
 ### Option A: local development server
 
-Use this when you are working from the source checkout.
+Use this when you are working from the source checkout on the Mac Mini and the
+Node.js dependencies have already been installed.
 
 ```sh
 cd ../eudr-client-portal
-npm install
 npm run dev
 ```
 
-Open:
+Keep this terminal open. `npm run dev` is the correct local source-checkout start
+command: in the portal `package.json`, it maps to `next dev`.
+
+When Next.js finishes starting, it prints a local URL such as:
 
 ```text
 http://localhost:3000
+```
+
+If the browser is running on the same machine as the portal, open that URL in a browser. In the current MacBook/Mac Mini setup, use the network URL or SSH tunnel described above.
+
+In the steps below, `<portal-url>` means the URL printed by Next.js, for example
+`http://localhost:3000` or `http://localhost:3100`.
+
+If port `3000` is already occupied, start the portal on another port:
+
+```sh
+cd ../eudr-client-portal
+npm run dev -- --port 3100
+```
+
+Then open:
+
+```text
+http://localhost:3100/dashboard
+```
+
+To open explicitly in Google Chrome on the machine where Chrome is installed, normally the MacBook:
+
+```sh
+open -a "Google Chrome" http://localhost:3100/dashboard
+```
+
+If Chrome is not installed on that machine, use the default browser:
+
+```sh
+open http://localhost:3100/dashboard
 ```
 
 If this is a first-time local setup, prepare the portal environment from its own examples before starting:
@@ -45,13 +112,14 @@ At minimum, the portal needs:
 If the local database is new, generate Prisma client code and apply migrations from the portal repo:
 
 ```sh
+cd ../eudr-client-portal
 npx prisma generate
 npx prisma migrate deploy
 ```
 
 ### Option B: local Docker Compose stack
 
-Use this when you want the deployed-style stack with Postgres, Mailpit, local LLM services, and the portal container.
+Use this on the Mac Mini when you want the deployed-style stack with Postgres, Mailpit, local LLM services, and the portal container.
 
 ```sh
 cd ../eudr-client-portal
@@ -76,7 +144,7 @@ The Compose stack requires secrets in the portal environment, including `NEXTAUT
 
 ### Existing account
 
-1. Open `http://localhost:3000/login`.
+1. Open `<portal-url>/login`.
 2. Enter email and password.
 3. Click `Sign in`.
 4. The portal redirects you to:
@@ -85,7 +153,7 @@ The Compose stack requires secrets in the portal environment, including `NEXTAUT
 
 ### New account
 
-1. Open `http://localhost:3000/register`.
+1. Open `<portal-url>/register`.
 2. Enter an email address.
 3. Optionally enter a company name.
 4. Click `Register`.
@@ -105,6 +173,7 @@ From the dashboard header:
 - `Sample Reports` opens the portal landing page with downloadable example reports.
 - `DAO Bundles` opens the public Digital Twin AOI bundle index in a new tab.
 - `AOI Editor` opens the editor for drawing or importing areas of interest.
+- `AI Editor Assistant` opens the portal AI assistant for AOI/editor guidance.
 - `About EUDR` appears on the public dashboard and links to the public DTE/EUDR guidance surface.
 
 Use public/sample reports for inspection and demos only. Private client AOI reports are not published to the Digital Twin by default.
@@ -114,7 +183,7 @@ Use public/sample reports for inspection and demos only. Private client AOI repo
 Open:
 
 ```text
-http://localhost:3000/onboarding
+<portal-url>/onboarding
 ```
 
 The portal has four onboarding cards.
@@ -161,7 +230,7 @@ Continue to dashboard
 
 ## 5. Create a Report
 
-1. Open `/dashboard`.
+1. Open `<portal-url>/dashboard`.
 2. Confirm the dashboard shows `Onboarding complete`.
 3. In `EUDR Deforestation Screening`, click `Generate Report`.
 4. The portal starts a run through `POST /api/runs/start`.
@@ -221,7 +290,8 @@ If the legacy run details page is enabled through `LEGACY_RUN_DETAILS_UI=1`, the
 Local service URLs:
 
 ```text
-Portal:  http://localhost:3000
+Portal on Mac Mini: use the URL printed by Next.js, usually http://localhost:3000
+Portal from MacBook: use the Mac Mini network URL or an SSH tunnel, for example http://localhost:3100
 Mailpit: http://localhost:8025
 Grafana: http://localhost:3001
 ```
