@@ -63,7 +63,7 @@ def _timed(label: str) -> Any:
 
 def _git_commit() -> str:
     override = os.environ.get("EUDR_DMI_GIT_COMMIT")
-    if override:
+    if override is not None:
         return override.strip()
     try:
         out = subprocess.check_output(

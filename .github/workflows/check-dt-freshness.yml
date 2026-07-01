@@ -32,6 +32,7 @@ jobs:
           HANSEN_MINIO_CACHE: "0"
           ALLOW_SYNTHETIC_HANSEN_FALLBACK: "0"
           EUDR_DMI_DATA_ROOT: ${{ github.workspace }}/.cache/eudr-dmi-data
+          EUDR_DMI_GIT_COMMIT: ""
         run: scripts/run_example_report_clean.sh --no-publish-dt
 
       - name: Compare generated example bundle to published Digital Twin content
