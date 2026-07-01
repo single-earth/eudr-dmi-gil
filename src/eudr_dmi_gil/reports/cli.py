@@ -17,7 +17,7 @@ import csv
 from .bundle import bundle_dir as compute_bundle_dir
 from .bundle import compute_sha256
 from .bundle import resolve_evidence_root, write_manifest
-from .determinism import canonical_json_bytes, sha256_bytes, write_bytes, write_json
+from .determinism import _normalise_floats, canonical_json_bytes, sha256_bytes, write_bytes, write_json
 from eudr_dmi_gil.deps.hansen_acquire import (
     build_entries_from_provenance,
     infer_hansen_latest_year,
@@ -1835,12 +1835,14 @@ def main(argv: list[str] | None = None) -> int:
             report_html_path.parent.mkdir(parents=True, exist_ok=True)
             # Link to whatever artifacts are already known; report JSON is included if produced.
             known_artifacts_for_html = list(artifact_paths)
+            # Normalize all floats to 6 dp before rendering so that str(float) calls inside
+            # _render_html_summary produce platform-stable output regardless of pyproj/GDAL noise.
             html = _render_html_summary(
-                report,
+                _normalise_floats(report, 6),  # type: ignore[arg-type]
                 html_path=report_html_path,
                 artifact_paths=known_artifacts_for_html,
                 map_config_relpath=map_config_href,
-                parcel_rows=parcel_rows,
+                parcel_rows=_normalise_floats(parcel_rows, 6),  # type: ignore[arg-type]
             )
             report_html_path.write_text(html, encoding="utf-8")
             artifact_paths.append(report_html_path)
