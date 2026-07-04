@@ -18,10 +18,14 @@ GFW_Forest_Carbon,2,1,https://datasets.wri.org/datasets/gfw-forest-carbon-gross-
 Google Satellite Embeddings,1,1,https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_SATELLITE_EMBEDDING_V1_ANNUAL
 Google_Solar,1,0,https://developers.google.com/maps/documentation/solar/overview
 Hansen_GFC,2,1,https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/download.html
+JRC_GFC2020,1,1,https://forobs.jrc.ec.europa.eu/GFC
+JRC_TMF,1,1,https://forobs.jrc.ec.europa.eu/TMF
 Maa-amet Geoportaal,1,1,https://geoportaal.maaamet.ee/est/teenused/wms-wfs-wcs-teenused-p65.html
 Other_or_unsorted,9,8,http://euroveg.org/eva-database-re-survey-europe
 Our World in Data,6,2,https://global-change-data-lab.org/
 Resilient_Planet_Data,1,1,https://resilient-planet-data.org/
+RADD,1,1,https://www.wur.nl/en/research-results/research-institutes/environmental-research/projects/radd-forest-disturbance-alert.htm
+Sentinel_Confirmation,1,1,https://dataspace.copernicus.eu/
 TorchGeo,2,1,https://torchgeo.readthedocs.io/en/stable/tutorials/geospatial.html
 WDPA_PROTECTED_AREAS,1,0,https://www.protectedplanet.net/
 WorldClim,3,1,https://www.worldclim.org/data/help.html

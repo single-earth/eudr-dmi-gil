@@ -129,6 +129,60 @@ Notes:
 	- Reproject to projected CRS: `HANSEN_REPROJECT_TO_PROJECTED` (default: `1`).
 	- Projected CRS: `HANSEN_PROJECTED_CRS` (default: `EPSG:6933`).
 
+## Post-2020 Deforestation Evidence Layer
+
+The `eudr.evidence` package adds an auditable evidence-estimation layer for
+post-cutoff screening. It computes deterministic metrics only; it does not emit
+automatic EUDR compliant/non-compliant conclusions.
+
+Current local-provider CLI:
+
+```sh
+python -m eudr.evidence.post2020_deforestation \
+	--aoi aoi_json_examples/estonia_testland1.geojson \
+	--gfc2020-raster /path/to/gfc2020_mask.tif \
+	--hansen-lossyear-raster /path/to/hansen_lossyear.tif \
+	--out outputs/post2020_deforestation_metrics.json \
+	--start-year 2021 \
+	--end-year auto \
+	--include-tmf \
+	--include-radd \
+	--min-report-area-ha 0.01
+```
+
+For reproducible reruns, pin an explicit evidence year:
+
+```sh
+python -m eudr.evidence.post2020_deforestation \
+	--aoi aoi_json_examples/estonia_testland1.geojson \
+	--gfc2020-raster /path/to/gfc2020_mask.tif \
+	--hansen-lossyear-raster /path/to/hansen_lossyear.tif \
+	--out outputs/post2020_deforestation_metrics_2025.json \
+	--start-year 2021 \
+	--end-year 2025
+```
+
+Evidence roles:
+
+- JRC GFC2020 is used as a 2020 forest-baseline evidence layer. It is
+  non-mandatory, non-exclusive, and non-legally-binding.
+- Hansen Global Forest Change `lossyear` is used as the mandatory local change
+  layer for disturbance after 31 December 2020 inside the GFC2020 forest mask.
+- JRC TMF, RADD Sentinel-1 alerts, and Sentinel-1/2 before-after confirmation
+  are represented in the dataset registry as optional layers. The current local
+  raster provider records their versions and coverage warnings but does not yet
+  compute their raster metrics.
+- Tree-cover loss or disturbance is kept separate from agricultural-conversion
+  attribution. EUDR-relevant deforestation requires evidence of forest
+  conversion to agricultural use.
+
+Dataset-year handling is registry-driven in
+`src/eudr/evidence/dataset_registry.py`. `--end-year auto` resolves to the
+latest complete year available across mandatory selected change layers, and the
+output records the requested year, resolved year, per-layer latest year, asset
+identifier, and resolution mode. Future dataset releases should update the
+registry and tests, not business logic.
+
 ## AOI report regeneration contract
 
 All AOI report generation must be preceded by the deterministic cleanup step:

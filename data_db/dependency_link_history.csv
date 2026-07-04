@@ -1,1 +1,5 @@
 dependency_id,dataset_family,link_role,url,discovered_by,discovery_method,discovered_on_utc,http_status,observed_content_type,ok,score,note
+jrc_gfc2020_v3,JRC_GFC2020,primary,https://forobs.jrc.ec.europa.eu/GFC,codex,manual_registry_update,2026-07-04T00:00:00Z,,,,,Added for post-2020 evidence module baseline registry.
+jrc_tmf_2025,JRC_TMF,primary,https://forobs.jrc.ec.europa.eu/TMF,codex,manual_registry_update,2026-07-04T00:00:00Z,,,,,Added as optional post-2020 disturbance evidence layer.
+radd_sentinel1_alerts,RADD,primary,https://www.wur.nl/en/research-results/research-institutes/environmental-research/projects/radd-forest-disturbance-alert.htm,codex,manual_registry_update,2026-07-04T00:00:00Z,,,,,Added as optional Sentinel-1 disturbance alert evidence layer.
+sentinel_before_after_confirmation,Sentinel_Confirmation,primary,https://dataspace.copernicus.eu/,codex,manual_registry_update,2026-07-04T00:00:00Z,,,,,Added as optional Sentinel-1/2 before-after confirmation evidence source.
