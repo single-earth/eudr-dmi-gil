@@ -36,12 +36,29 @@ jobs:
         run: scripts/run_example_report_clean.sh --no-publish-dt
 
       - name: Compare generated example bundle to published Digital Twin content
+        id: compare
         env:
           EUDR_DMI_PUBLISHED_REPORT_URL: "https://single-earth.github.io/eudr-dmi-gil-digital-twin/site/bundles/runs/example/report.html"
-        run: python scripts/detect_example_bundle_artifact_changes.py
+        run: |
+          set +e
+          python scripts/detect_example_bundle_artifact_changes.py
+          detect_status=$?
+          set -e
 
-      - name: Upload diff summary on failure
-        if: failure()
+          if [[ "$detect_status" -eq 0 ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Digital Twin content is fresh."
+          elif [[ "$detect_status" -eq 3 ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Digital Twin content drift detected; uploaded diff summary artifact for review."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Digital Twin freshness detection failed with status $detect_status." >&2
+            exit "$detect_status"
+          fi
+
+      - name: Upload diff summary
+        if: failure() || steps.compare.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dt-diff-summary
