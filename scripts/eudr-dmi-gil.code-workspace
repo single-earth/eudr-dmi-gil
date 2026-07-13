@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../../eudr-client-portal"
+		},
+		{
+			"path": "../../eudr-dds-client"
 		}
 	],
 	"settings": {

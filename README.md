@@ -91,6 +91,7 @@ Flow (deterministic, human-in-the-loop):
 - [ADOPTION_LOG.md](ADOPTION_LOG.md)
 - [data_db/README.md](data_db/README.md)
 - [docs/architecture/dependency_register.md](docs/architecture/dependency_register.md)
+- [docs/architecture/dds_automation_design.md](docs/architecture/dds_automation_design.md)
 - [docs/architecture/decision_records/0001-report-pipeline-architecture.md](docs/architecture/decision_records/0001-report-pipeline-architecture.md)
 - [docs/dependencies/README.md](docs/dependencies/README.md)
 - [docs/dependencies/sources.md](docs/dependencies/sources.md)
@@ -273,6 +274,34 @@ out/reports/<run_id>/<plot_id>/
 	report.pdf
 	manifest.sha256
 ```
+
+## DDS draft from evidence bundle
+
+Generate a local DDS draft evidence contract from an AOI evidence bundle and a
+normalized portal intake JSON:
+
+```sh
+python3 scripts/generate_dds_draft.py \
+	--bundle-dir /path/to/evidence/<YYYY-MM-DD>/<bundle_id> \
+	--portal-intake /path/to/portal_intake.json
+```
+
+The command writes:
+
+```text
+<bundle_dir>/dds/dds_draft.json
+<bundle_dir>/dds/validation_result.json
+<bundle_dir>/risk/risk_register.json
+<bundle_dir>/risk/evidence_gaps.json
+<bundle_dir>/risk/mitigation_actions.json
+```
+
+These artifacts include source references, hashes, dataset/code versions, and
+machine-readable validation gaps. Risk states are workflow evidence states
+such as `disturbance_detected`, `insufficient_observations`, and
+`manual_review_required`; they are not automated legal conclusions. This
+repository does not submit DDS payloads to TRACES/EUDR; operator approval and
+submission stay outside this repo.
 
 ## Governance, Inspection & DAO Entry Points
 
