@@ -1,0 +1,76 @@
+{
+  "aoi_geojson": "aoi_json_examples/coffee_brazil_minas_gerais.geojson",
+  "dataset_title": "Sentinel-2 L2A true-color (TCI) visual composite - wide regional context",
+  "datetime_range": "2021-01-01T00:00:00Z/2026-12-31T23:59:59Z",
+  "items_used": [
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/22/K/HD/2025/9/S2C_22KHD_20250930_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000362,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2025-09-30T13:27:58.832000Z",
+      "item_id": "S2C_22KHD_20250930_0_L2A",
+      "tile": "22KHD"
+    },
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/22/K/HE/2025/7/S2C_22KHE_20250702_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000647,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2025-07-02T13:27:50.833000Z",
+      "item_id": "S2C_22KHE_20250702_0_L2A",
+      "tile": "22KHE"
+    },
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/23/K/KU/2024/5/S2B_23KKU_20240513_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000514,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2024-05-13T13:27:42.151000Z",
+      "item_id": "S2B_23KKU_20240513_0_L2A",
+      "tile": "23KKU"
+    },
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/23/K/KV/2025/7/S2C_23KKV_20250702_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000388,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2025-07-02T13:27:49.936000Z",
+      "item_id": "S2C_23KKV_20250702_0_L2A",
+      "tile": "23KKV"
+    },
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/23/K/LU/2023/9/S2A_23KLU_20230921_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000406,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2023-09-21T13:27:40.546000Z",
+      "item_id": "S2A_23KLU_20230921_0_L2A",
+      "tile": "23KLU"
+    },
+    {
+      "asset_href": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/23/K/LV/2025/9/S2C_23KLV_20250930_0_L2A/TCI.tif",
+      "cloud_cover_percent": 0.000583,
+      "collection": "sentinel-2-l2a",
+      "datetime": "2025-09-30T13:27:40.175000Z",
+      "item_id": "S2C_23KLV_20250930_0_L2A",
+      "tile": "23KLV"
+    }
+  ],
+  "label": "regional_overview",
+  "license": "Contains modified Copernicus Sentinel data",
+  "mosaic_bounds": [
+    889822.4487126162,
+    7861371.638167768,
+    960267.3988047445,
+    7928878.343754068
+  ],
+  "mosaic_crs": "EPSG:32722",
+  "output_raster": "out/coffee_brazil_minas_gerais_inputs/sentinel2_regional_overview.tif",
+  "pad_factor": 8.0,
+  "provider": "AWS Earth Search / sentinel-cogs (public Sentinel-2 L2A COG archive)",
+  "regional_bbox_wgs84": [
+    -47.29179666427082,
+    -19.289437996845994,
+    -46.638178218000704,
+    -18.694814087987357
+  ],
+  "selection_method": "Selected the lowest AOI-local-cloud-fraction scene (verified via the SCL band, threshold 0.05) as the primary reference date, then mosaicked every intersecting MGRS tile's lowest-tile-cloud-cover scene from the same search window to cover the padded regional bbox. No per-pixel multi-scene cloud masking/median was performed.",
+  "stac_api": "https://earth-search.aws.element84.com/v1/search",
+  "target_resolution_m": 20.0
+}

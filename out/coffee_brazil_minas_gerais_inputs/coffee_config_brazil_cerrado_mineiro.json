@@ -1,0 +1,23 @@
+{
+  "commodity": {
+    "id": "coffee",
+    "display_name": "Coffee",
+    "provider": "mapbiomas_brazil",
+    "dataset_title": "MapBiomas Brazil Land Cover (Cerrado Mineiro coffee fixture)",
+    "dataset_version": "brazil-cerrado-mineiro-fixture-v1",
+    "asset_id": "projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1",
+    "local_path": "/Users/server/projects/eudr-dmi-gil/out/coffee_brazil_minas_gerais_inputs/coffee_mapbiomas_fixture.tif",
+    "class_values": [
+      46
+    ],
+    "class_labels": [
+      "Coffee plantations"
+    ],
+    "observation_year": 2024,
+    "country_scope": [
+      "Brazil"
+    ],
+    "optional": true,
+    "source_url": "https://brasil.mapbiomas.org/"
+  }
+}

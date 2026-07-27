@@ -18,10 +18,22 @@ from .bundle import bundle_dir as compute_bundle_dir
 from .bundle import compute_sha256
 from .bundle import resolve_evidence_root, write_manifest
 from .determinism import _normalise_floats, canonical_json_bytes, sha256_bytes, write_bytes, write_json
+from .report_model import (
+    canonical_report_from_aoi_report_v2,
+    materialize_evidence_pngs,
+    render_canonical_html,
+    render_canonical_pdf,
+    update_canonical_artifact_hashes,
+    write_canonical_metrics_csv,
+    write_canonical_report_json,
+    write_sha256_manifest,
+)
 from eudr_dmi_gil.deps.hansen_acquire import (
+    DATASET_VERSION_DEFAULT,
     build_entries_from_provenance,
     infer_hansen_latest_year,
     portable_hansen_local_path,
+    resolve_hansen_url_template,
 )
 from eudr_dmi_gil.deps.hansen_tiles import load_aoi_bbox
 from eudr_dmi_gil.geo.aoi_area import compute_aoi_geodesic_area_ha
@@ -30,6 +42,13 @@ from eudr_dmi_gil.analysis.hansen_parcels import (
     land_use_designation_counts,
 )
 from .policy_refs import collect_policy_mapping_refs
+from eudr_dmi_gil.commodities.analysis import (
+    aoi_country_from_geojson,
+    artifact_refs as commodity_artifact_refs,
+    commodity_report_block,
+    run_commodity_assessment,
+)
+from eudr_dmi_gil.commodities.config import resolve_commodity_config
 
 
 def _resolve_generated_at_utc() -> tuple[str, datetime]:
@@ -124,6 +143,10 @@ def _content_type_for_path(path: Path) -> str | None:
         return "text/csv"
     if suffix == ".html":
         return "text/html"
+    if suffix == ".pdf":
+        return "application/pdf"
+    if suffix == ".png":
+        return "image/png"
     if suffix == ".wkt":
         return "text/plain"
     return None
@@ -291,13 +314,13 @@ def _render_html_summary(
     forest_metrics_rows = []
     if isinstance(forest_metrics, dict) and forest_metrics:
         method_block = forest_metrics.get("method", {}) if isinstance(forest_metrics.get("method"), dict) else {}
-        end_year = int(forest_metrics.get("end_year") or 2024)
+        end_year = int(forest_metrics.get("end_year") or 2025)
         loss_recent = forest_metrics.get(f"loss_2021_{end_year}_ha")
         if loss_recent is None:
-            loss_recent = forest_metrics.get("loss_2021_2024_ha")
+            loss_recent = forest_metrics.get("loss_2021_2025_ha")
         loss_recent_pct = forest_metrics.get(f"loss_2021_{end_year}_pct_of_rfm")
         if loss_recent_pct is None:
-            loss_recent_pct = forest_metrics.get("loss_2021_2024_pct_of_rfm")
+            loss_recent_pct = forest_metrics.get("loss_2021_2025_pct_of_rfm")
         forest_end_year_value = forest_metrics.get("forest_end_year_ha")
         if forest_end_year_value is None:
             forest_end_year_value = forest_metrics.get("forest_end_year_area_ha")
@@ -649,6 +672,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
+        "--commodity",
+        action="append",
+        default=[],
+        help=(
+            "Explicit EUDR commodity id for this single-commodity assessment "
+            "(example: coffee). Repeat values are rejected."
+        ),
+    )
+
+    p.add_argument(
+        "--commodity-config",
+        help=(
+            "Path to a structured commodity provider config JSON. The run may contain "
+            "exactly one commodity config."
+        ),
+    )
+
+    p.add_argument(
+        "--evidence-only-assessment",
+        action="store_true",
+        help="Generate an evidence-only assessment with no commodity layer.",
+    )
+
+    p.add_argument(
         "--enable-hansen-post-2020-loss",
         action="store_true",
         help="Enable Hansen post-2020 forest loss pixel-mask computation.",
@@ -721,11 +768,166 @@ def build_parser() -> argparse.ArgumentParser:
         help="Projected CRS for Hansen reprojection (default: EPSG:6933).",
     )
 
+    p.add_argument(
+        "--end-year",
+        type=int,
+        help=(
+            "Requested final evidence year for post-2020 loss. Must be >= 2021. "
+            "If omitted, the selected loss dataset coverage is used."
+        ),
+    )
+
+    p.add_argument(
+        "--jrc-gfc2020-raster",
+        default=os.environ.get("EUDR_DMI_JRC_GFC2020_RASTER"),
+        help=(
+            "Local JRC Global Forest Cover 2020 raster for the new baseline calculation "
+            "(env: EUDR_DMI_JRC_GFC2020_RASTER)."
+        ),
+    )
+
+    p.add_argument(
+        "--hansen-lossyear-raster",
+        default=os.environ.get("EUDR_DMI_HANSEN_LOSSYEAR_RASTER"),
+        help=(
+            "Local Hansen lossyear raster aligned by the JRC baseline calculation "
+            "(env: EUDR_DMI_HANSEN_LOSSYEAR_RASTER)."
+        ),
+    )
+
+    p.add_argument(
+        "--satellite-baseline-raster",
+        default=os.environ.get("EUDR_DMI_SATELLITE_BASELINE_RASTER"),
+        help=(
+            "Local satellite imagery raster (RGB) for the baseline/cutoff period, used only "
+            "as visual evidence context (env: EUDR_DMI_SATELLITE_BASELINE_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--satellite-baseline-date",
+        default=os.environ.get("EUDR_DMI_SATELLITE_BASELINE_DATE", ""),
+        help="Acquisition date/range label for the baseline satellite raster.",
+    )
+    p.add_argument(
+        "--satellite-recent-raster",
+        default=os.environ.get("EUDR_DMI_SATELLITE_RECENT_RASTER"),
+        help=(
+            "Local satellite imagery raster (RGB) for a recent period, used only as visual "
+            "evidence context (env: EUDR_DMI_SATELLITE_RECENT_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--satellite-recent-date",
+        default=os.environ.get("EUDR_DMI_SATELLITE_RECENT_DATE", ""),
+        help="Acquisition date/range label for the recent satellite raster.",
+    )
+    p.add_argument(
+        "--satellite-regional-raster",
+        default=os.environ.get("EUDR_DMI_SATELLITE_REGIONAL_RASTER"),
+        help=(
+            "Optional wide-context local satellite imagery raster (RGB), covering a much larger "
+            "extent than the AOI, used only for the Regional Overview evidence page "
+            "(env: EUDR_DMI_SATELLITE_REGIONAL_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--satellite-regional-date",
+        default=os.environ.get("EUDR_DMI_SATELLITE_REGIONAL_DATE", ""),
+        help="Acquisition date/range label for the regional-overview satellite raster.",
+    )
+    p.add_argument(
+        "--regional-admin-boundaries-geojson",
+        default=os.environ.get("EUDR_DMI_REGIONAL_ADMIN_BOUNDARIES_GEOJSON"),
+        help=(
+            "Optional local GeoJSON of real administrative (state/province) boundaries and "
+            "names, clipped to the Regional Overview page's view (see "
+            "scripts/fetch_admin_boundaries.py), used only to draw non-fabricated regional "
+            "context on that evidence page "
+            "(env: EUDR_DMI_REGIONAL_ADMIN_BOUNDARIES_GEOJSON)."
+        ),
+    )
+    p.add_argument(
+        "--satellite-dataset-title",
+        default=os.environ.get(
+            "EUDR_DMI_SATELLITE_DATASET_TITLE", "Sentinel-2 L2A true-color (visual/TCI) composite"
+        ),
+        help="Dataset title recorded for the satellite imagery evidence layer.",
+    )
+    p.add_argument(
+        "--satellite-dataset-version",
+        default=os.environ.get("EUDR_DMI_SATELLITE_DATASET_VERSION", ""),
+        help="Dataset version/identifier recorded for the satellite imagery evidence layer.",
+    )
+    p.add_argument(
+        "--satellite-source-url",
+        default=os.environ.get(
+            "EUDR_DMI_SATELLITE_SOURCE_URL", "https://earth-search.aws.element84.com/v1"
+        ),
+        help="Source URL/API recorded for the satellite imagery evidence layer.",
+    )
+    p.add_argument(
+        "--satellite-license",
+        default=os.environ.get(
+            "EUDR_DMI_SATELLITE_LICENSE", "Contains modified Copernicus Sentinel data"
+        ),
+        help="License string recorded for the satellite imagery evidence layer.",
+    )
+    p.add_argument(
+        "--satellite-selection-method",
+        default=os.environ.get("EUDR_DMI_SATELLITE_SELECTION_METHOD", ""),
+        help="Free-text description of how the satellite scenes/composite were selected.",
+    )
+
+    p.add_argument(
+        "--loss-dataset-end-year",
+        type=int,
+        default=_env_int("EUDR_DMI_LOSS_DATASET_END_YEAR"),
+        help=(
+            "Latest year actually available in the selected lossyear dataset. "
+            "If omitted, inferred from the configured Hansen dataset version/path."
+        ),
+    )
+
+    p.add_argument(
+        "--analysis-target-crs",
+        default="EPSG:6933",
+        help="Equal-area target CRS for JRC/Hansen raster intersections (default: EPSG:6933).",
+    )
+
+    p.add_argument(
+        "--analysis-target-resolution-m",
+        type=float,
+        default=30.0,
+        help="Target grid resolution in meters for JRC/Hansen intersections (default: 30).",
+    )
+
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.end_year is not None and args.end_year < 2021:
+        raise ValueError("--end-year must be >= 2021")
+    commodity_ids = [str(v).strip().lower() for v in (args.commodity or []) if str(v).strip()]
+    if len(commodity_ids) > 1:
+        raise ValueError("A single report run supports exactly one commodity")
+    if args.evidence_only_assessment and (commodity_ids or args.commodity_config):
+        raise ValueError("--evidence-only-assessment cannot be combined with commodity inputs")
+    commodity_config = None
+    if not args.evidence_only_assessment:
+        commodity_config = resolve_commodity_config(
+            commodity_id=commodity_ids[0] if commodity_ids else None,
+            commodity_config_path=args.commodity_config,
+        )
+    if commodity_config is not None and not args.jrc_gfc2020_raster:
+        raise RuntimeError("--jrc-gfc2020-raster is required when --commodity is configured")
+    if commodity_config is not None and not args.hansen_lossyear_raster:
+        raise RuntimeError("--hansen-lossyear-raster is required when --commodity is configured")
+    if bool(args.satellite_baseline_raster) != bool(args.satellite_recent_raster):
+        raise RuntimeError(
+            "--satellite-baseline-raster and --satellite-recent-raster must be provided together"
+        )
 
     policy_mapping_refs = collect_policy_mapping_refs(
         refs=list(args.policy_mapping_ref or []),
@@ -766,6 +968,85 @@ def main(argv: list[str] | None = None) -> int:
     geo_path = bdir / geo_rel
     write_bytes(geo_path, geo_bytes)
     geo_sha = sha256_bytes(geo_bytes)
+
+    satellite_info: dict[str, Any] | None = None
+    if args.satellite_baseline_raster and args.satellite_recent_raster:
+        if geo_kind != "geojson":
+            raise RuntimeError("Satellite imagery requires --aoi-geojson input")
+        baseline_src = Path(args.satellite_baseline_raster)
+        recent_src = Path(args.satellite_recent_raster)
+        if not baseline_src.is_file():
+            raise FileNotFoundError(f"Satellite baseline raster not found: {baseline_src}")
+        if not recent_src.is_file():
+            raise FileNotFoundError(f"Satellite recent raster not found: {recent_src}")
+        baseline_dst = inputs_dir / "satellite_baseline.tif"
+        recent_dst = inputs_dir / "satellite_recent.tif"
+        baseline_dst.write_bytes(baseline_src.read_bytes())
+        recent_dst.write_bytes(recent_src.read_bytes())
+        satellite_info = {
+            "baseline_raster_ref": {
+                "relpath": str(baseline_dst.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(baseline_dst),
+                "content_type": "image/tiff",
+            },
+            "recent_raster_ref": {
+                "relpath": str(recent_dst.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(recent_dst),
+                "content_type": "image/tiff",
+            },
+            "baseline_date": args.satellite_baseline_date,
+            "recent_date": args.satellite_recent_date,
+            "dataset_title": args.satellite_dataset_title,
+            "dataset_version": args.satellite_dataset_version,
+            "source_url": args.satellite_source_url,
+            "license": args.satellite_license,
+            "selection_method": args.satellite_selection_method,
+        }
+
+    if args.satellite_regional_raster:
+        if geo_kind != "geojson":
+            raise RuntimeError("Satellite imagery requires --aoi-geojson input")
+        regional_src = Path(args.satellite_regional_raster)
+        if not regional_src.is_file():
+            raise FileNotFoundError(f"Satellite regional raster not found: {regional_src}")
+        regional_dst = inputs_dir / "satellite_regional.tif"
+        regional_dst.write_bytes(regional_src.read_bytes())
+        if satellite_info is None:
+            satellite_info = {
+                "dataset_title": args.satellite_dataset_title,
+                "dataset_version": args.satellite_dataset_version,
+                "source_url": args.satellite_source_url,
+                "license": args.satellite_license,
+                "selection_method": args.satellite_selection_method,
+            }
+        satellite_info["regional_raster_ref"] = {
+            "relpath": str(regional_dst.relative_to(bdir)).replace("\\", "/"),
+            "sha256": compute_sha256(regional_dst),
+            "content_type": "image/tiff",
+        }
+        satellite_info["regional_date"] = args.satellite_regional_date
+
+    if args.regional_admin_boundaries_geojson:
+        boundaries_src = Path(args.regional_admin_boundaries_geojson)
+        if not boundaries_src.is_file():
+            raise FileNotFoundError(
+                f"Regional admin boundaries GeoJSON not found: {boundaries_src}"
+            )
+        boundaries_dst = inputs_dir / "regional_admin_boundaries.geojson"
+        boundaries_dst.write_bytes(boundaries_src.read_bytes())
+        if satellite_info is None:
+            satellite_info = {
+                "dataset_title": args.satellite_dataset_title,
+                "dataset_version": args.satellite_dataset_version,
+                "source_url": args.satellite_source_url,
+                "license": args.satellite_license,
+                "selection_method": args.satellite_selection_method,
+            }
+        satellite_info["regional_admin_boundaries_ref"] = {
+            "relpath": str(boundaries_dst.relative_to(bdir)).replace("\\", "/"),
+            "sha256": compute_sha256(boundaries_dst),
+            "content_type": "application/geo+json",
+        }
 
     aoi_area_ha: float | None = None
     aoi_area_method = ""
@@ -886,6 +1167,8 @@ def main(argv: list[str] | None = None) -> int:
     forest_metrics_block: dict[str, Any] | None = None
     forest_metrics_params_block: dict[str, Any] | None = None
     forest_metrics_debug_block: dict[str, Any] | None = None
+    jrc_analysis = None
+    commodity_analysis = None
     if args.enable_hansen_post_2020_loss:
         from eudr_dmi_gil.analysis.forest_loss_post_2020 import run_forest_loss_post_2020
         from eudr_dmi_gil.tasks.forest_loss_post_2020 import load_hansen_config
@@ -897,6 +1180,7 @@ def main(argv: list[str] | None = None) -> int:
             tile_dir=Path(args.hansen_tile_dir) if args.hansen_tile_dir else None,
             canopy_threshold_percent=args.hansen_canopy_threshold,
             cutoff_year=args.hansen_cutoff_year,
+            end_year=args.end_year,
             write_masks=True,
             aoi_geojson_path=geo_path,
             minio_cache_enabled=args.hansen_minio_cache,
@@ -904,7 +1188,7 @@ def main(argv: list[str] | None = None) -> int:
             projected_crs=args.hansen_projected_crs,
         )
         if maaamet_parcels is not None:
-            end_year = infer_hansen_latest_year(
+            end_year = args.end_year or infer_hansen_latest_year(
                 dataset_version=hansen_config.dataset_version,
                 tile_dir=hansen_config.tile_dir,
             )
@@ -1003,6 +1287,123 @@ def main(argv: list[str] | None = None) -> int:
             )
         hansen_result = hansen_analysis.raw
 
+    jrc_raster_arg = str(args.jrc_gfc2020_raster or "").strip()
+    hansen_lossyear_raster_arg = str(args.hansen_lossyear_raster or "").strip()
+    if jrc_raster_arg:
+        if geo_kind != "geojson":
+            raise RuntimeError("JRC GFC2020 baseline calculation requires --aoi-geojson input")
+        if not hansen_lossyear_raster_arg:
+            raise RuntimeError(
+                "--hansen-lossyear-raster is required when --jrc-gfc2020-raster is provided"
+            )
+
+        from eudr_dmi_gil.analysis.jrc_post2020_loss import (
+            build_hansen_lossyear_metadata,
+            compute_jrc_post2020_loss,
+        )
+        from eudr_dmi_gil.providers.jrc_gfc2020 import LocalJrcGfc2020Provider
+
+        jrc_raster_path = Path(jrc_raster_arg)
+        hansen_lossyear_raster_path = Path(hansen_lossyear_raster_arg)
+        if not jrc_raster_path.is_file():
+            raise FileNotFoundError(f"JRC GFC2020 raster not found: {jrc_raster_path}")
+        if not hansen_lossyear_raster_path.is_file():
+            raise FileNotFoundError(
+                f"Hansen lossyear raster not found: {hansen_lossyear_raster_path}"
+            )
+
+        loss_dataset_version = os.environ.get(
+            "EUDR_DMI_HANSEN_DATASET_VERSION", DATASET_VERSION_DEFAULT
+        )
+        loss_latest_year = args.loss_dataset_end_year or infer_hansen_latest_year(
+            dataset_version=loss_dataset_version,
+            tile_dir=hansen_lossyear_raster_path.parent,
+        )
+        requested_end_year = args.end_year or loss_latest_year
+        if requested_end_year < 2021:
+            raise ValueError("--end-year must be >= 2021")
+
+        baseline_provider = LocalJrcGfc2020Provider(
+            jrc_raster_path,
+            processed_at_utc=generated_at_utc,
+        )
+        loss_metadata = build_hansen_lossyear_metadata(
+            raster_path=hansen_lossyear_raster_path,
+            dataset_version=loss_dataset_version,
+            latest_available_year=loss_latest_year,
+            processed_at_utc=generated_at_utc,
+            source_url=resolve_hansen_url_template(),
+            asset_identifier=(
+                "UMD/hansen/global_forest_change_"
+                + loss_dataset_version.replace("-", "_").replace(".", "_")
+            ),
+        )
+        jrc_output_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "jrc_gfc2020"
+        with _timed("jrc_gfc2020_post2020_loss"):
+            jrc_analysis = compute_jrc_post2020_loss(
+                aoi_geojson_path=geo_path,
+                jrc_gfc2020_raster_path=jrc_raster_path,
+                hansen_lossyear_raster_path=hansen_lossyear_raster_path,
+                output_dir=jrc_output_dir,
+                baseline_metadata=baseline_provider.metadata(),
+                loss_metadata=loss_metadata,
+                requested_end_year=requested_end_year,
+                target_crs=args.analysis_target_crs,
+                target_resolution_m=args.analysis_target_resolution_m,
+            )
+
+        canonical_metric_names = set(jrc_analysis.metrics.to_metric_rows())
+        metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+        metric_rows.extend(
+            MetricRow(
+                variable=name,
+                value=entry["value"],
+                unit=entry["unit"],
+                source="jrc_gfc2020+hansen_lossyear",
+                notes=str(entry.get("notes", "")),
+            )
+            for name, entry in jrc_analysis.metrics.to_metric_rows().items()
+        )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    if commodity_config is not None:
+        if geo_kind != "geojson":
+            raise RuntimeError("Commodity assessment requires --aoi-geojson input")
+        if jrc_analysis is None:
+            raise RuntimeError(
+                "Commodity assessment requires JRC GFC2020 and Hansen lossyear analysis inputs"
+            )
+        commodity_output_dir = (
+            bdir / "reports" / "aoi_report_v2" / aoi_id / "commodity" / commodity_config.id
+        )
+        with _timed("commodity_assessment"):
+            commodity_analysis = run_commodity_assessment(
+                config=commodity_config,
+                aoi_geojson_path=geo_path,
+                aoi_country=aoi_country_from_geojson(geo_path),
+                jrc_gfc2020_raster_path=Path(jrc_raster_arg),
+                hansen_lossyear_raster_path=Path(hansen_lossyear_raster_arg),
+                output_dir=commodity_output_dir,
+                baseline_metadata=jrc_analysis.baseline_metadata,
+                loss_metadata=jrc_analysis.loss_metadata,
+                requested_end_year=jrc_analysis.metrics.requested_end_year,
+                target_crs=args.analysis_target_crs,
+                target_resolution_m=args.analysis_target_resolution_m,
+            )
+        canonical_metric_names = set(commodity_analysis.metrics.to_metric_rows())
+        metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+        metric_rows.extend(
+            MetricRow(
+                variable=name,
+                value=entry["value"],
+                unit=entry["unit"],
+                source=f"commodity:{commodity_config.provider}",
+                notes=str(entry.get("notes", "")),
+            )
+            for name, entry in commodity_analysis.metrics.to_metric_rows().items()
+        )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
     if maaamet_top10_result is None and geo_kind == "geojson":
         maaamet_top10_parcels = maaamet_parcels
         if maaamet_top10_limit is not None and maaamet_parcels is not None:
@@ -1061,21 +1462,21 @@ def main(argv: list[str] | None = None) -> int:
                     value=hansen_result.initial_tree_cover_ha,
                     unit="ha",
                     source="hansen_gfc",
-                    notes="pixel_mask",
+                    notes="legacy/deprecated baseline: Hansen treecover2000 pixel_mask",
                 ),
                 MetricRow(
                     variable="pixel_current_tree_cover_ha",
                     value=hansen_result.current_tree_cover_ha,
                     unit="ha",
                     source="hansen_gfc",
-                    notes="pixel_mask",
+                    notes="legacy/deprecated Hansen treecover2000 remaining forest pixel_mask",
                 ),
                 MetricRow(
                     variable="rfm_area_ha",
                     value=hansen_analysis.raw.forest_metrics.rfm_area_ha,
                     unit="ha",
                     source="hansen_gfc",
-                    notes="rfm_mask",
+                    notes="legacy/deprecated baseline: rfm_mask from Hansen treecover2000",
                 ),
                 MetricRow(
                     variable="loss_total_ha",
@@ -1376,6 +1777,40 @@ def main(argv: list[str] | None = None) -> int:
                 "source_url": "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2025-v1.13/",
             }
         )
+    if jrc_analysis is not None:
+        datasets.extend(
+            [
+                {
+                    "dataset_id": jrc_analysis.baseline_metadata.dataset_id,
+                    "version": jrc_analysis.baseline_metadata.dataset_version,
+                    "retrieved_at_utc": generated_at_utc,
+                    "license": "see JRC catalogue/source terms",
+                    "source_url": jrc_analysis.baseline_metadata.source_url,
+                },
+                {
+                    "dataset_id": "hansen_lossyear",
+                    "version": jrc_analysis.loss_metadata.dataset_version,
+                    "retrieved_at_utc": generated_at_utc,
+                    "license": "Hansen GFC (public)",
+                    "source_url": jrc_analysis.loss_metadata.source_url,
+                },
+            ]
+        )
+    if commodity_analysis is not None:
+        datasets.append(
+            {
+                "dataset_id": commodity_analysis.metadata.dataset_id,
+                "version": commodity_analysis.metadata.dataset_version,
+                "retrieved_at_utc": generated_at_utc,
+                "license": "see configured provider/source terms",
+                "source_url": (
+                    commodity_analysis.metadata.source_url
+                    or commodity_analysis.metadata.asset_identifier
+                    or commodity_analysis.metadata.local_path
+                    or ""
+                ),
+            }
+        )
 
     parameters: dict[str, Any] = {
         "aoi_area_method": aoi_area_method or "unknown",
@@ -1430,6 +1865,56 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
 
+    if jrc_analysis is not None:
+        parameters["assessment_end_year"] = {
+            "requested_end_year": jrc_analysis.metrics.requested_end_year,
+            "effective_end_year": jrc_analysis.metrics.effective_end_year,
+            "evidence_start_year": jrc_analysis.metrics.evidence_start_year,
+            "resolution_mode": (
+                "user_requested_available"
+                if jrc_analysis.metrics.requested_end_year
+                == jrc_analysis.metrics.effective_end_year
+                else "capped_to_loss_dataset_temporal_coverage"
+            ),
+        }
+        parameters["post_2020_loss_on_2020_forest"] = {
+            "baseline_provider_id": jrc_analysis.baseline_metadata.provider_id,
+            "baseline_dataset_id": jrc_analysis.baseline_metadata.dataset_id,
+            "baseline_asset_identifier": jrc_analysis.baseline_metadata.asset_identifier,
+            "baseline_cutoff_date": jrc_analysis.baseline_metadata.cutoff_date,
+            "baseline_band": jrc_analysis.baseline_metadata.band,
+            "baseline_forest_value": jrc_analysis.baseline_metadata.forest_value,
+            "loss_dataset_id": jrc_analysis.loss_metadata.dataset_id,
+            "loss_dataset_version": jrc_analysis.loss_metadata.dataset_version,
+            "loss_dataset_latest_available_year": (
+                jrc_analysis.loss_metadata.latest_available_year
+            ),
+            "target_crs": jrc_analysis.grid["target_crs"],
+            "target_resolution_m": jrc_analysis.grid["target_resolution_m"],
+            "resampling": "nearest",
+            "boundary_rule": jrc_analysis.grid["boundary_rule"],
+            "area_method": "equal_area_projected_pixel_count",
+            "mask_definition": (
+                "AOI & jrc_forest_2020 & lossyear>=21 "
+                "& lossyear<=effective_end_year-2000"
+            ),
+        }
+    if commodity_analysis is not None:
+        parameters["commodity"] = {
+            "id": commodity_analysis.config.id,
+            "display_name": commodity_analysis.config.display_name,
+            "provider": commodity_analysis.config.provider,
+            "dataset_title": commodity_analysis.config.dataset_title,
+            "dataset_version": commodity_analysis.config.dataset_version,
+            "asset_id": commodity_analysis.config.asset_id,
+            "local_path": commodity_analysis.config.local_path,
+            "class_values": list(commodity_analysis.config.class_values),
+            "class_labels": list(commodity_analysis.config.class_labels),
+            "observation_year": commodity_analysis.config.observation_year,
+            "country_scope": list(commodity_analysis.config.country_scope),
+            "optional": commodity_analysis.config.optional,
+        }
+
     results_summary: dict[str, Any] = {
         "aoi_area": {
             "area_ha": aoi_area_ha if aoi_area_ha is not None else 0.0,
@@ -1452,6 +1937,15 @@ def main(argv: list[str] | None = None) -> int:
                 "projection": "EPSG:4326",
                 "conservative_bounds": "area estimates are lower-bound for masked/no-data pixels",
             },
+        }
+    if commodity_analysis is not None:
+        results_summary["commodity_assessment"] = {
+            "status_messages": commodity_analysis.status_messages,
+            "coverage_status": commodity_analysis.coverage_status,
+            "evidence_available": commodity_analysis.evidence_available,
+            "post_2020_loss_and_commodity_overlap_ha": (
+                commodity_analysis.metrics.post_2020_loss_and_commodity_overlap_ha
+            ),
         }
 
     policy_mapping: list[dict[str, Any]] = [
@@ -1580,6 +2074,9 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
 
+    if commodity_analysis is not None:
+        report["commodity"] = commodity_report_block(commodity_analysis)
+
     if maaamet_top10_result is not None:
         maaamet_block = report["validation"]["maaamet"]
         maaamet_block["enabled"] = True
@@ -1699,6 +2196,211 @@ def main(argv: list[str] | None = None) -> int:
                 }
             ]
 
+    if jrc_analysis is not None:
+        report["methodology"]["post_2020_loss_on_2020_forest"] = {
+            "data_sources": ["jrc_gfc2020", "hansen_lossyear"],
+            "calculation": {
+                "method": "deterministic_categorical_raster_intersection",
+                "expression": (
+                    "AOI AND jrc_forest_2020 AND hansen_lossyear >= 21 "
+                    "AND hansen_lossyear <= effective_end_year - 2000"
+                ),
+                "area_units": "ha",
+                "area_method": "equal_area_projected_pixel_count",
+                "target_crs": jrc_analysis.grid["target_crs"],
+                "target_resolution_m": jrc_analysis.grid["target_resolution_m"],
+                "resampling": "nearest",
+                "boundary_rule": jrc_analysis.grid["boundary_rule"],
+            },
+            "baseline_provider": jrc_analysis.baseline_metadata.to_dict(),
+            "loss_dataset": jrc_analysis.loss_metadata.to_dict(),
+            "is_placeholder": False,
+        }
+        report["computed"]["post_2020_loss_on_2020_forest"] = {
+            key: value["value"] for key, value in jrc_analysis.metrics.to_metric_rows().items()
+        }
+        report["computed_outputs"]["post_2020_loss_on_2020_forest"] = {
+            "summary_ref": {
+                "relpath": str(jrc_analysis.summary_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(jrc_analysis.summary_path),
+                "content_type": "application/json",
+            },
+            "baseline_mask_ref": {
+                "relpath": str(jrc_analysis.baseline_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(jrc_analysis.baseline_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "loss_mask_ref": {
+                "relpath": str(jrc_analysis.loss_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(jrc_analysis.loss_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "debug_ref": {
+                "relpath": str(jrc_analysis.debug_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(jrc_analysis.debug_path),
+                "content_type": "application/json",
+            },
+        }
+        report["evidence_registry"]["evidence_classes"].extend(
+            [
+                {
+                    "class_id": "jrc_forest_baseline_2020",
+                    "mandatory": True,
+                    "status": "present",
+                },
+                {
+                    "class_id": "post_2020_loss_on_2020_forest",
+                    "mandatory": True,
+                    "status": "present",
+                },
+            ]
+        )
+        report["extensions"]["post_2020_loss_on_2020_forest"] = {
+            "evidence_gaps": jrc_analysis.evidence_gaps,
+            "compatibility": {
+                "legacy_hansen_treecover2000_metrics_retained": hansen_result is not None,
+                "legacy_baseline_metric_names": [
+                    "pixel_initial_tree_cover_ha",
+                    "rfm_area_ha",
+                ],
+                "canonical_baseline_metric": "forest_baseline_2020_ha",
+            },
+        }
+        report["assumptions"].append(
+            {
+                "assumption_id": "jrc-gfc2020-baseline-evidence-layer",
+                "description": (
+                    "JRC Global Forest Cover 2020 is used as a forest baseline evidence "
+                    "layer at the 2020-12-31 cutoff date; it is not a legal determination."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+
+    if jrc_analysis is not None:
+        artifact_paths.extend(
+            [
+                jrc_analysis.summary_path,
+                jrc_analysis.baseline_mask_path,
+                jrc_analysis.loss_mask_path,
+                jrc_analysis.debug_path,
+            ]
+        )
+
+    if commodity_analysis is not None:
+        report["methodology"]["single_commodity_assessment"] = {
+            "data_sources": [
+                commodity_analysis.metadata.dataset_id,
+                "jrc_gfc2020",
+                "hansen_lossyear",
+            ],
+            "calculation": {
+                "method": "deterministic_categorical_raster_intersection",
+                "semantic_layers": {
+                    "A": "post-2020 Hansen loss inside JRC 2020 forest",
+                    "B": "current or observed configured commodity area",
+                    "C": "intersection of A and B",
+                    "D": "potential forest-to-commodity conversion candidate for human review",
+                },
+                "area_units": "ha",
+                "area_method": "equal_area_projected_pixel_count",
+                "target_crs": args.analysis_target_crs,
+                "target_resolution_m": args.analysis_target_resolution_m,
+                "resampling": "nearest",
+            },
+            "provider_metadata": commodity_analysis.metadata.to_dict(),
+            "is_placeholder": False,
+        }
+        report["computed"]["commodity_assessment"] = {
+            key: value["value"]
+            for key, value in commodity_analysis.metrics.to_metric_rows().items()
+        }
+        report["computed_outputs"]["commodity_assessment"] = commodity_artifact_refs(
+            commodity_analysis, bdir
+        )
+        report["extensions"]["commodity_assessment"] = {
+            "status_messages": commodity_analysis.status_messages,
+            "evidence_gaps": commodity_analysis.evidence_gaps,
+            "provenance": commodity_analysis.provenance,
+            "nodata": commodity_analysis.nodata,
+            "grid": commodity_analysis.grid,
+        }
+        commodity_status = (
+            "present"
+            if commodity_analysis.coverage_status == "full"
+            else "partial"
+            if commodity_analysis.coverage_status == "partial"
+            else "missing"
+        )
+        report["evidence_registry"]["evidence_classes"].append(
+            {
+                "class_id": "commodity_evidence",
+                "mandatory": False,
+                "status": commodity_status,
+            }
+        )
+        commodity_artifacts = [
+            path
+            for path in [
+                commodity_analysis.summary_path,
+                commodity_analysis.commodity_mask_path,
+                commodity_analysis.overlap_mask_path,
+                commodity_analysis.debug_path,
+            ]
+            if path is not None
+        ]
+        artifact_paths.extend(commodity_artifacts)
+        policy_mapping.append(
+            {
+                "article_ref": "EUDR Article 9",
+                "requirement": "Commodity evidence source is declared and traceable when configured",
+                "evidence_fields": [
+                    "commodity",
+                    "computed.commodity_assessment",
+                    "extensions.commodity_assessment.evidence_gaps",
+                ],
+                "artifact_relpaths": [
+                    str(commodity_artifacts[0].relative_to(bdir)).replace("\\", "/")
+                    if commodity_artifacts
+                    else geo_rel.as_posix()
+                ],
+                "status": "na",
+            }
+        )
+        report["assumptions"].append(
+            {
+                "assumption_id": "commodity-layer-evidence-not-causation",
+                "description": (
+                    "The configured commodity layer is evidence of observed land cover/class, "
+                    "not proof of causation, legality, or legal outcome."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+
+    if satellite_info is not None:
+        report["computed_outputs"]["satellite_imagery"] = satellite_info
+        artifact_paths.extend([baseline_dst, recent_dst])
+        report["assumptions"].append(
+            {
+                "assumption_id": "satellite-imagery-visual-context-only",
+                "description": (
+                    "Baseline/recent satellite imagery is supplied as visual review context "
+                    "only; it does not itself establish forest loss, conversion, or a "
+                    "compliance determination."
+                ),
+                "testable": False,
+                "affects_results": [],
+            }
+        )
+
+    if hansen_result is not None and hansen_analysis is not None:
         artifact_paths.append(hansen_analysis.summary_path)
         artifact_paths.extend(
             [
@@ -1884,6 +2586,22 @@ def main(argv: list[str] | None = None) -> int:
             return "forest_mask_debug"
         if relpath.endswith("map/map_config.json"):
             return "report_map_config"
+        if relpath.endswith("jrc_forest_2020_mask.geojson"):
+            return "jrc_forest_2020_mask"
+        if "jrc_gfc2020/" in relpath and relpath.endswith("_on_jrc_forest_2020_mask.geojson"):
+            return "post_2020_loss_on_2020_forest_mask"
+        if "jrc_gfc2020/" in relpath and relpath.endswith("_summary.json"):
+            return "post_2020_loss_on_2020_forest_summary"
+        if relpath.endswith("jrc_post2020_loss_debug.json"):
+            return "post_2020_loss_on_2020_forest_debug"
+        if "/commodity/" in relpath and relpath.endswith("_commodity_summary.json"):
+            return "commodity_summary"
+        if "/commodity/" in relpath and relpath.endswith("_commodity_mask.geojson"):
+            return "commodity_mask"
+        if "/commodity/" in relpath and relpath.endswith("_post2020_loss_overlap_mask.geojson"):
+            return "commodity_post2020_loss_overlap_mask"
+        if "/commodity/" in relpath and relpath.endswith("_commodity_debug.json"):
+            return "commodity_debug"
         if relpath.endswith("maaamet_forest_area_crosscheck.csv"):
             return "maaamet_crosscheck_csv"
         if relpath.endswith("maaamet_forest_area_crosscheck_summary.json"):
@@ -1926,6 +2644,64 @@ def main(argv: list[str] | None = None) -> int:
     with _timed("validate_report"):
         validate_aoi_report(report)
 
+    canonical_report_root = bdir / "reports" / "aoi_report_v2" / aoi_id
+    canonical_report_json_path = canonical_report_root / "report.json"
+    canonical_report_html_path = canonical_report_root / "report.html"
+    canonical_report_pdf_path = canonical_report_root / "report.pdf"
+    canonical_metrics_csv_path = canonical_report_root / "metrics.csv"
+    canonical_manifest_path = canonical_report_root / "manifest.sha256"
+
+    with _timed("write_canonical_evidence_bundle"):
+        generated_artifacts = materialize_evidence_pngs(
+            report,
+            bundle_root=bdir,
+            report_root=canonical_report_root,
+        )
+        canonical_report = canonical_report_from_aoi_report_v2(
+            report,
+            bundle_root=bdir,
+            report_root=bdir / "reports" / "aoi_report_v2",
+            generated_artifacts=generated_artifacts,
+        )
+        write_canonical_metrics_csv(canonical_metrics_csv_path, canonical_report.metrics)
+        write_canonical_report_json(canonical_report_json_path, canonical_report)
+        render_canonical_html(canonical_report, canonical_report_html_path)
+        render_canonical_pdf(
+            canonical_report,
+            canonical_report_pdf_path,
+            report_root=canonical_report_root,
+        )
+
+        canonical_relpaths = [
+            str(path.relative_to(bdir)).replace("\\", "/")
+            for path in [
+                canonical_report_json_path,
+                canonical_report_html_path,
+                canonical_report_pdf_path,
+                canonical_metrics_csv_path,
+            ]
+        ]
+        for artifact in generated_artifacts.values():
+            if artifact.path:
+                canonical_relpaths.append(
+                    str((canonical_report_root / artifact.path).relative_to(bdir)).replace(
+                        "\\", "/"
+                    )
+                )
+
+        canonical_report = update_canonical_artifact_hashes(
+            canonical_report,
+            report_root=canonical_report_root,
+            bundle_root=bdir,
+            artifact_relpaths=canonical_relpaths,
+        )
+        write_canonical_report_json(canonical_report_json_path, canonical_report)
+        validate_aoi_report(canonical_report.to_dict())
+        write_sha256_manifest(bdir, canonical_manifest_path, canonical_relpaths)
+
+        artifact_paths.extend([bdir / relpath for relpath in canonical_relpaths])
+        artifact_paths.append(canonical_manifest_path)
+
     # Manifest written by bundle writer.
     # Exclude manifest itself from artifacts passed to the writer.
     with _timed("write_manifest"):
@@ -1938,7 +2714,7 @@ def main(argv: list[str] | None = None) -> int:
 @dataclass(frozen=True)
 class MetricRow:
     variable: str
-    value: int | float
+    value: int | float | None
     unit: str
     source: str
     notes: str
@@ -2042,7 +2818,9 @@ def _write_metrics_csv(path: Path, rows: list[MetricRow]) -> None:
             writer.writerow([r.variable, _stable_value_str(r.value), r.unit, r.source, r.notes])
 
 
-def _stable_value_str(value: int | float) -> str:
+def _stable_value_str(value: int | float | None) -> str:
+    if value is None:
+        return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int):
