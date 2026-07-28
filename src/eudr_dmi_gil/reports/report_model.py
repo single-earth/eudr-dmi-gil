@@ -17,61 +17,6 @@ from .determinism import canonical_json_bytes
 
 SCHEMA_VERSION = "eudr_evidence_report_v3"
 
-# The Forest Baseline/Loss evidence maps (pages 5/6 of render_canonical_pdf) are drawn into a
-# fixed A4 box (content width x 520pt - see the `new_page(5, ...)`/`new_page(6, ...)` blocks
-# below). Evidence PNGs for those two pages are rendered at this same aspect ratio so a plain
-# contain-fit exactly fills that box: no gray letterbox, and no cover-crop that could cut into
-# the AOI/mask geometry `_reproject_raster_to_grid` already buffers into the frame.
-_EVIDENCE_MAP_BOX_ASPECT = (595.2755905511812 - 64.0) / 520.0  # A4 width - 2*32pt margin : 520pt
-EVIDENCE_MAP_PIXEL_WIDTH = 640
-EVIDENCE_MAP_PIXEL_HEIGHT = round(EVIDENCE_MAP_PIXEL_WIDTH / _EVIDENCE_MAP_BOX_ASPECT)
-
-# The cover (`cover()` in render_canonical_pdf) draws a full-bleed hero image behind the title
-# text with a cover-crop (`draw_image_fit(..., fill=True)`), which scales the source image up
-# until it fills the whole portrait A4 page and crops whatever is left over on one axis. The
-# shared `aoi_satellite` context PNG below is generated at a landscape aspect ratio for an
-# unrelated landscape use (the HTML layer switcher); cover-cropping that landscape image to a
-# portrait full page crops away most of its width, which was cutting the dashed AOI outline off
-# at the page edges instead of keeping it inside the visible cover. This dedicated hero PNG is
-# rendered at the cover page's own portrait aspect ratio instead, so the cover-crop has nothing
-# left to crop and the whole padded AOI frame - polygon included - stays inside the page.
-COVER_HERO_PIXEL_WIDTH = 640
-COVER_HERO_PIXEL_HEIGHT = round(COVER_HERO_PIXEL_WIDTH * 841.8897637795277 / 595.2755905511812)
-
-# Page 7 (Satellite Evidence, see `new_page(7, ...)` below) draws the before/after comparison
-# into an A4 box capped at (content width x BEFORE_AFTER_BOX_HEIGHT pt) - the same technique as
-# `_EVIDENCE_MAP_BOX_ASPECT` above but sized for this page's own available space (a swatch
-# legend and a dates/providers row block sit below the image here, unlike pages 5/6), and treated
-# as a ceiling rather than a fixed size: each before/after panel is *requested* at the pixel size
-# that would make the combined two-panel image (panel + divider + panel) match this box's aspect
-# ratio, but `_reproject_pair_to_shared_grid` only ever widens a raster's real, undistorted
-# coverage - for an AOI whose own bounding box is already close to square, both source rasters'
-# real coverage clamps the result back toward that square-ish shape well before it reaches this
-# ceiling (see the `new_page(7, ...)` comment on the resulting box sizing below). The ceiling
-# still replaces the old fixed 420pt box, which left ~200pt of page height unused even for AOI
-# shapes that could have filled it.
-BEFORE_AFTER_BOX_HEIGHT = 600.0
-_BEFORE_AFTER_DIVIDER_PX = 6
-_BEFORE_AFTER_BOX_ASPECT = (595.2755905511812 - 64.0) / BEFORE_AFTER_BOX_HEIGHT
-BEFORE_AFTER_PANEL_PIXEL_HEIGHT = 720
-BEFORE_AFTER_PANEL_PIXEL_WIDTH = round(
-    (_BEFORE_AFTER_BOX_ASPECT * BEFORE_AFTER_PANEL_PIXEL_HEIGHT - _BEFORE_AFTER_DIVIDER_PX) / 2
-)
-
-# Round 18: when a commodity (e.g. coffee) layer is configured and available for an AOI, the
-# baseline/loss evidence maps (pages 5/6) layer the commodity evidence directly onto the same map
-# image instead of leaving it as a separate artifact no page ever draws. The baseline page (5) gets
-# a translucent commodity-mask overlay showing where the configured commodity sits relative to the
-# JRC 2020 forest baseline; the loss page (6) gets a stronger-alpha overlay of the post-2020
-# loss-and-commodity intersection so loss detected inside the commodity layer visually stands out
-# from loss elsewhere in the AOI. Both colors match the standalone `commodity_layer`/`intersection`
-# evidence artifacts already produced by `materialize_evidence_pngs`, so every view of this data
-# agrees.
-_COMMODITY_OVERLAY_COLOR = (139, 90, 43, 230)
-_COMMODITY_OVERLAY_ALPHA = 0.42
-_COMMODITY_LOSS_OVERLAY_COLOR = (102, 45, 145, 230)
-_COMMODITY_LOSS_OVERLAY_ALPHA = 0.85
-
 
 @dataclass(frozen=True)
 class ArtifactRef:
@@ -274,32 +219,6 @@ def materialize_evidence_pngs(
         output_path=evidence_dir / "01_aoi_satellite.png",
     )
 
-    artifacts["cover_hero"] = _write_satellite_context_png(
-        bundle_root=bundle_root,
-        raster_relpath=satellite_recent_ref,
-        aoi_geom_wgs84=aoi_geom_wgs84,
-        output_path=evidence_dir / "08_cover_hero.png",
-        width=COVER_HERO_PIXEL_WIDTH,
-        height=COVER_HERO_PIXEL_HEIGHT,
-    )
-
-    # Resolved ahead of the baseline/loss evidence maps below (round 18) so pages 5/6 can layer the
-    # commodity/coffee-plantation evidence directly onto those same map images whenever a
-    # commodity layer is actually configured and available for this AOI, instead of leaving it as
-    # a separate artifact no report page ever draws.
-    commodity_mask_ref = _ref_relpath(commodity_outputs, "commodity_mask_ref")
-    commodity_mask_path = (
-        bundle_root / commodity_mask_ref
-        if commodity_mask_ref and (bundle_root / commodity_mask_ref).is_file()
-        else None
-    )
-    commodity_loss_overlap_ref = _ref_relpath(commodity_outputs, "post_2020_loss_overlap_mask_ref")
-    commodity_loss_overlap_path = (
-        bundle_root / commodity_loss_overlap_ref
-        if commodity_loss_overlap_ref and (bundle_root / commodity_loss_overlap_ref).is_file()
-        else None
-    )
-
     baseline_ref = _ref_relpath(jrc_outputs, "baseline_mask_ref")
     artifacts["jrc_forest_2020"] = _png_from_geojson_ref(
         bundle_root=bundle_root,
@@ -309,9 +228,6 @@ def materialize_evidence_pngs(
         unavailable_reason="jrc_forest_2020_mask_not_available",
         background_raster_path=satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
-        overlay_path=commodity_mask_path,
-        overlay_color=_COMMODITY_OVERLAY_COLOR,
-        overlay_alpha=_COMMODITY_OVERLAY_ALPHA,
     )
 
     loss_ref = _ref_relpath(jrc_outputs, "loss_mask_ref")
@@ -323,14 +239,12 @@ def materialize_evidence_pngs(
         unavailable_reason="post_2020_loss_mask_not_available",
         background_raster_path=satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
-        overlay_path=commodity_loss_overlap_path,
-        overlay_color=_COMMODITY_LOSS_OVERLAY_COLOR,
-        overlay_alpha=_COMMODITY_LOSS_OVERLAY_ALPHA,
     )
 
+    commodity_ref = _ref_relpath(commodity_outputs, "commodity_mask_ref")
     artifacts["commodity_layer"] = _png_from_geojson_ref(
         bundle_root=bundle_root,
-        relpath=commodity_mask_ref,
+        relpath=commodity_ref,
         output_path=evidence_dir / "04_commodity_layer.png",
         color=(139, 90, 43, 230),
         unavailable_reason="usable_commodity_layer_not_available",
@@ -338,7 +252,7 @@ def materialize_evidence_pngs(
         aoi_geom_wgs84=aoi_geom_wgs84,
     )
 
-    overlap_ref = commodity_loss_overlap_ref or loss_ref
+    overlap_ref = _ref_relpath(commodity_outputs, "post_2020_loss_overlap_mask_ref") or loss_ref
     artifacts["intersection"] = _png_from_geojson_ref(
         bundle_root=bundle_root,
         relpath=overlap_ref,
@@ -1397,7 +1311,6 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     warning = colors.HexColor("#ff8a00")
     forest = colors.HexColor("#17462f")
     orange_soft = colors.HexColor("#fff6df")
-    aoi_boundary = colors.HexColor("#ffcc00")
 
     margin = 32.0
     content_top = height - 72.0
@@ -1489,35 +1402,6 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
             draw_wrapped(label, x + 30, ry - 8, w - 42, size=8, leading=10, max_lines=1)
             ry -= row_h
         return y - h
-
-    def evidence_map_bottom(image_y: float) -> float:
-        """The bottom y-coordinate of the fixed 520pt-tall page 5/6 evidence-map image box,
-        shared by every floating card anchored over that image (round 19: round 18 only
-        bottom-anchored the swatch legend, leaving the metric card floating at a fixed offset
-        from the top instead of the same baseline)."""
-        return image_y - 18 - 520
-
-    def evidence_map_card_y(image_y: float, card_h: float, *, inset: float = 16.0) -> float:
-        """Top y-coordinate for a ``card_h``-tall floating card so it sits ``inset`` px above
-        the evidence-map image's own bottom edge, exactly like ``draw_evidence_map_legend``
-        anchors the swatch-legend card - used so the metric card on pages 5/6 sits on the same
-        bottom baseline as the legend instead of floating mid-image."""
-        return evidence_map_bottom(image_y) + inset + card_h
-
-    def draw_evidence_map_legend(image_y: float, items: list[tuple[Any, str]]) -> None:
-        """Anchor a page 5/6 evidence-map legend card to the bottom-right corner of the fixed
-        520pt-tall image box, like a real map legend inset, instead of floating partway up the
-        image (round 18: user-flagged that the legend needed to sit at the bottom of the image,
-        not mid-image). Derives its own height from ``items`` so it still works whichever page
-        adds a commodity-layer legend row and which does not. Round 20: page 6's
-        coffee-plantation-loss headline number used to float here as its own card above this
-        legend; it is now fused into the bottom-left metric card instead (see
-        ``draw_dual_metric_card``), so this only ever draws the swatch-legend card."""
-        img_bottom = evidence_map_bottom(image_y)
-        row_h = 22.0
-        h = 14 + row_h * len(items)
-        legend_x = width - margin - 190
-        draw_legend_card(legend_x, img_bottom + 16 + h, 174, items)
 
     def draw_header(page_no: int, title: str) -> None:
         c.setFillColor(ink)
@@ -1630,36 +1514,6 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         draw_wrapped(value, x + 28, y - 43, w - 38, font="Helvetica-Bold", size=17, leading=18, max_lines=2)
         if sub:
             draw_wrapped(sub, x + 28, y - h + 16, w - 38, size=7, leading=8, color=muted, max_lines=2)
-
-    def draw_dual_metric_card(
-        x: float,
-        y: float,
-        w: float,
-        h: float,
-        primary: tuple[str, str, str, Any],
-        secondary: tuple[str, str, str, Any],
-    ) -> None:
-        """One card holding two stacked metric blocks, each with its own dot colour, split by a
-        thin rule. Round 20: page 6 used to float the coffee-plantation-loss headline as its own
-        card at the top-right of the evidence map; fused here into the primary loss-after-2020
-        card instead (per-block fonts shrunk from ``draw_metric_card``'s so both blocks' label/
-        value/sub still fit their half of the card)."""
-        c.setFillColor(colors.white)
-        c.setStrokeColor(line)
-        c.roundRect(x, y - h, w, h, 4, stroke=1, fill=1)
-        row_h = h / 2
-        for index, (label, value, sub, dot_color) in enumerate((primary, secondary)):
-            top = y - (index * row_h)
-            c.setFillColor(dot_color)
-            c.circle(x + 13, top - 15, 4, stroke=0, fill=1)
-            draw_wrapped(label, x + 24, top - 12, w - 36, font="Helvetica-Bold", size=6.2, leading=7, max_lines=2)
-            draw_wrapped(value, x + 24, top - 33, w - 32, font="Helvetica-Bold", size=13, leading=14, max_lines=1)
-            if sub:
-                draw_wrapped(sub, x + 24, top - 50, w - 32, size=6.2, leading=7, color=muted, max_lines=2)
-            if index == 0:
-                c.setStrokeColor(line)
-                c.setLineWidth(0.6)
-                c.line(x + 12, top - row_h, x + w - 12, top - row_h)
 
     def draw_notice(x: float, y: float, w: float, h: float, text: str) -> None:
         c.setFillColor(orange_soft)
@@ -1794,7 +1648,7 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         c.bezier(360, height + 20, 330, 610, 410, 430, 355, 210)
 
     def cover() -> None:
-        hero = image_path("cover_hero") or image_path("satellite")
+        hero = image_path("satellite")
         if hero is None:
             draw_forest_texture()
         else:
@@ -1919,7 +1773,7 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
             map_y - map_h - 8,
             [
                 (colors.HexColor("#3c423c"), "Regional/state boundary"),
-                (aoi_boundary, "AOI boundary"),
+                (colors.white, "AOI boundary"),
             ],
         )
     side_x = margin + map_w + 18
@@ -1948,83 +1802,30 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     basemap_composited = image_path("satellite") is not None
     non_forest_label = "satellite basemap" if basemap_composited else "light background"
 
-    # Round 18: whether this AOI has a configured, evidence-available commodity (e.g. coffee)
-    # layer - gates the coffee-plantation overlay/legend rows/metric card added to pages 5/6 below,
-    # so AOIs without a commodity layer (e.g. the mandatory zero-config regression fixture) render
-    # exactly as before.
-    commodity_layer_entry = layers.get("commodity")
-    commodity_overlay_available = bool(
-        commodity.get("evidence_available")
-        and isinstance(commodity_layer_entry, Mapping)
-        and commodity_layer_entry.get("available")
-    )
-    commodity_loss_metric_available = (
-        commodity_overlay_available
-        and metric_value("post_2020_loss_and_commodity_overlap_ha") is not None
-    )
-    commodity_swatch = colors.HexColor("#8b5a2b")
-    commodity_loss_swatch = colors.HexColor("#662d91")
-    commodity_label = f"{commodity_name} plantations ({_display_value(commodity.get('observation_year'))})"
-
     new_page(5, "Forest Baseline 2020")
     y = content_top
     y = draw_wrapped("Forest extent mapped by JRC Global Forest Cover 2020 inside the AOI.", margin, y, content_w, size=9, leading=12)
-    # fill=False (contain): the evidence PNG is now rendered at this exact box aspect ratio
-    # (EVIDENCE_MAP_PIXEL_WIDTH/HEIGHT, see _write_mask_over_basemap_png), so contain-fit already
-    # covers the box edge-to-edge with no gray band - unlike fill=True's cover-crop, it can never
-    # cut into the AOI/mask polygons _reproject_raster_to_grid buffers into frame. When a commodity
-    # layer is available, this image also carries a translucent commodity-mask overlay (see
-    # materialize_evidence_pngs) showing where it sits relative to the 2020 forest baseline.
     draw_image_fit(image_path("jrc_forest_2020"), margin, y - 18, content_w, 520, gap="JRC 2020 baseline image is unavailable.")
-    draw_metric_card(margin + 16, evidence_map_card_y(y, 92), 185, 92, "Forest baseline 2020", metric("forest_baseline_2020_ha"), metric("forest_baseline_2020_percent_of_aoi") + " of AOI")
-    page5_legend_items = [
-        (colors.HexColor("#217a48"), "Forest (2020)"),
-        (soft, f"Non-forest (2020) / {non_forest_label}"),
-    ]
-    if commodity_overlay_available:
-        page5_legend_items.append((commodity_swatch, commodity_label))
-    draw_evidence_map_legend(y, page5_legend_items)
+    draw_metric_card(margin + 16, y - 390, 185, 92, "Forest baseline 2020", metric("forest_baseline_2020_ha"), metric("forest_baseline_2020_percent_of_aoi") + " of AOI")
+    draw_legend_card(
+        width - margin - 190,
+        y - 390,
+        174,
+        [(colors.HexColor("#217a48"), "Forest (2020)"), (soft, f"Non-forest (2020) / {non_forest_label}")],
+    )
     finish_page(5)
 
     new_page(6, "Forest Loss After 2020")
     y = content_top
     y = draw_wrapped(f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}.", margin, y, content_w, size=9, leading=12)
-    # See the matching comment on page 5 above: fill=False is intentional here now. When the
-    # post-2020-loss-and-commodity intersection is available, this image also carries a stronger
-    # overlay of that intersection (see materialize_evidence_pngs) so loss detected inside the
-    # commodity layer visually stands out from loss elsewhere in the AOI.
     draw_image_fit(image_path("forest_loss"), margin, y - 18, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
-    page6_legend_items = [
-        (colors.HexColor("#c62828"), f"Loss ({evidence_period})"),
-        (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)"),
-    ]
-    primary_metric = (
-        "Forest loss after 2020",
-        metric("forest_loss_post_2020_on_baseline_ha"),
-        f"{metric('forest_loss_post_2020_percent_of_aoi')} of AOI; {metric('forest_loss_post_2020_percent_of_baseline')} of baseline",
-        warning if loss_positive else forest,
+    draw_metric_card(margin + 16, y - 390, 185, 92, "Forest loss after 2020", metric("forest_loss_post_2020_on_baseline_ha"), f"{metric('forest_loss_post_2020_percent_of_aoi')} of AOI; {metric('forest_loss_post_2020_percent_of_baseline')} of baseline", alert=loss_positive)
+    draw_legend_card(
+        width - margin - 190,
+        y - 390,
+        174,
+        [(colors.HexColor("#c62828"), f"Loss ({evidence_period})"), (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)")],
     )
-    if commodity_loss_metric_available:
-        page6_legend_items.append(
-            (commodity_loss_swatch, f"Loss within {commodity_name.lower()} plantations")
-        )
-        # Intersection of JRC 2020 forest, Hansen post-2020 loss, and the configured commodity
-        # (coffee) layer: the area of forest lost during evidence_period that falls inside the
-        # commodity/coffee-plantation mask - the headline "forest loss at the coffee plantations"
-        # figure, computed by run_commodity_assessment (JRC forest & Hansen lossyear & commodity).
-        # Round 20: fused into the primary card as a second stacked block (was its own
-        # top-right card) - its dot uses commodity_loss_swatch, the same purple as its legend
-        # swatch two rows up, instead of the primary card's alert/forest colour.
-        secondary_metric = (
-            f"Forest loss at {commodity_name.lower()} plantations ({evidence_period})",
-            metric("post_2020_loss_and_commodity_overlap_ha"),
-            f"{metric('post_2020_loss_and_commodity_percent_of_loss')} of total loss; {metric('post_2020_loss_and_commodity_percent_of_aoi')} of AOI",
-            commodity_loss_swatch,
-        )
-        draw_dual_metric_card(margin + 16, evidence_map_card_y(y, 150), 185, 150, primary_metric, secondary_metric)
-    else:
-        draw_metric_card(margin + 16, evidence_map_card_y(y, 92), 185, 92, *primary_metric[:3], alert=loss_positive)
-    draw_evidence_map_legend(y, page6_legend_items)
     finish_page(6)
 
     new_page(7, "Satellite Evidence")
@@ -2043,35 +1844,12 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
             "Before/after evidence unavailable",
             "No suitable before/after imagery is available in this bundle. No visual comparison has been fabricated.",
         )
-        y2 = 90
     else:
-        # `before_after` is rendered by `_write_before_after_png` at the pixel size that targets
-        # this exact box's aspect ratio (see BEFORE_AFTER_BOX_HEIGHT). That target is only
-        # reachable when the AOI's own bounding-box shape happens to be as tall as the box; for
-        # AOIs closer to square (like this bundle's), both source rasters' real coverage clamps
-        # the shared crop back toward the AOI's own natural, undistorted aspect (never a
-        # distorted or fabricated one, per round 16's rule), which can be well short of the
-        # BEFORE_AFTER_BOX_HEIGHT ceiling. The box here is always sized to the image's own actual
-        # aspect ratio rather than the ceiling, so content_w is filled edge-to-edge with no gray
-        # letterbox and the ceiling is only ever a cap, never a stretch target.
-        hero_img = ImageReader(str(before_after))
-        hero_w, hero_h = hero_img.getSize()
-        box_scale = min(content_w / hero_w, BEFORE_AFTER_BOX_HEIGHT / hero_h)
-        box_w, box_h = hero_w * box_scale, hero_h * box_scale
-        box_x = margin + (content_w - box_w) / 2
-        draw_image_fit(before_after, box_x, y, box_w, box_h)
-        draw_photo_chip(box_x + 10, y - 10, f"BEFORE - {before_year}", align="left")
-        draw_photo_chip(box_x + box_w - 10, y - 10, f"AFTER - {after_year}", align="right")
-        legend_y = y - box_h - 10
-        draw_swatch_legend(margin, legend_y, [(aoi_boundary, "AOI boundary")])
-        # A short (near-square AOI) image leaves real leftover vertical space below the legend
-        # that no amount of image sizing can honestly reclaim (see above) - rather than stranding
-        # the dates/providers rows at their old fixed distance from the footer and leaving that
-        # leftover space as a disconnected gap in the middle of the page, pull the rows up to sit
-        # just below the legend whenever there is slack, so the page's real content reads as one
-        # contiguous block and any unavoidable leftover space collects as a single trailing margin
-        # above the footer instead. Never pushed lower than the original 90pt floor.
-        y2 = max(90, legend_y - 24)
+        draw_image_fit(before_after, margin, y, content_w, 420)
+        draw_photo_chip(margin + 10, y - 10, f"BEFORE - {before_year}", align="left")
+        draw_photo_chip(margin + content_w - 10, y - 10, f"AFTER - {after_year}", align="right")
+        draw_swatch_legend(margin, y - 420 - 10, [(colors.white, "AOI boundary")])
+    y2 = 90
     before_after_layer = layers.get("before_after")
     before_after_dates = (
         before_after_layer.get("date") if isinstance(before_after_layer, Mapping) else None
@@ -2549,15 +2327,6 @@ def _layers(
             "Visual AOI context from source imagery",
             satellite_date,
         ),
-        "cover_hero": _layer(
-            "cover_hero",
-            "Cover hero context",
-            artifacts.get("cover_hero") or _missing("cover_hero_not_materialized"),
-            satellite_dataset,
-            satellite_version,
-            "Full-bleed AOI satellite context for the report cover page",
-            satellite_date,
-        ),
         "regional_overview": _layer(
             "regional_overview",
             "Regional overview",
@@ -2670,9 +2439,6 @@ def _png_from_geojson_ref(
     unavailable_reason: str,
     background_raster_path: Path | None = None,
     aoi_geom_wgs84: Any | None = None,
-    overlay_path: Path | None = None,
-    overlay_color: tuple[int, int, int, int] = _COMMODITY_OVERLAY_COLOR,
-    overlay_alpha: float = _COMMODITY_OVERLAY_ALPHA,
 ) -> ArtifactRef:
     if not relpath:
         return _missing(unavailable_reason)
@@ -2687,9 +2453,6 @@ def _png_from_geojson_ref(
                 color=color,
                 background_raster_path=background_raster_path,
                 aoi_geom_wgs84=aoi_geom_wgs84,
-                overlay_geojson_path=overlay_path,
-                overlay_color=overlay_color,
-                overlay_alpha=overlay_alpha,
             )
             return _available(output_path, output_path.parents[1])
         except ValueError:
@@ -2783,26 +2546,6 @@ def _load_report_aoi_geometry(report: Mapping[str, Any], bundle_root: Path) -> A
     return None
 
 
-def _clamp_span(lo: float, hi: float, rb_lo: float, rb_hi: float) -> tuple[float, float]:
-    """Slide/shrink the interval ``[lo, hi]`` to fit inside ``[rb_lo, rb_hi]``.
-
-    Keeps the interval's own center and length when it already fits (just re-centering against
-    the bound if it hangs over one edge); if the interval is wider than the bound itself, the
-    bound's full extent is returned instead - there is nothing past it to show.
-    """
-    span = hi - lo
-    available = rb_hi - rb_lo
-    if span >= available:
-        return rb_lo, rb_hi
-    center = (lo + hi) / 2
-    half = span / 2
-    if center - half < rb_lo:
-        center = rb_lo + half
-    elif center + half > rb_hi:
-        center = rb_hi - half
-    return center - half, center + half
-
-
 def _reproject_raster_to_grid(
     raster_path: Path,
     bounds_geom_wgs84: Any,
@@ -2810,29 +2553,8 @@ def _reproject_raster_to_grid(
     pad_factor: float = 0.12,
     width: int = 640,
     height: int = 420,
-    allow_variable_width: bool = False,
 ) -> tuple[Any, Any, Any]:
     """Reproject a raster crop framed around ``bounds_geom_wgs84`` onto a fixed-size RGBA grid.
-
-    The padded frame is only ever widened, never narrowed, to match the ``width:height`` pixel
-    aspect ratio (in the destination CRS's linear units) before the transform is built - so the
-    output always covers the full ``width``x``height`` canvas with uniform (non-distorting)
-    scaling and no gray letterbox, while every buffered pixel of ``bounds_geom_wgs84`` stays
-    inside the frame. Callers can therefore draw this image with a plain contain-fit; it never
-    needs a cover-crop (which would risk cropping into the buffered geometry) to fill its box.
-
-    That widen-only frame assumes the source raster's own extent covers whatever the AOI+pad+
-    aspect extension needs. A raster fetched with a tighter buffer than that (e.g. an older
-    baseline scene on disk next to a much more widely fetched "recent" scene for the same AOI)
-    can leave part of the extension outside the raster's real coverage; left alone, reproject()
-    would leave those destination pixels at their zero-initialized value - a solid black no-data
-    band, not a cropped-but-real image. When ``allow_variable_width`` is set, the frame is instead
-    clamped per-axis to the raster's own bounds (see ``_clamp_span``), and the output pixel
-    *height* is held fixed at ``height`` while pixel *width* is re-derived from the clamped frame
-    at that same uniform per-pixel scale - so the image may come out narrower or wider than the
-    nominal ``width`` instead of distorting or fabricating coverage. Callers that place two such
-    crops side by side (stacked along the shared height axis) can still combine them regardless of
-    the resulting width; callers that need one fixed pixel size should leave this off.
 
     Returns ``(rgba, dst_crs, dst_transform)`` with no overlay drawn, so callers can rasterize
     additional vector overlays (AOI outline, evidence masks) into the exact same pixel grid.
@@ -2851,29 +2573,8 @@ def _reproject_raster_to_grid(
 
     with rasterio.open(raster_path) as ds:
         left, bottom, right, top = transform_bounds("EPSG:4326", ds.crs, minx, miny, maxx, maxy)
-        target_aspect = width / height
-        frame_w, frame_h = right - left, top - bottom
-        frame_aspect = (frame_w / frame_h) if frame_h else target_aspect
-        if frame_aspect < target_aspect:
-            new_w = frame_h * target_aspect
-            cx = (left + right) / 2
-            left, right = cx - new_w / 2, cx + new_w / 2
-        elif frame_aspect > target_aspect:
-            new_h = frame_w / target_aspect
-            cy = (bottom + top) / 2
-            bottom, top = cy - new_h / 2, cy + new_h / 2
-
-        out_width = width
-        out_height = height
-        if allow_variable_width:
-            rb_left, rb_bottom, rb_right, rb_top = ds.bounds
-            left, right = _clamp_span(left, right, rb_left, rb_right)
-            bottom, top = _clamp_span(bottom, top, rb_bottom, rb_top)
-            scale = (top - bottom) / height
-            out_width = max(1, round((right - left) / scale))
-
-        dst_transform = from_bounds(left, bottom, right, top, out_width, out_height)
-        dest = np.zeros((3, out_height, out_width), dtype=np.uint8)
+        dst_transform = from_bounds(left, bottom, right, top, width, height)
+        dest = np.zeros((3, height, width), dtype=np.uint8)
         reproject(
             source=rasterio.band(ds, [1, 2, 3]),
             destination=dest,
@@ -2884,95 +2585,9 @@ def _reproject_raster_to_grid(
             resampling=Resampling.bilinear,
         )
         rgb = np.transpose(dest, (1, 2, 0))
-        rgba = np.dstack([rgb, np.full((out_height, out_width), 255, dtype=np.uint8)])
+        rgba = np.dstack([rgb, np.full((height, width), 255, dtype=np.uint8)])
         dst_crs = ds.crs
     return rgba, dst_crs, dst_transform
-
-
-def _reproject_pair_to_shared_grid(
-    raster_paths: tuple[Path, Path],
-    bounds_geom_wgs84: Any,
-    *,
-    pad_factor: float = 0.12,
-    width: int = 320,
-    height: int = 480,
-) -> tuple[list[Any], Any, Any]:
-    """Reproject two rasters covering the same AOI onto one identical pixel grid.
-
-    `_reproject_raster_to_grid`'s `allow_variable_width` clamps the aspect-widened frame to
-    *each raster's own* bounds independently, so two rasters with different real coverage (e.g.
-    a tightly-fetched baseline scene next to a much more widely-fetched recent scene for the
-    same AOI, see round 16) come out at different pixel widths *and* different meters/pixel
-    scales - not just visually unequal before/after panel sizes, but a mismatched zoom level
-    between them. This instead clamps the shared aspect-widened frame to the *intersection* of
-    both rasters' bounds before deriving one shared transform, then reprojects both rasters onto
-    that same grid: every destination pixel is guaranteed to be real data from both sources (no
-    no-data band, per round 16's rule), and both crops come out pixel-for-pixel the same size at
-    the same ground scale.
-
-    Returns ``(rgba_list, dst_crs, dst_transform)`` in ``raster_paths`` order, with no overlay
-    drawn, so callers can rasterize the same AOI outline into each grid themselves.
-    """
-    import numpy as np
-    import rasterio
-    from rasterio.enums import Resampling
-    from rasterio.transform import from_bounds
-    from rasterio.warp import reproject, transform_bounds
-
-    minx, miny, maxx, maxy = bounds_geom_wgs84.bounds
-    pad_x = (maxx - minx) * pad_factor or 0.001
-    pad_y = (maxy - miny) * pad_factor or 0.001
-    minx, maxx = minx - pad_x, maxx + pad_x
-    miny, maxy = miny - pad_y, maxy + pad_y
-
-    datasets = [rasterio.open(p) for p in raster_paths]
-    try:
-        dst_crs = datasets[0].crs
-        left, bottom, right, top = transform_bounds("EPSG:4326", dst_crs, minx, miny, maxx, maxy)
-        target_aspect = width / height
-        frame_w, frame_h = right - left, top - bottom
-        frame_aspect = (frame_w / frame_h) if frame_h else target_aspect
-        if frame_aspect < target_aspect:
-            new_w = frame_h * target_aspect
-            cx = (left + right) / 2
-            left, right = cx - new_w / 2, cx + new_w / 2
-        elif frame_aspect > target_aspect:
-            new_h = frame_w / target_aspect
-            cy = (bottom + top) / 2
-            bottom, top = cy - new_h / 2, cy + new_h / 2
-
-        for ds in datasets:
-            rb_left, rb_bottom, rb_right, rb_top = ds.bounds
-            if ds.crs != dst_crs:
-                rb_left, rb_bottom, rb_right, rb_top = transform_bounds(
-                    ds.crs, dst_crs, rb_left, rb_bottom, rb_right, rb_top
-                )
-            left, right = _clamp_span(left, right, rb_left, rb_right)
-            bottom, top = _clamp_span(bottom, top, rb_bottom, rb_top)
-
-        scale = (top - bottom) / height
-        out_width = max(1, round((right - left) / scale))
-        dst_transform = from_bounds(left, bottom, right, top, out_width, height)
-
-        rgbas = []
-        for ds in datasets:
-            dest = np.zeros((3, height, out_width), dtype=np.uint8)
-            reproject(
-                source=rasterio.band(ds, [1, 2, 3]),
-                destination=dest,
-                src_transform=ds.transform,
-                src_crs=ds.crs,
-                dst_transform=dst_transform,
-                dst_crs=dst_crs,
-                resampling=Resampling.bilinear,
-            )
-            rgb = np.transpose(dest, (1, 2, 0))
-            rgba = np.dstack([rgb, np.full((height, out_width), 255, dtype=np.uint8)])
-            rgbas.append(rgba)
-    finally:
-        for ds in datasets:
-            ds.close()
-    return rgbas, dst_crs, dst_transform
 
 
 def _draw_aoi_outline_inplace(
@@ -2981,44 +2596,17 @@ def _draw_aoi_outline_inplace(
     dst_crs: Any,
     dst_transform: Any,
     *,
-    min_stroke_px: float = 1.2,
-    dash_px: float = 9.0,
-    gap_px: float = 6.0,
-    color: tuple[int, int, int, int] = (255, 204, 0, 255),
+    min_stroke_px: float = 2.5,
 ) -> None:
-    """Rasterize the AOI boundary as a dotted line (dash-buffer segments along the ring), not a
-    solid outline - a dashed AOI marker reads as an overlay/annotation against the satellite
-    imagery, where a solid line can be mistaken for a real mapped feature (e.g. a road or field
-    edge)."""
     import numpy as np
     from rasterio.features import rasterize
     from rasterio.warp import transform_geom
     from shapely.geometry import mapping, shape
-    from shapely.ops import substring, unary_union
 
     height, width = rgba.shape[0], rgba.shape[1]
     geom_target = shape(transform_geom("EPSG:4326", dst_crs, mapping(aoi_geom_wgs84)))
     pixel_size_m = abs(dst_transform.a)
-    stroke_radius = max(pixel_size_m * min_stroke_px, 1e-6)
-    dash_len = max(pixel_size_m * dash_px, stroke_radius)
-    gap_len = max(pixel_size_m * gap_px, stroke_radius)
-
-    boundary = geom_target.boundary
-    lines = list(boundary.geoms) if boundary.geom_type == "MultiLineString" else [boundary]
-    dashes = []
-    for line in lines:
-        length = line.length
-        pos = 0.0
-        draw = True
-        while pos < length:
-            end = min(pos + (dash_len if draw else gap_len), length)
-            if draw and end > pos:
-                dashes.append(substring(line, pos, end))
-            pos = end
-            draw = not draw
-    if not dashes:
-        return
-    outline = unary_union([seg.buffer(stroke_radius) for seg in dashes if not seg.is_empty])
+    outline = geom_target.boundary.buffer(max(pixel_size_m * min_stroke_px, 1e-6))
     outline_mask = rasterize(
         [(mapping(outline), 1)],
         out_shape=(height, width),
@@ -3027,7 +2615,7 @@ def _draw_aoi_outline_inplace(
         dtype=np.uint8,
         all_touched=True,
     )
-    rgba[outline_mask.astype(bool)] = np.array(color, dtype=np.uint8)
+    rgba[outline_mask.astype(bool)] = np.array([255, 255, 255, 255], dtype=np.uint8)
 
 
 def _draw_admin_boundaries_inplace(
@@ -3113,15 +2701,9 @@ def _render_satellite_crop(
     width: int = 640,
     height: int = 420,
     pad_factor: float = 0.12,
-    allow_variable_width: bool = False,
 ) -> Any:
     rgba, dst_crs, dst_transform = _reproject_raster_to_grid(
-        raster_path,
-        aoi_geom_wgs84,
-        pad_factor=pad_factor,
-        width=width,
-        height=height,
-        allow_variable_width=allow_variable_width,
+        raster_path, aoi_geom_wgs84, pad_factor=pad_factor, width=width, height=height
     )
     _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform)
     return rgba
@@ -3133,8 +2715,6 @@ def _write_satellite_context_png(
     raster_relpath: str | None,
     aoi_geom_wgs84: Any | None,
     output_path: Path,
-    width: int = 640,
-    height: int = 420,
 ) -> ArtifactRef:
     if not raster_relpath or aoi_geom_wgs84 is None:
         return _missing("suitable_satellite_imagery_not_available_in_local_bundle")
@@ -3142,7 +2722,7 @@ def _write_satellite_context_png(
     if not src.is_file():
         return _missing("suitable_satellite_imagery_not_available_in_local_bundle")
     try:
-        rgba = _render_satellite_crop(src, aoi_geom_wgs84, width=width, height=height)
+        rgba = _render_satellite_crop(src, aoi_geom_wgs84)
     except Exception:
         return _missing("satellite_raster_could_not_be_rendered")
     _write_png_rgba(output_path, rgba)
@@ -3156,11 +2736,8 @@ def _write_before_after_png(
     recent_relpath: str | None,
     aoi_geom_wgs84: Any | None,
     output_path: Path,
-    width: int = BEFORE_AFTER_PANEL_PIXEL_WIDTH,
-    height: int = BEFORE_AFTER_PANEL_PIXEL_HEIGHT,
 ) -> ArtifactRef:
     import numpy as np
-    from PIL import Image, ImageDraw
 
     if not baseline_relpath or not recent_relpath or aoi_geom_wgs84 is None:
         return _missing("suitable_before_after_source_imagery_not_available_in_local_bundle")
@@ -3169,41 +2746,11 @@ def _write_before_after_png(
     if not baseline_src.is_file() or not recent_src.is_file():
         return _missing("suitable_before_after_source_imagery_not_available_in_local_bundle")
     try:
-        (baseline_rgba, recent_rgba), dst_crs, dst_transform = _reproject_pair_to_shared_grid(
-            (baseline_src, recent_src), aoi_geom_wgs84, width=width, height=height
-        )
-        _draw_aoi_outline_inplace(baseline_rgba, aoi_geom_wgs84, dst_crs, dst_transform)
-        _draw_aoi_outline_inplace(recent_rgba, aoi_geom_wgs84, dst_crs, dst_transform)
-        divider_w = _BEFORE_AFTER_DIVIDER_PX
-        divider = np.full((baseline_rgba.shape[0], divider_w, 4), 255, dtype=np.uint8)
+        baseline_rgba = _render_satellite_crop(baseline_src, aoi_geom_wgs84, width=320, height=480)
+        recent_rgba = _render_satellite_crop(recent_src, aoi_geom_wgs84, width=320, height=480)
+        divider = np.full((baseline_rgba.shape[0], 6, 4), 255, dtype=np.uint8)
+        divider[:, :, :3] = 12
         combined = np.hstack([baseline_rgba, divider, recent_rgba])
-
-        # A swipe-style handle (white circle + right-pointing arrow) centered on the seam reads
-        # as "before/after comparison" at a glance; a bare divider line reads as a rendering
-        # artifact rather than an intentional split.
-        combined_img = Image.fromarray(combined, mode="RGBA")
-        draw = ImageDraw.Draw(combined_img)
-        cx = baseline_rgba.shape[1] + divider_w / 2
-        cy = combined.shape[0] / 2
-        radius = 16
-        draw.ellipse(
-            [cx - radius, cy - radius, cx + radius, cy + radius],
-            fill=(255, 255, 255, 255),
-            outline=(70, 70, 70, 255),
-            width=1,
-        )
-        arrow_half_h = 7
-        arrow_w = 9
-        tip_x = cx + 3
-        draw.polygon(
-            [
-                (tip_x - arrow_w, cy - arrow_half_h),
-                (tip_x - arrow_w, cy + arrow_half_h),
-                (tip_x, cy),
-            ],
-            fill=(40, 40, 40, 255),
-        )
-        combined = np.array(combined_img)
     except Exception:
         return _missing("before_after_source_imagery_could_not_be_rendered")
     _write_png_rgba(output_path, combined)
@@ -3235,7 +2782,7 @@ def _write_regional_overview_png(
                     _draw_admin_boundaries_inplace(rgba, boundaries_path, dst_crs, dst_transform)
                 except Exception:
                     pass  # optional regional-context layer; never blocks the base evidence image
-        _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform, min_stroke_px=2.0)
+        _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform, min_stroke_px=4.0)
     except Exception:
         return _missing("regional_overview_could_not_be_rendered")
     _write_png_rgba(output_path, rgba)
@@ -3249,19 +2796,10 @@ def _write_mask_over_basemap_png(
     color: tuple[int, int, int, int],
     background_raster_path: Path,
     aoi_geom_wgs84: Any,
-    overlay_geojson_path: Path | None = None,
-    overlay_color: tuple[int, int, int, int] = _COMMODITY_OVERLAY_COLOR,
-    overlay_alpha: float = _COMMODITY_OVERLAY_ALPHA,
 ) -> None:
     """Composite a GeoJSON evidence mask (semi-transparent color) over a real satellite basemap
     crop, with the AOI boundary drawn on top - used so pages 5/6 show the forest/loss masks in
-    their real geographic context instead of a flat color swatch on a blank background.
-
-    When ``overlay_geojson_path`` is given (round 18: the commodity/coffee-plantation mask on page
-    5, or the loss-and-commodity intersection on page 6), a second mask is alpha-blended on top of
-    the primary mask, before the AOI outline is drawn - so the outline always stays crisply on top
-    and existing callers that never pass an overlay render byte-identically to before.
-    """
+    their real geographic context instead of a flat color swatch on a blank background."""
     import numpy as np
     from rasterio.features import rasterize
     from rasterio.warp import transform_geom
@@ -3283,34 +2821,10 @@ def _write_mask_over_basemap_png(
         raise ValueError("no geometry")
     mask_union = unary_union(geoms)
 
-    overlay_union = None
-    if overlay_geojson_path is not None and overlay_geojson_path.is_file():
-        try:
-            overlay_payload = json.loads(overlay_geojson_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            overlay_payload = None
-        overlay_features = (
-            overlay_payload.get("features") if isinstance(overlay_payload, Mapping) else None
-        )
-        if isinstance(overlay_features, list):
-            overlay_geoms = []
-            for feature in overlay_features:
-                if not isinstance(feature, Mapping) or not isinstance(feature.get("geometry"), Mapping):
-                    continue
-                geom = shape(feature["geometry"])
-                if not geom.is_empty:
-                    overlay_geoms.append(geom)
-            if overlay_geoms:
-                overlay_union = unary_union(overlay_geoms)
-
-    # Frame the crop around the union of the AOI, the mask geometry, and (when present) the
-    # overlay geometry, so loss/forest/commodity polygons that extend beyond the tight AOI box
-    # stay visible (matches the flat-render fallback's framing).
-    frame_parts = [aoi_geom_wgs84, mask_union]
-    if overlay_union is not None:
-        frame_parts.append(overlay_union)
-    frame_geom = unary_union(frame_parts)
-    width, height = EVIDENCE_MAP_PIXEL_WIDTH, EVIDENCE_MAP_PIXEL_HEIGHT
+    # Frame the crop around the union of the AOI and the mask geometry, so loss/forest polygons
+    # that extend beyond the tight AOI box stay visible (matches the flat-render fallback's framing).
+    frame_geom = unary_union([aoi_geom_wgs84, mask_union])
+    width, height = 640, 420
     rgba, dst_crs, dst_transform = _reproject_raster_to_grid(
         background_raster_path, frame_geom, pad_factor=0.12, width=width, height=height
     )
@@ -3333,26 +2847,6 @@ def _write_mask_over_basemap_png(
     blended = rgba[mask_bool, :3].astype(np.float64) * (1 - alpha) + color_arr * alpha
     rgba[mask_bool, :3] = blended.astype(np.uint8)
     rgba[mask_bool, 3] = 255
-
-    if overlay_union is not None:
-        overlay_geom_target = shape(transform_geom("EPSG:4326", dst_crs, mapping(overlay_union)))
-        overlay_mask = rasterize(
-            [(mapping(overlay_geom_target), 1)],
-            out_shape=(height, width),
-            transform=dst_transform,
-            fill=0,
-            dtype="uint8",
-            all_touched=True,
-        )
-        overlay_bool = overlay_mask.astype(bool)
-        if np.count_nonzero(overlay_bool):
-            overlay_color_arr = np.array(overlay_color[:3], dtype=np.float64)
-            overlay_blended = (
-                rgba[overlay_bool, :3].astype(np.float64) * (1 - overlay_alpha)
-                + overlay_color_arr * overlay_alpha
-            )
-            rgba[overlay_bool, :3] = overlay_blended.astype(np.uint8)
-            rgba[overlay_bool, 3] = 255
 
     _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform)
     _write_png_rgba(output_path, rgba)
