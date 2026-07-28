@@ -10,5 +10,3 @@ rasterio
 duckdb
 minio
 numba
-Pillow
-requests

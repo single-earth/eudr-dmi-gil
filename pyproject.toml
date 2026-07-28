@@ -13,7 +13,6 @@ authors = [{name = "Single.Earth Foundation (community)"}]
 
 # Keep runtime deps minimal; add only when directly imported by repo code.
 dependencies = [
-  "fontawesomefree>=6.5",
   "jinja2>=3.1",
   "jsonschema>=4.21",
   "numba",
