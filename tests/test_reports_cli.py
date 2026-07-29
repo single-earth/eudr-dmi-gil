@@ -112,6 +112,7 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
     # report.html should link to declared HTML artifacts if present.
     report_obj = json.loads(report_json.read_text(encoding="utf-8"))
     assert report_obj["generated_at_utc"] == "2026-02-19T12:47:49+00:00"
+    assert "commodity" not in report_obj
     html_relpaths = [
         item.get("relpath")
         for item in report_obj.get("evidence_artifacts", [])
@@ -129,8 +130,10 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
     # metrics.csv header and stable row ordering.
     lines = metrics_csv.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "variable,value,unit,source,notes"
-    assert lines[1].startswith("a_metric,")
-    assert lines[2].startswith("b_metric,")
+    metric_names = [line.split(",", 1)[0] for line in lines[1:]]
+    assert metric_names == sorted(metric_names)
+    assert "a_metric" in metric_names
+    assert "b_metric" in metric_names
 
     # HTML links should be portable (no absolute paths, no schemes).
     html = report_html.read_text(encoding="utf-8")
@@ -147,6 +150,149 @@ def test_cli_golden_run_creates_bundle(tmp_path: Path) -> None:
     manifest_obj = json.loads(manifest.read_text(encoding="utf-8"))
     relpaths = [a["relpath"] for a in manifest_obj.get("artifacts", [])]
     assert f"reports/aoi_report_v2/{aoi_id}/metrics.csv" in relpaths
+
+
+def test_cli_rejects_two_commodity_inputs(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["EUDR_DMI_EVIDENCE_ROOT"] = str(tmp_path / "evidence")
+
+    proc = _run_cli(
+        [
+            "--aoi-id",
+            "aoi-commodity-reject",
+            "--aoi-wkt",
+            "POINT (0 0)",
+            "--commodity",
+            "coffee",
+            "--commodity",
+            "soy",
+        ],
+        env=env,
+    )
+
+    assert proc.returncode != 0
+    assert "exactly one commodity" in proc.stderr
+
+
+def test_cli_coffee_commodity_config_overrides_filename(tmp_path: Path) -> None:
+    evidence_root = tmp_path / "evidence"
+    env = os.environ.copy()
+    env["EUDR_DMI_EVIDENCE_ROOT"] = str(evidence_root)
+    env["EUDR_DMI_GENERATED_AT_UTC"] = "2026-07-25T00:00:00+00:00"
+
+    aoi_path = tmp_path / "cocoa_from_filename.geojson"
+    bounds = (-0.02, -0.02, 0.02, 0.02)
+    aoi_path.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"country": "Brazil", "commodity": "cocoa"},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [bounds[0], bounds[1]],
+                                    [bounds[2], bounds[1]],
+                                    [bounds[2], bounds[3]],
+                                    [bounds[0], bounds[3]],
+                                    [bounds[0], bounds[1]],
+                                ]
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    raster_bounds = (-0.05, -0.05, 0.05, 0.05)
+    transform = from_bounds(*raster_bounds, width=10, height=10)
+    jrc_path = tmp_path / "jrc.tif"
+    loss_path = tmp_path / "lossyear.tif"
+    coffee_path = tmp_path / "mapbiomas_coffee.tif"
+    loss = np.zeros((10, 10), dtype=np.uint8)
+    loss[5, 5] = 21
+    coffee = np.zeros((10, 10), dtype=np.uint8)
+    coffee[5, 5] = 46
+    _write_test_raster(jrc_path, np.ones((10, 10), dtype=np.uint8), transform, "EPSG:4326")
+    _write_test_raster(loss_path, loss, transform, "EPSG:4326")
+    _write_test_raster(coffee_path, coffee, transform, "EPSG:4326")
+
+    commodity_config = tmp_path / "coffee.json"
+    commodity_config.write_text(
+        json.dumps(
+            {
+                "commodity": {
+                    "id": "coffee",
+                    "display_name": "Coffee",
+                    "provider": "mapbiomas_brazil",
+                    "dataset_title": "MapBiomas Brazil Land Cover",
+                    "dataset_version": "collection-9-2023",
+                    "asset_id": coffee_path.as_posix(),
+                    "local_path": coffee_path.as_posix(),
+                    "class_values": [46],
+                    "class_labels": ["Coffee plantations"],
+                    "observation_year": 2023,
+                    "country_scope": ["Brazil"],
+                    "optional": True,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = _run_cli(
+        [
+            "--aoi-id",
+            "filename_says_cocoa",
+            "--aoi-geojson",
+            str(aoi_path),
+            "--bundle-id",
+            "bundle-coffee-001",
+            "--out-format",
+            "json",
+            "--jrc-gfc2020-raster",
+            str(jrc_path),
+            "--hansen-lossyear-raster",
+            str(loss_path),
+            "--loss-dataset-end-year",
+            "2025",
+            "--end-year",
+            "2025",
+            "--analysis-target-resolution-m",
+            "500",
+            "--commodity-config",
+            str(commodity_config),
+        ],
+        env=env,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    report_json = (
+        evidence_root
+        / "2026-07-25"
+        / "bundle-coffee-001"
+        / "reports"
+        / "aoi_report_v2"
+        / "filename_says_cocoa.json"
+    )
+    validate_aoi_report_file(report_json)
+    report = json.loads(report_json.read_text(encoding="utf-8"))
+    assert "dummy_metric" not in report["metrics"]
+    assert report["commodity"]["id"] == "coffee"
+    assert report["commodity"]["display_name"] == "Coffee"
+    assert report["commodity"]["provider"] == "mapbiomas_brazil"
+    assert report["commodity"]["coverage_status"] == "full"
+    assert report["commodity"]["evidence_available"] is True
+    assert report["metrics"]["post_2020_loss_and_commodity_overlap_ha"]["value"] > 0.0
+    assert any(
+        "Potential forest-to-coffee conversion candidate" in msg
+        for msg in report["results_summary"]["commodity_assessment"]["status_messages"]
+    )
 
 
 def test_cli_hansen_external_dependencies(tmp_path: Path) -> None:

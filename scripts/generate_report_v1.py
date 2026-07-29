@@ -20,10 +20,15 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from eudr_dmi.reports.build_report import build_report_v1
-from eudr_dmi.reports.io import read_optional_json, safe_slug, write_json_stable, write_manifest_sha256
-from eudr_dmi.reports.render_html import render_report_html
-from eudr_dmi.reports.render_pdf import render_report_pdf
+from eudr_dmi.reports.build_report import build_report_v1  # noqa: E402
+from eudr_dmi.reports.io import (  # noqa: E402
+    read_optional_json,
+    safe_slug,
+    write_json_stable,
+    write_manifest_sha256,
+)
+from eudr_dmi.reports.render_html import render_report_html  # noqa: E402
+from eudr_dmi.reports.render_pdf import render_report_pdf  # noqa: E402
 
 
 def _properties_dict(value: Any) -> dict[str, Any]:
@@ -234,7 +239,7 @@ def _write_static_deforestation_map_svg(
     forest_polys = rings_projected(layer_data.get("forest_end_year", []))
     loss_polys = rings_projected(layer_data.get("forest_loss_post_2020", []))
     aoi_polys = rings_projected(layer_data.get("aoi_boundary", []))
-    latest_year = int(_properties_dict(config).get("latest_year") or 2024)
+    latest_year = int(_properties_dict(config).get("latest_year") or 2025)
 
     svg_lines = [
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"1100\" height=\"760\" viewBox=\"0 0 1100 760\" role=\"img\" aria-label=\"Deforestation evidence map\">",

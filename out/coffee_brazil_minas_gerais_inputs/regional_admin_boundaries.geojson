@@ -1,0 +1,55 @@
+{
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.25370815067749,
+              -19.25257513247397
+            ],
+            [
+              -47.25370815067749,
+              -18.732279212222664
+            ],
+            [
+              -46.68179201019114,
+              -18.732279212222664
+            ],
+            [
+              -46.68179201019114,
+              -19.25257513247397
+            ],
+            [
+              -47.25370815067749,
+              -19.25257513247397
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "label_point": [
+        -46.967750080434314,
+        -18.992427172348318
+      ],
+      "properties": {
+        "name": "Minas Gerais"
+      },
+      "type": "Feature"
+    }
+  ],
+  "metadata": {
+    "aoi_geojson": "aoi_json_examples/coffee_brazil_minas_gerais.geojson",
+    "clip_bbox_wgs84": [
+      -47.25370815067749,
+      -19.25257513247397,
+      -46.68179201019114,
+      -18.732279212222664
+    ],
+    "country": "brazil",
+    "dataset_title": "Brazil state (UF) boundaries, published via click_that_hood",
+    "pad_factor": 3.0,
+    "source_url": "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/brazil-states.geojson"
+  },
+  "type": "FeatureCollection"
+}

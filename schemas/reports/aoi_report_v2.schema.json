@@ -287,6 +287,44 @@
     },
     "computed": { "type": "object" },
     "computed_outputs": { "type": "object" },
+    "commodity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "provider",
+        "dataset",
+        "version",
+        "observation_year",
+        "class_values",
+        "coverage_status",
+        "evidence_available",
+        "evidence_gaps"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "dataset": { "type": "string" },
+        "version": { "type": "string" },
+        "observation_year": { "type": "integer", "minimum": 1900 },
+        "class_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer" }
+        },
+        "coverage_status": {
+          "type": "string",
+          "enum": ["full", "partial", "unavailable", "unsupported_country"]
+        },
+        "evidence_available": { "type": "boolean" },
+        "evidence_gaps": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
     "validation": { "type": "object" },
     "methodology": { "type": "object" },
     "regulatory_traceability": {
@@ -385,6 +423,30 @@
                 "projection": { "type": "string" },
                 "conservative_bounds": { "type": "string" }
               }
+            }
+          }
+        },
+        "commodity_assessment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status_messages",
+            "coverage_status",
+            "evidence_available",
+            "post_2020_loss_and_commodity_overlap_ha"
+          ],
+          "properties": {
+            "status_messages": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "coverage_status": {
+              "type": "string",
+              "enum": ["full", "partial", "unavailable", "unsupported_country"]
+            },
+            "evidence_available": { "type": "boolean" },
+            "post_2020_loss_and_commodity_overlap_ha": {
+              "type": ["number", "null"]
             }
           }
         }

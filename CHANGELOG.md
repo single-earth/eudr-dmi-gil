@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-25
+
+### Canonical evidence report v3 and coffee integration review
+
+- Added canonical `eudr_evidence_report_v3` output with JSON-first HTML/PDF/CSV generation and stable `manifest.sha256`.
+- Added JRC GFC2020 baseline plus Hansen lossyear post-2020 loss intersection with configurable `end_year`.
+- Added configurable single-commodity coffee assessment provider with MapBiomas config, unsupported-geography gaps, and null metrics for missing evidence.
+- Regenerated the Digital Twin coffee bundle/sample report for `se_asia` / `demo_plot_02`.
+- Tightened terminology so reports remain evidence-only and do not state legal outcomes.
+
 ## 2026-02-19
 
 ### AOI reports link + forest layer alignment

@@ -155,7 +155,7 @@ def _render_report_html(report: dict[str, Any], *, rel_artifacts: list[str]) -> 
 
     forest_rows: list[str] = []
     if isinstance(forest_metrics, dict) and forest_metrics:
-      end_year = int(forest_metrics.get("end_year") or 2024)
+      end_year = int(forest_metrics.get("end_year") or 2025)
       loss_recent = forest_metrics.get(f"loss_2021_{end_year}_ha")
       if loss_recent is None:
         loss_recent = forest_metrics.get("loss_2021_2024_ha")
@@ -362,6 +362,14 @@ def export_aoi_reports(
       dest.parent.mkdir(parents=True, exist_ok=True)
       shutil.copy2(src, dest)
       _add_relpath(dest.relative_to(run_dir).as_posix())
+
+    canonical_dir = report_root / str(report.get("aoi_id", ""))
+    if canonical_dir.is_dir():
+      for src in sorted(path for path in canonical_dir.rglob("*") if path.is_file()):
+        dest = run_dir / src.relative_to(bundle_root)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        _add_relpath(dest.relative_to(run_dir).as_posix())
 
     summary_present = (run_dir / "summary.json").is_file()
     entry = RunEntry(

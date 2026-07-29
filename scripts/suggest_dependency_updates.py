@@ -215,6 +215,10 @@ def _candidate_urls(url: str) -> list[tuple[str, str]]:
     if version_match:
         major = int(version_match.group(1))
         minor = int(version_match.group(2) or 0)
+        if minor > 0:
+            lowered_minor = url.replace(f"v{major}.{minor}", f"v{major}.{minor - 1}", 1)
+            if lowered_minor != url:
+                candidates.append((lowered_minor, "version_probe"))
         bumped_minor = url.replace(f"v{major}.{minor}", f"v{major}.{minor + 1}", 1)
         if bumped_minor != url:
             candidates.append((bumped_minor, "version_probe"))
@@ -425,7 +429,11 @@ def main(argv: list[str] | None = None) -> int:
                 "note": method,
             }
             candidates.append(entry)
-            if c_score > best_candidate_score:
+            if c_score > best_candidate_score or (
+                c_score == best_candidate_score
+                and c_ok
+                and (best_candidate_url is None or candidate_url < best_candidate_url)
+            ):
                 best_candidate_score = c_score
                 best_candidate_url = candidate_url
                 best_candidate_entry = entry

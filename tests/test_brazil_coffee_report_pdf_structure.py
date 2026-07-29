@@ -1,0 +1,306 @@
+"""Deterministic structural audit of the Brazil coffee (Minas Gerais) report.pdf.
+
+This test runs the supported report CLI against the repository's committed
+`coffee_brazil_minas_gerais` AOI and evidence inputs (the same inputs used by
+`scripts/run_brazil_coffee_report_clean.sh`) and then verifies the generated
+`report.pdf` structure using text extraction only (`pdfinfo`/`pdftotext`,
+i.e. the PDF's own embedded text layer) -- no OCR/rasterization is used here.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from eudr_dmi_gil.reports.validate import validate_aoi_report_file
+
+REQUIRED_CANONICAL_LAYERS = [
+    "satellite",
+    "jrc_forest_2020",
+    "forest_loss",
+    "commodity",
+    "intersection",
+    "before_after",
+    "regional_overview",
+    "cover_hero",
+    "legend",
+]
+
+REQUIRED_DETERMINISTIC_ARTIFACTS_PAGE_FILES = [
+    "report.json",
+    "report.html",
+    "report.pdf",
+    "metrics.csv",
+    "manifest.sha256",
+    "evidence/01_aoi_satellite.png",
+    "evidence/02_jrc_forest_2020.png",
+    "evidence/04_commodity_layer.png",
+    "evidence/05_intersection.png",
+    "evidence/06_before_after.png",
+    "evidence/legend.png",
+]
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+AOI_ID = "coffee_brazil_minas_gerais"
+AOI_PATH = REPO_ROOT / "aoi_json_examples" / f"{AOI_ID}.geojson"
+INPUTS_DIR = REPO_ROOT / f"out/{AOI_ID}_inputs"
+COMMODITY_CONFIG = INPUTS_DIR / "coffee_config_brazil_cerrado_mineiro.json"
+
+# Required page order per the EUDR evidence package acceptance requirement.
+EXPECTED_PAGE_HEADINGS: list[tuple[str, str]] = [
+    ("Cover", "EUDR"),
+    ("Executive Summary", "EXECUTIVE SUMMARY"),
+    ("Assessment Workflow", "ASSESSMENT WORKFLOW"),
+    ("Regional Overview", "REGIONAL OVERVIEW"),
+    ("Forest Baseline 2020", "FOREST BASELINE 2020"),
+    ("Forest Loss After 2020", "FOREST LOSS AFTER 2020"),
+    ("Satellite Evidence", "SATELLITE EVIDENCE"),
+    ("Interpretation", "INTERPRETATION"),
+    ("Data and Methods", "DATA AND METHODS"),
+    ("Audit Trail", "AUDIT TRAIL"),
+    ("Deterministic Artifacts", "DETERMINISTIC ARTIFACTS"),
+    ("Appendix", "APPENDIX"),
+]
+
+
+def _require_poppler() -> tuple[str, str]:
+    pdfinfo = shutil.which("pdfinfo")
+    pdftotext = shutil.which("pdftotext")
+    if not pdfinfo or not pdftotext:
+        pytest.skip("pdfinfo/pdftotext (poppler-utils) not available")
+    return pdfinfo, pdftotext
+
+
+def _pdf_page_count(pdfinfo: str, pdf_path: Path) -> int:
+    proc = subprocess.run([pdfinfo, str(pdf_path)], text=True, capture_output=True, check=True)
+    for line in proc.stdout.splitlines():
+        if line.startswith("Pages:"):
+            return int(line.split(":", 1)[1].strip())
+    raise AssertionError("pdfinfo did not report a page count")
+
+
+def _pdf_page_text(pdftotext: str, pdf_path: Path, page: int) -> str:
+    proc = subprocess.run(
+        [pdftotext, "-f", str(page), "-l", str(page), "-layout", str(pdf_path), "-"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return proc.stdout
+
+
+@pytest.fixture(scope="module")
+def brazil_bundle_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    for required in [
+        AOI_PATH,
+        COMMODITY_CONFIG,
+        INPUTS_DIR / "jrc_gfc2020_fixture.tif",
+        INPUTS_DIR / "hansen_lossyear_fixture.tif",
+        INPUTS_DIR / "sentinel2_baseline_2020.tif",
+        INPUTS_DIR / "sentinel2_recent_2025.tif",
+        INPUTS_DIR / "sentinel2_regional_overview.tif",
+        INPUTS_DIR / "regional_admin_boundaries.geojson",
+    ]:
+        if not required.is_file():
+            pytest.skip(f"missing committed Brazil coffee input: {required}")
+
+    tmp_path = tmp_path_factory.mktemp("brazil_coffee_pdf")
+    evidence_root = tmp_path / "evidence"
+    bundle_id = "brazil-coffee-pdf-structure-test"
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT / "src") + (
+        ":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+    )
+    env["EUDR_DMI_EVIDENCE_ROOT"] = str(evidence_root)
+    env["EUDR_DMI_GENERATED_AT_UTC"] = "2026-07-29T00:00:00+00:00"
+
+    args = [
+        sys.executable,
+        "-m",
+        "eudr_dmi_gil.reports.cli",
+        "--aoi-id",
+        AOI_ID,
+        "--aoi-geojson",
+        str(AOI_PATH),
+        "--bundle-id",
+        bundle_id,
+        "--out-format",
+        "both",
+        "--jrc-gfc2020-raster",
+        str(INPUTS_DIR / "jrc_gfc2020_fixture.tif"),
+        "--hansen-lossyear-raster",
+        str(INPUTS_DIR / "hansen_lossyear_fixture.tif"),
+        "--commodity",
+        "coffee",
+        "--commodity-config",
+        str(COMMODITY_CONFIG),
+        "--satellite-baseline-raster",
+        str(INPUTS_DIR / "sentinel2_baseline_2020.tif"),
+        "--satellite-baseline-date",
+        "2020-09-26/2020-10-01",
+        "--satellite-recent-raster",
+        str(INPUTS_DIR / "sentinel2_recent_2025.tif"),
+        "--satellite-recent-date",
+        "2025-07-02/2025-09-30",
+        "--satellite-regional-raster",
+        str(INPUTS_DIR / "sentinel2_regional_overview.tif"),
+        "--satellite-regional-date",
+        "2023-09-21/2025-09-30",
+        "--regional-admin-boundaries-geojson",
+        str(INPUTS_DIR / "regional_admin_boundaries.geojson"),
+        "--analysis-target-crs",
+        "EPSG:6933",
+        "--analysis-target-resolution-m",
+        "30",
+    ]
+    proc = subprocess.run(args, text=True, capture_output=True, env=env, check=False)
+    assert proc.returncode == 0, f"CLI run failed:\nstdout={proc.stdout}\nstderr={proc.stderr}"
+
+    bundle_dir = Path(proc.stdout.strip().splitlines()[-1])
+    assert bundle_dir.is_dir(), f"CLI did not print a valid bundle directory: {bundle_dir}"
+    return bundle_dir
+
+
+def test_brazil_report_json_validates_against_canonical_schema(brazil_bundle_dir: Path) -> None:
+    report_json = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID / "report.json"
+    assert report_json.is_file()
+    validate_aoi_report_file(report_json)
+
+
+def test_brazil_report_pdf_has_exactly_twelve_pages(brazil_bundle_dir: Path) -> None:
+    pdfinfo, _ = _require_poppler()
+    pdf_path = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID / "report.pdf"
+    assert pdf_path.is_file()
+    assert _pdf_page_count(pdfinfo, pdf_path) == 12
+
+
+@pytest.mark.parametrize("page_index", range(1, 13))
+def test_brazil_report_pdf_page_heading(brazil_bundle_dir: Path, page_index: int) -> None:
+    pdfinfo, pdftotext = _require_poppler()
+    pdf_path = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID / "report.pdf"
+    assert pdf_path.is_file()
+    assert _pdf_page_count(pdfinfo, pdf_path) == 12
+
+    expected_name, expected_marker = EXPECTED_PAGE_HEADINGS[page_index - 1]
+    text = _pdf_page_text(pdftotext, pdf_path, page_index)
+    assert expected_marker in text, (
+        f"Page {page_index} expected heading '{expected_name}' "
+        f"(marker '{expected_marker}') not found. Actual extracted text:\n{text}"
+    )
+
+
+def test_brazil_bundle_root_manifest_is_complete_and_hash_verified(brazil_bundle_dir: Path) -> None:
+    manifest = json.loads((brazil_bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["artifacts"], "bundle-level manifest.json declares no artifacts"
+    for entry in manifest["artifacts"]:
+        relpath = entry["relpath"]
+        assert not relpath.startswith("/"), f"artifact path is absolute: {relpath}"
+        assert ".." not in Path(relpath).parts, f"artifact path escapes bundle root: {relpath}"
+        full_path = brazil_bundle_dir / relpath
+        assert full_path.is_file(), f"manifest.json declares missing file: {relpath}"
+        assert _sha256(full_path) == entry["sha256"], f"sha256 mismatch for {relpath}"
+        assert full_path.stat().st_size == entry["size_bytes"], f"size mismatch for {relpath}"
+
+
+def test_brazil_canonical_manifest_sha256_sorted_and_verified(brazil_bundle_dir: Path) -> None:
+    canonical_dir = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID
+    lines = (canonical_dir / "manifest.sha256").read_text(encoding="utf-8").splitlines()
+    assert lines, "canonical manifest.sha256 is empty"
+    relpaths = []
+    for line in lines:
+        digest, _, relpath = line.partition("  ")
+        relpath = relpath.strip()
+        relpaths.append(relpath)
+        assert relpath != "manifest.sha256", "canonical manifest.sha256 must not include itself"
+        full_path = brazil_bundle_dir / relpath
+        assert full_path.is_file(), f"canonical manifest.sha256 declares missing file: {relpath}"
+        assert _sha256(full_path) == digest.strip(), f"sha256 mismatch for {relpath}"
+    assert relpaths == sorted(relpaths), "canonical manifest.sha256 is not sorted by relative path"
+
+
+def test_brazil_required_canonical_layers_are_all_available(brazil_bundle_dir: Path) -> None:
+    canonical_dir = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID
+    report = json.loads((canonical_dir / "report.json").read_text(encoding="utf-8"))
+    layers = report["layers"]
+    for key in REQUIRED_CANONICAL_LAYERS:
+        layer = layers.get(key)
+        assert layer is not None, f"required layer missing from report.json layers: {key}"
+        assert layer.get("available") is True, f"required layer not available: {key} -> {layer}"
+        path = layer.get("path")
+        assert path, f"required layer {key} has no path"
+        assert (canonical_dir / path).is_file(), f"required layer {key} artifact missing on disk: {path}"
+
+
+def test_brazil_metrics_agree_between_json_and_csv(brazil_bundle_dir: Path) -> None:
+    canonical_dir = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID
+    report = json.loads((canonical_dir / "report.json").read_text(encoding="utf-8"))
+    metrics = report["metrics"]
+    assert "dummy_metric" not in metrics, "placeholder dummy_metric leaked into a JRC/commodity report"
+
+    csv_lines = (canonical_dir / "metrics.csv").read_text(encoding="utf-8").splitlines()
+    assert csv_lines[0] == "variable,value,unit,source,notes"
+    csv_values = {line.split(",", 1)[0]: line.split(",")[1] for line in csv_lines[1:]}
+
+    for name, entry in metrics.items():
+        assert name in csv_values, f"metric {name} missing from metrics.csv"
+        assert abs(float(csv_values[name]) - float(entry["value"])) < 1e-6, (
+            f"metric {name} disagrees between report.json ({entry['value']}) "
+            f"and metrics.csv ({csv_values[name]})"
+        )
+
+
+def test_brazil_headline_metrics_agree_in_pdf_text(brazil_bundle_dir: Path) -> None:
+    _, pdftotext = _require_poppler()
+    canonical_dir = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID
+    report = json.loads((canonical_dir / "report.json").read_text(encoding="utf-8"))
+    metrics = report["metrics"]
+
+    proc = subprocess.run(
+        [pdftotext, str(canonical_dir / "report.pdf"), "-"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    pdf_text = proc.stdout
+
+    headline_metric_names = [
+        "aoi_area_ha",
+        "forest_baseline_2020_ha",
+        "forest_loss_post_2020_on_baseline_ha",
+        "post_2020_loss_and_commodity_overlap_ha",
+    ]
+    for name in headline_metric_names:
+        value = metrics[name]["value"]
+        rendered = f"{value:,.1f}"
+        assert rendered in pdf_text, (
+            f"headline metric {name}={value} (expected '{rendered}') not found verbatim in report.pdf text"
+        )
+
+
+def test_brazil_deterministic_artifacts_page_rows_are_all_in_root_manifest(
+    brazil_bundle_dir: Path,
+) -> None:
+    manifest = json.loads((brazil_bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest_relpaths = {entry["relpath"] for entry in manifest["artifacts"]}
+    canonical_prefix = f"reports/aoi_report_v2/{AOI_ID}/"
+    for fname in REQUIRED_DETERMINISTIC_ARTIFACTS_PAGE_FILES:
+        relpath = canonical_prefix + fname
+        assert relpath in manifest_relpaths, (
+            f"page-11 (Deterministic Artifacts) file not represented in root manifest.json: {relpath}"
+        )

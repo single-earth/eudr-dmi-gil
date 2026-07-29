@@ -1,0 +1,110 @@
+{
+  "type": "FeatureCollection",
+  "name": "Coffee sample AOI (Brazil, Cerrado Mineiro / Minas Gerais)",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "aoi_name": "Coffee sample AOI (Brazil, Cerrado Mineiro / Minas Gerais)",
+        "commodity": "coffee",
+        "country": "Brazil",
+        "approx_area_ha": 5063.18,
+        "note": "Sample AOI polygon for portal testing (not a verified farm boundary).",
+        "reference_sources": [
+          {
+            "title": "Cerrado Mineiro Region \u2014 Brazil's first designated coffee-growing origin (DO Cerrado Mineiro)",
+            "url": "https://cerradomineiro.org/"
+          },
+          {
+            "title": "EMBRAPA Caf\u00e9 \u2014 overview of Brazilian coffee-growing regions including Cerrado Mineiro/Minas Gerais",
+            "url": "https://www.embrapa.br/cafe"
+          },
+          {
+            "title": "USDA FAS \u2014 Brazil coffee annual report (Minas Gerais production context)",
+            "url": "https://fas.usda.gov/data/brazil-coffee-annual"
+          }
+        ],
+        "commodity_rationale": "AOI placed within the Cerrado Mineiro designated coffee-growing origin (Minas Gerais); contains several mapped reference coffee plantations, not a verified single farm boundary.",
+        "reference_plantations": [
+          {
+            "name": "Fazenda Boa Vista",
+            "approx_area_ha": 396.0,
+            "post_2020_conversion_flag": false
+          },
+          {
+            "name": "Fazenda Santa Rita",
+            "approx_area_ha": 320.0,
+            "post_2020_conversion_flag": true
+          },
+          {
+            "name": "Fazenda Sao Jose",
+            "approx_area_ha": 270.0,
+            "post_2020_conversion_flag": false
+          },
+          {
+            "name": "Fazenda Cerrado Alto",
+            "approx_area_ha": 300.0,
+            "post_2020_conversion_flag": true
+          }
+        ]
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -46.92689892754243,
+              -18.992
+            ],
+            [
+              -46.931082135235094,
+              -18.968767381332313
+            ],
+            [
+              -46.953450597235985,
+              -18.958680556831197
+            ],
+            [
+              -46.9775237004834,
+              -18.955263178044653
+            ],
+            [
+              -46.99410633775151,
+              -18.971935465696088
+            ],
+            [
+              -47.008601233326196,
+              -18.992
+            ],
+            [
+              -46.99564351342264,
+              -19.013120562425172
+            ],
+            [
+              -46.97781727491325,
+              -19.029591166651983
+            ],
+            [
+              -46.95403774609568,
+              -19.023610753775532
+            ],
+            [
+              -46.93031354739953,
+              -19.015760632728316
+            ],
+            [
+              -46.92689892754243,
+              -18.992
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

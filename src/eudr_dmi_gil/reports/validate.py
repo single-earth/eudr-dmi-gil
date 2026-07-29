@@ -27,6 +27,8 @@ def _default_schema_path() -> Path:
 
 def _schema_path_for_version(report_version: str) -> Path:
     repo_root = _find_repo_root(Path(__file__).resolve())
+    if report_version == "eudr_evidence_report_v3":
+        return repo_root / "schemas" / "reports" / "eudr_evidence_report_v3.schema.json"
     if report_version == "aoi_report_v2":
         return repo_root / "schemas" / "reports" / "aoi_report_v2.schema.json"
     return repo_root / "schemas" / "reports" / "aoi_report_v1.schema.json"
@@ -61,7 +63,9 @@ def validate_aoi_report(
     *,
     schema_path: str | Path | None = None,
 ) -> None:
-    report_version = str(report.get("report_version", "aoi_report_v1"))
+    report_version = str(
+        report.get("schema_version") or report.get("report_version", "aoi_report_v1")
+    )
     resolved_schema = (
         Path(schema_path)
         if schema_path is not None
@@ -71,9 +75,50 @@ def validate_aoi_report(
     validator = Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
     validator.validate(dict(report))
 
+    if report_version == "eudr_evidence_report_v3":
+        _validate_canonical_report_v3(dict(report))
+        return
+
     _validate_traceability(dict(report))
     _validate_hansen_methodology(dict(report))
     _validate_policy_mapping(dict(report))
+
+
+def _validate_canonical_report_v3(report: Mapping[str, Any]) -> None:
+    layers = report.get("layers", {})
+    if not isinstance(layers, Mapping):
+        raise ValidationError("layers must be an object")
+    gaps = report.get("evidence_gaps", [])
+    if not isinstance(gaps, list):
+        raise ValidationError("evidence_gaps must be a list")
+    artifacts = report.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        raise ValidationError("artifacts must be an object")
+
+    for layer_id, layer in layers.items():
+        if not isinstance(layer, Mapping):
+            continue
+        path = layer.get("path")
+        available = layer.get("available")
+        checksum = layer.get("checksum_sha256")
+        if available is True:
+            if not isinstance(path, str) or not path:
+                raise ValidationError(f"Layer {layer_id} is available but has no path")
+            if path.startswith("/") or "://" in path:
+                raise ValidationError(f"Layer {layer_id} path must be relative")
+            if not isinstance(checksum, str) or len(checksum) != 64:
+                raise ValidationError(f"Layer {layer_id} must include checksum_sha256")
+        if available is False and path is not None:
+            raise ValidationError(f"Layer {layer_id} has unavailable artifact path")
+
+    metrics = report.get("metrics", {})
+    if not isinstance(metrics, Mapping):
+        raise ValidationError("metrics must be an object")
+    for name, metric in metrics.items():
+        if not isinstance(metric, Mapping):
+            continue
+        if "value" not in metric or "unit" not in metric:
+            raise ValidationError(f"Metric {name} must include value and unit")
 
 
 def _validate_traceability(report: Mapping[str, Any]) -> None:

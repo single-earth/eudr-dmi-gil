@@ -32,7 +32,6 @@ from eudr_dmi_gil.deps.hansen_tiles import hansen_tile_ids_for_bbox, load_aoi_bb
 from eudr_dmi_gil.geo.forest_area_core import (
     forest_2024_mask,
     forest_mask_end_year,
-    loss_2021_2024_mask,
     loss_mask_range,
     loss_total_mask,
     pixel_area_m2_raster,
@@ -51,6 +50,7 @@ class HansenConfig:
     tile_dir: Path
     canopy_threshold_percent: int = 10
     cutoff_year: int = 2020
+    end_year: int | None = None
     write_masks: bool = False
     dataset_version: str = "unknown"
     tile_source: str = "local"
@@ -483,10 +483,12 @@ def compute_forest_loss_post_2020(
     tree_nodata_pixels = 0
     lossyear_nodata_pixels = 0
 
-    end_year = infer_hansen_latest_year(
+    end_year = config.end_year or infer_hansen_latest_year(
         dataset_version=config.dataset_version,
         tile_dir=config.tile_dir,
     )
+    if end_year < 2021:
+        raise ValueError("end_year must be >= 2021")
     rfm_area_ha = np.float64(0.0)
     loss_total_2001_2024_ha = np.float64(0.0)
     loss_2021_2024_ha = np.float64(0.0)
@@ -832,6 +834,7 @@ def load_hansen_config(
     tile_dir: Path | None,
     canopy_threshold_percent: int,
     cutoff_year: int,
+    end_year: int | None = None,
     write_masks: bool = False,
     aoi_geojson_path: Path | None = None,
     download: bool = True,
@@ -881,6 +884,7 @@ def load_hansen_config(
         tile_dir=tile_dir,
         canopy_threshold_percent=canopy_threshold_percent,
         cutoff_year=cutoff_year,
+        end_year=end_year,
         write_masks=write_masks,
         dataset_version=dataset_version,
         tile_source=tile_source,

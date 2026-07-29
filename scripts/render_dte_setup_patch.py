@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from detect_example_bundle_artifact_changes import _render_dte_patch, _write_json
+from detect_example_bundle_artifact_changes import _render_dte_patch
 
 
 def run(argv: list[str] | None = None) -> int:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from eudr_dmi_gil.deps.hansen_acquire import build_entries_from_provenance, write_tiles_manifest
 from eudr_dmi_gil.tasks.forest_loss_post_2020 import (

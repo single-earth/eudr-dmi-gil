@@ -67,6 +67,96 @@ CLI usage:
 - Provide refs directly (repeatable): `--policy-mapping-ref "policy-spine:eudr/article-3"`
 - Or load newline-separated refs from files (repeatable): `--policy-mapping-ref-file policy_refs.txt`
 
+## Single-commodity evidence
+
+AOI report generation can run with one explicitly configured commodity layer:
+
+```bash
+python -m eudr_dmi_gil.reports.cli \
+  --aoi-id brazil_coffee_plot_001 \
+  --aoi-geojson inputs/aoi.geojson \
+  --jrc-gfc2020-raster data/jrc_gfc2020.tif \
+  --hansen-lossyear-raster data/hansen_lossyear.tif \
+  --end-year 2025 \
+  --commodity-config docs/reports/examples/coffee_commodity_config.json
+```
+
+Current commodity implementation:
+
+- `coffee` via provider `mapbiomas_brazil`
+- configured MapBiomas Brazil class values, initially `[46]`
+- Brazil scope only; the provider does not treat the class as a global coffee layer
+- missing/unsupported commodity evidence is reported as unavailable/unsupported and metric values remain `null`, not `0`
+
+The report JSON includes `commodity.*`, commodity metrics, provider provenance, coverage status, nodata details, and evidence gaps. Status language is evidence-only: it may flag post-2020 forest-loss evidence, intersection with the configured coffee layer, or a potential forest-to-coffee conversion candidate for human review. It must not state EUDR compliance, illegal deforestation, proven conversion, or causation by coffee.
+
+Example coffee configuration:
+
+- `docs/reports/examples/coffee_commodity_config.json`
+
+Example execution command:
+
+```bash
+python -m eudr_dmi_gil.reports.cli \
+  --aoi-id coffee_plot_001 \
+  --aoi-geojson inputs/aoi.geojson \
+  --bundle-id coffee_review_001 \
+  --out-format both \
+  --jrc-gfc2020-raster data/jrc_gfc2020.tif \
+  --hansen-lossyear-raster data/hansen_lossyear.tif \
+  --loss-dataset-end-year 2026 \
+  --end-year 2026 \
+  --commodity coffee \
+  --commodity-config docs/reports/examples/coffee_commodity_config.json
+```
+
+## Canonical report schema and artifacts
+
+Schema:
+
+- `schemas/reports/eudr_evidence_report_v3.schema.json`
+
+Canonical output tree:
+
+```text
+<bundle>/reports/aoi_report_v2/<aoi_id>/
+  report.json
+  report.html
+  report.pdf
+  metrics.csv
+  manifest.sha256
+  evidence/
+    02_jrc_forest_2020.png
+    03_forest_loss_2021_<effective_end_year>.png
+    04_commodity_layer.png
+    05_intersection.png
+    legend.png
+```
+
+Contract:
+
+- `report.json` is canonical and schema-validated.
+- `report.html`, `report.pdf`, and `metrics.csv` are derived from the same canonical model.
+- `manifest.sha256` is sorted by relative path and excludes itself.
+- Optional evidence uses explicit gaps (`available: false`, `path: null`) instead of fabricated content.
+- Paths are relative so bundles work locally and under `docs/site/bundles/`.
+
+Dataset/provider notes:
+
+- JRC Global Forest Cover 2020 (`JRC/GFC2020/V3`) is the configured 2020 forest-baseline evidence layer.
+- Hansen `lossyear` is filtered to `2021..effective_end_year` and intersected with the JRC 2020 forest mask.
+- Categorical rasters are aligned to an equal-area target grid with nearest-neighbour resampling.
+- Nodata inside the AOI is excluded and reported as an evidence gap.
+- Coffee currently uses a configurable `mapbiomas_brazil` provider; MapBiomas class values and versions are config fields.
+- Unsupported commodity geography is an evidence gap, not a measured zero.
+
+Terminology:
+
+- Use neutral evidence language: "post-2020 forest-loss evidence", "intersection", "review required", and "evidence gap".
+- Do not describe commodity intersection as proven causation.
+- Do not present Hansen treecover2000/RFM metrics as the JRC 2020 baseline.
+- Do not state that the report determines legal outcomes.
+
 ## Publishing to the Digital Twin repo (human-in-the-loop)
 
 This repository (`eudr-dmi-gil`) is responsible for **authoritative generation** of deterministic evidence bundles

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/reports/eudr_evidence_report_v3.schema.json",
+  "title": "EUDR Evidence Report v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "run_id",
+    "generated_utc",
+    "assessment",
+    "aoi",
+    "commodity",
+    "temporal_scope",
+    "metrics",
+    "datasets",
+    "methods",
+    "evidence_gaps",
+    "layers",
+    "artifacts",
+    "audit",
+    "references"
+  ],
+  "properties": {
+    "schema_version": { "const": "eudr_evidence_report_v3" },
+    "report_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "generated_utc": { "type": "string", "format": "date-time" },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "human_review_required", "summary", "limitations"],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "human_review_required": { "type": "boolean" },
+        "summary": { "type": "string" },
+        "limitations": { "type": "array" }
+      }
+    },
+    "aoi": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "country",
+        "centroid",
+        "area_ha",
+        "polygon_count",
+        "geometry_ref",
+        "crs"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "country": { "type": ["string", "null"] },
+        "centroid": { "type": ["object", "null"] },
+        "area_ha": { "type": ["number", "null"] },
+        "polygon_count": { "type": ["integer", "null"] },
+        "geometry_ref": { "type": ["string", "null"] },
+        "crs": { "type": ["string", "null"] }
+      }
+    },
+    "commodity": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "display_name",
+        "evidence_available",
+        "provider",
+        "dataset",
+        "version",
+        "observation_year",
+        "class_values",
+        "coverage_status",
+        "evidence_gaps"
+      ],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "display_name": { "type": ["string", "null"] },
+        "evidence_available": { "type": "boolean" },
+        "provider": { "type": ["string", "null"] },
+        "dataset": { "type": ["string", "null"] },
+        "version": { "type": ["string", "null"] },
+        "observation_year": { "type": ["integer", "null"] },
+        "class_values": { "type": "array" },
+        "coverage_status": { "type": "string" },
+        "evidence_gaps": { "type": "array" }
+      }
+    },
+    "temporal_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cutoff_date",
+        "evidence_start_year",
+        "requested_end_year",
+        "effective_end_year"
+      ],
+      "properties": {
+        "cutoff_date": { "type": "string" },
+        "evidence_start_year": { "type": "integer" },
+        "requested_end_year": { "type": "integer" },
+        "effective_end_year": { "type": "integer" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["value", "unit", "description", "provenance"],
+        "properties": {
+          "value": { "type": ["number", "integer", "string", "boolean", "null"] },
+          "unit": { "type": "string" },
+          "description": { "type": "string" },
+          "provenance": { "type": "string" }
+        }
+      }
+    },
+    "datasets": { "type": "array" },
+    "methods": { "type": "array" },
+    "evidence_gaps": { "type": "array" },
+    "layers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "path",
+          "dataset",
+          "dataset_version",
+          "purpose",
+          "date",
+          "available",
+          "availability_status",
+          "checksum_sha256"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "path": { "type": ["string", "null"] },
+          "dataset": { "type": "string" },
+          "dataset_version": { "type": "string" },
+          "purpose": { "type": "string" },
+          "date": { "type": ["string", "null"] },
+          "available": { "type": "boolean" },
+          "availability_status": { "type": "string" },
+          "checksum_sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "artifacts": { "type": "object" },
+    "audit": { "type": "object" },
+    "references": { "type": "array" }
+  }
+}

@@ -102,6 +102,8 @@ Flow (deterministic, human-in-the-loop):
 - [docs/operations/migration_runbook.md](docs/operations/migration_runbook.md)
 - [docs/reports/README.md](docs/reports/README.md)
 - [docs/reports/runbook_generate_aoi_report.md](docs/reports/runbook_generate_aoi_report.md)
+- [docs/reports/eudr_evidence_report_v3_migration.md](docs/reports/eudr_evidence_report_v3_migration.md)
+- [docs/reports/prompt7_final_implementation_report.md](docs/reports/prompt7_final_implementation_report.md)
 - [scripts/migrate_from_private_eudr_dmi/README.md](scripts/migrate_from_private_eudr_dmi/README.md)
 
 ## Example AOI report (mandatory regression test)
@@ -183,6 +185,29 @@ latest complete year available across mandatory selected change layers, and the
 output records the requested year, resolved year, per-layer latest year, asset
 identifier, and resolution mode. Future dataset releases should update the
 registry and tests, not business logic.
+
+## Canonical evidence report v3
+
+Current AOI runs also emit a canonical evidence package under
+`reports/aoi_report_v2/<aoi_id>/`:
+
+```text
+report.json
+report.html
+report.pdf
+metrics.csv
+manifest.sha256
+evidence/
+  02_jrc_forest_2020.png
+  03_forest_loss_2021_<end_year>.png
+  04_commodity_layer.png          # only when evidence exists
+  05_intersection.png
+  legend.png
+```
+
+`report.json` is the source model for the HTML, PDF, CSV metrics, and checksum
+manifest. The report is evidence-only: it can flag post-2020 forest-loss
+evidence and review needs, but it does not determine legal outcomes.
 
 ## AOI report regeneration contract
 

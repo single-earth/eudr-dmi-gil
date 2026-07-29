@@ -98,7 +98,7 @@ def infer_hansen_latest_year(
                 if year is not None:
                     candidates.append(year)
 
-    fallback = _extract_year(DATASET_VERSION_DEFAULT) or 2024
+    fallback = _extract_year(DATASET_VERSION_DEFAULT) or 2025
     return max(candidates) if candidates else fallback
 
 

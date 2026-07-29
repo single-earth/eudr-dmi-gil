@@ -1,0 +1,16 @@
+{
+  "commodity": {
+    "id": "coffee",
+    "display_name": "Coffee",
+    "provider": "mapbiomas_brazil",
+    "dataset_title": "MapBiomas Brazil Land Cover",
+    "dataset_version": "collection-9-2023",
+    "asset_id": "/path/to/configured/mapbiomas_brazil_landcover_2023.tif",
+    "local_path": "/path/to/configured/mapbiomas_brazil_landcover_2023.tif",
+    "class_values": [46],
+    "class_labels": ["Coffee plantations"],
+    "observation_year": 2023,
+    "country_scope": ["Brazil"],
+    "optional": true
+  }
+}
