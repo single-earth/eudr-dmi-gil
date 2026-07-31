@@ -105,8 +105,16 @@ def _git_commit(repo_dir: Path) -> str:
 
 
 def _git_dirty(repo_dir: Path) -> bool:
+    """True iff any *tracked* file differs from HEAD (staged or unstaged).
+
+    Deliberately ignores untracked files (`--untracked-files=no`): this matches the
+    `git diff HEAD --stat` emptiness check used elsewhere in this pipeline, so freshly
+    generated but gitignored/untracked scratch output (evidence bundles, acquired rasters)
+    does not spuriously mark the counterpart commit as dirty.
+    """
     out = subprocess.check_output(
-        ["git", "-C", str(repo_dir), "status", "--porcelain"], text=True
+        ["git", "-C", str(repo_dir), "status", "--porcelain", "--untracked-files=no"],
+        text=True,
     )
     return bool(out.strip())
 
