@@ -21,7 +21,7 @@ from eudr_dmi_gil.providers.baseline import BaselineProviderMetadata
 from eudr_dmi_gil.reports.bundle import compute_sha256
 from eudr_dmi_gil.reports.determinism import write_json
 
-from .config import CommodityConfig
+from .config import MODE_PROBABILITY_THRESHOLD, CommodityConfig
 from .providers import CommodityProviderMetadata, provider_for_config
 
 
@@ -34,9 +34,14 @@ class CommodityMetrics:
     post_2020_loss_and_commodity_percent_of_aoi: float | None
     post_2020_loss_and_commodity_percent_of_loss: float | None
     commodity_observation_year: int
+    probability_configured_threshold: float | None = None
+    probability_valid_coverage_of_aoi_percent: float | None = None
+    probability_admitted_share_of_valid_pixels_percent: float | None = None
+    probability_mean: float | None = None
+    probability_median: float | None = None
 
     def to_metric_rows(self) -> dict[str, dict[str, Any]]:
-        return {
+        rows: dict[str, dict[str, Any]] = {
             "commodity_area_ha": {"value": self.commodity_area_ha, "unit": "ha"},
             "commodity_percent_of_aoi": {
                 "value": self.commodity_percent_of_aoi,
@@ -65,6 +70,37 @@ class CommodityMetrics:
                 "unit": "year",
             },
         }
+        if self.probability_configured_threshold is not None:
+            rows["commodity_probability_configured_threshold"] = {
+                "value": self.probability_configured_threshold,
+                "unit": "probability_fraction",
+                "notes": "probability_threshold mode only: probability >= threshold defines the candidate mask",
+            }
+            rows["commodity_probability_valid_coverage_of_aoi_percent"] = {
+                "value": self.probability_valid_coverage_of_aoi_percent,
+                "unit": "percent",
+                "notes": "share of AOI pixels with a valid (non-nodata) probability value",
+            }
+            rows["commodity_probability_admitted_share_of_valid_pixels_percent"] = {
+                "value": self.probability_admitted_share_of_valid_pixels_percent,
+                "unit": "percent",
+                "notes": (
+                    "share of valid AOI pixels admitted at the configured threshold "
+                    "(valid pixels are the primary denominator; see the commodity summary JSON "
+                    "for the full sensitivity table across thresholds)"
+                ),
+            }
+            rows["commodity_probability_mean"] = {
+                "value": self.probability_mean,
+                "unit": "probability_fraction",
+                "notes": "mean probability over valid AOI pixels",
+            }
+            rows["commodity_probability_median"] = {
+                "value": self.probability_median,
+                "unit": "probability_fraction",
+                "notes": "median probability over valid AOI pixels",
+            }
+        return rows
 
 
 @dataclass(frozen=True)
@@ -149,6 +185,20 @@ def run_commodity_assessment(
             nodata=commodity.nodata,
         )
 
+    probability_profile = (
+        commodity.provenance.get("probability_profile")
+        if isinstance(commodity.provenance, dict)
+        else None
+    )
+    evidence_gaps = list(commodity.evidence_gaps)
+    sample_gap = _sample_aoi_evidence_gap(aoi_geojson_path)
+    if sample_gap is not None:
+        evidence_gaps.append(sample_gap)
+    if config.mode == MODE_PROBABILITY_THRESHOLD:
+        evidence_gaps.extend(
+            _probability_mode_evidence_gaps(config, probability_profile)
+        )
+
     baseline_values, baseline_valid, baseline_info = _reproject_categorical(
         jrc_gfc2020_raster_path,
         target_crs=target_crs,
@@ -180,6 +230,26 @@ def run_commodity_assessment(
     commodity_area = _area_ha(commodity_mask, pixel_area_ha)
     loss_area = _area_ha(post_2020_loss_on_baseline, pixel_area_ha)
     overlap_area = _area_ha(loss_and_commodity, pixel_area_ha)
+
+    probability_metric_fields: dict[str, Any] = {}
+    if config.mode == MODE_PROBABILITY_THRESHOLD and probability_profile is not None:
+        configured_threshold = probability_profile.get("configured_threshold")
+        admitted_share = None
+        for entry in probability_profile.get("sensitivity", {}).values():
+            if entry.get("threshold") == configured_threshold:
+                admitted_share = entry.get("admitted_share_of_valid_pixels_percent")
+                break
+        stats = probability_profile.get("stats", {})
+        probability_metric_fields = {
+            "probability_configured_threshold": configured_threshold,
+            "probability_valid_coverage_of_aoi_percent": probability_profile.get(
+                "valid_coverage_of_aoi_percent"
+            ),
+            "probability_admitted_share_of_valid_pixels_percent": admitted_share,
+            "probability_mean": stats.get("mean"),
+            "probability_median": stats.get("median"),
+        }
+
     metrics = CommodityMetrics(
         commodity_area_ha=commodity_area,
         commodity_percent_of_aoi=_percent(commodity_area, aoi_area_ha),
@@ -190,6 +260,7 @@ def run_commodity_assessment(
         post_2020_loss_and_commodity_percent_of_aoi=_percent(overlap_area, aoi_area_ha),
         post_2020_loss_and_commodity_percent_of_loss=_percent(overlap_area, loss_area),
         commodity_observation_year=config.observation_year,
+        **probability_metric_fields,
     )
 
     status_messages = _status_messages(loss_area=loss_area, overlap_area=overlap_area, config=config)
@@ -249,23 +320,29 @@ def run_commodity_assessment(
             metadata=metadata,
             coverage_status=commodity.coverage_status,
             evidence_available=commodity.evidence_available,
-            evidence_gaps=commodity.evidence_gaps,
+            evidence_gaps=evidence_gaps,
         ),
         "semantic_layers": {
             "post_2020_loss_inside_jrc_2020_forest": (
                 "A: AOI & JRC 2020 forest & Hansen lossyear 2021..effective_end_year"
             ),
-            "observed_commodity_area": "B: AOI & configured commodity class mask",
+            "observed_commodity_area": (
+                "B: AOI & configured commodity mask (discrete class membership, or "
+                "probability >= threshold for probability_threshold mode)"
+            ),
             "loss_and_commodity_intersection": "C: A & B",
             "potential_conversion_candidate": (
-                "D: C, flagged for human review; not causation or legal outcome"
+                "D: C, flagged for human review; not causation or legal outcome. A candidate "
+                "commodity-probability overlap is not, by itself, confirmed agricultural "
+                "conversion evidence."
             ),
         },
         "metrics": metrics.to_metric_rows(),
         "status_messages": status_messages,
         "provider_metadata": metadata.to_dict(),
         "provenance": commodity.provenance,
-        "evidence_gaps": commodity.evidence_gaps,
+        "probability_profile": probability_profile,
+        "evidence_gaps": evidence_gaps,
         "grid": grid,
         "artifacts": {
             "commodity_mask": commodity_mask_path.name,
@@ -281,7 +358,7 @@ def run_commodity_assessment(
         metrics=metrics,
         coverage_status=commodity.coverage_status,
         evidence_available=commodity.evidence_available,
-        evidence_gaps=commodity.evidence_gaps,
+        evidence_gaps=evidence_gaps,
         status_messages=status_messages,
         summary_path=summary_path,
         commodity_mask_path=commodity_mask_path,
@@ -294,6 +371,12 @@ def run_commodity_assessment(
 
 
 def commodity_report_block(result: CommodityAssessmentResult) -> dict[str, Any]:
+    # NOTE: this block is validated against the strict, additionalProperties=False
+    # `aoi_report_v2.schema.json` "commodity" object, so it must only ever contain the
+    # fields already listed there. Mode-specific fields (mode, threshold, probability_band,
+    # sensitivity_thresholds, probability_profile) are instead carried in the permissive
+    # `parameters.commodity` / `extensions.commodity_assessment.provenance` blocks and picked
+    # up from there by the canonical (v3) report adapter.
     return _commodity_report_block(
         metadata=result.metadata,
         coverage_status=result.coverage_status,
@@ -401,7 +484,7 @@ def artifact_refs(result: CommodityAssessmentResult, bundle_root: Path) -> dict[
     return refs
 
 
-def aoi_country_from_geojson(path: Path) -> str | None:
+def _geojson_property_blocks(path: Path) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     prop_blocks: list[dict[str, Any]] = []
     if isinstance(payload.get("properties"), dict):
@@ -413,7 +496,10 @@ def aoi_country_from_geojson(path: Path) -> str | None:
                 prop_blocks.append(props)
     elif payload.get("type") == "Feature" and isinstance(payload.get("properties"), dict):
         prop_blocks.append(payload["properties"])
+    return prop_blocks
 
+
+def aoi_country_from_geojson(path: Path) -> str | None:
     keys = (
         "country",
         "country_name",
@@ -421,9 +507,95 @@ def aoi_country_from_geojson(path: Path) -> str | None:
         "producer_country",
         "admin_country",
     )
-    for props in prop_blocks:
+    for props in _geojson_property_blocks(path):
         for key in keys:
             value = props.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return None
+
+
+def _sample_aoi_evidence_gap(aoi_geojson_path: Path) -> dict[str, Any] | None:
+    """Flag AOI source metadata that self-describes as a non-verified sample boundary.
+
+    Purely data-driven (reads the AOI's own `note`-style properties): this is a genuine
+    scope limitation regardless of which commodity is configured, and is unrelated to any
+    legacy commodity name/property the AOI file may also carry.
+    """
+    try:
+        prop_blocks = _geojson_property_blocks(aoi_geojson_path)
+    except Exception:
+        return None
+    for props in prop_blocks:
+        note = props.get("note")
+        if isinstance(note, str) and "not a verified farm boundary" in note.lower():
+            return {
+                "code": "sample_aoi_not_verified_farm_boundary",
+                "severity": "warning",
+                "message": (
+                    "The source AOI metadata states this polygon is a sample for testing, "
+                    f"not a verified farm boundary: {note.strip()!r}"
+                ),
+            }
+    return None
+
+
+def _probability_mode_evidence_gaps(
+    config: CommodityConfig, probability_profile: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Standing evidence-limitation gaps for continuous probability-threshold commodity layers.
+
+    These reflect generic properties of probability-model commodity layers (generic
+    thresholds, no localized ground-truthing supplied, absence-is-not-established), not a
+    claim specific to any one AOI/country/commodity.
+    """
+    gaps: list[dict[str, Any]] = [
+        {
+            "code": "commodity_threshold_not_locally_calibrated",
+            "severity": "warning",
+            "message": (
+                f"The configured probability threshold ({config.threshold}) is a generic model "
+                "cutoff; it has not been locally calibrated for this AOI or country."
+            ),
+        },
+        {
+            "code": "commodity_local_validation_missing",
+            "severity": "warning",
+            "message": (
+                "No locally validated (ground-truthed) accuracy assessment for the configured "
+                f"commodity probability model is supplied for {', '.join(config.country_scope)} "
+                "by this run; localized accuracy assessment is the consumer's responsibility."
+            ),
+        },
+        {
+            "code": "commodity_absence_not_established",
+            "severity": "info",
+            "message": (
+                "Low or missing localized commodity-probability evidence is not evidence that "
+                "the commodity is absent: it reflects a missing localizing signal, not a "
+                "negative finding."
+            ),
+        },
+    ]
+    if probability_profile is not None and config.threshold is not None:
+        configured_threshold = round(float(config.threshold), 6)
+        share = None
+        for entry in probability_profile.get("sensitivity", {}).values():
+            if entry.get("threshold") == configured_threshold:
+                share = entry.get("admitted_share_of_valid_pixels_percent")
+                break
+        if share is not None and share >= 95.0:
+            gaps.append(
+                {
+                    "code": "commodity_localization_low_precision",
+                    "severity": "warning",
+                    "message": (
+                        f"The {config.threshold} threshold admitted {share:.1f}% of valid AOI "
+                        "pixels (>=95% operational non-discrimination threshold), so this layer "
+                        "cannot localize candidate commodity presence within the AOI at this "
+                        "threshold; more precise (higher-probability) information is missing."
+                    ),
+                    "admitted_share_of_valid_pixels_percent": share,
+                }
+            )
+    return gaps

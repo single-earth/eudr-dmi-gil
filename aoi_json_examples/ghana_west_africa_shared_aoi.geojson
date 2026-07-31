@@ -1,0 +1,56 @@
+{
+  "type": "FeatureCollection",
+  "name": "Ghana shared AOI (West Africa) — commodity-neutral alias",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "aoi_id": "ghana_west_africa_shared_aoi",
+        "aoi_name": "Ghana shared AOI (West Africa)",
+        "country": "Ghana",
+        "max_area_constraint_ha": 50000,
+        "approx_area_ha": 27515.39,
+        "note": "Sample AOI polygon for portal testing (not a verified farm boundary).",
+        "source_geometry": {
+          "path": "aoi_json_examples/cocoa_west_africa_ghana.geojson",
+          "sha256": "21ca223d29825979def6931c258232b655b20df180da280a3b65f9dd6e564f4d",
+          "reused_verbatim": true,
+          "note": "Geometry reused verbatim (no buffering, simplification, reprojection, dissolve, or coordinate edits) from a cocoa-context sample AOI. This alias is used to assess a different commodity (coffee) over the same geometry; the legacy cocoa association is source-geometry provenance only, not an evidentiary claim, cross-commodity probe, or mismatch for this assessment."
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -2.1,
+              6.55
+            ],
+            [
+              -1.95,
+              6.55
+            ],
+            [
+              -1.95,
+              6.7
+            ],
+            [
+              -2.1,
+              6.7
+            ],
+            [
+              -2.1,
+              6.55
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

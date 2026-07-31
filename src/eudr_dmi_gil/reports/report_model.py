@@ -212,14 +212,26 @@ def _references(layers: Mapping[str, "LayerEntry"]) -> list[dict[str, Any]]:
             }
         )
     commodity_layer = layers.get("commodity")
-    if getattr(commodity_layer, "available", False) and "mapbiomas" in (
-        getattr(commodity_layer, "dataset", "") or ""
-    ).lower():
+    commodity_dataset = (getattr(commodity_layer, "dataset", "") or "").lower()
+    if getattr(commodity_layer, "available", False) and "mapbiomas" in commodity_dataset:
         refs.append(
             {
                 "id": "mapbiomas",
                 "citation": "MapBiomas Brazil Project - Collection of Brazilian land cover and land use maps.",
                 "url": "https://brasil.mapbiomas.org/",
+            }
+        )
+    if getattr(commodity_layer, "available", False) and (
+        "forest data partnership" in commodity_dataset or "fdp" in commodity_dataset
+    ):
+        refs.append(
+            {
+                "id": "forest_data_partnership",
+                "citation": (
+                    "Forest Data Partnership - commodity probability model (see the "
+                    "report's commodity block for the exact asset id and dataset version)."
+                ),
+                "url": "https://github.com/google/forest-data-partnership",
             }
         )
     satellite_layer = layers.get("satellite")
@@ -2426,11 +2438,13 @@ def _commodity(report: Mapping[str, Any], metrics: Mapping[str, Any]) -> dict[st
         commodity = {}
     if not isinstance(commodity_params, Mapping):
         commodity_params = {}
-    return {
+    mode = commodity.get("mode") or commodity_params.get("mode") or "discrete_classes"
+    result = {
         "id": commodity.get("id") or commodity_params.get("id"),
         "display_name": commodity.get("display_name") or commodity_params.get("display_name"),
         "evidence_available": bool(commodity.get("evidence_available", False)),
         "provider": commodity.get("provider") or commodity_params.get("provider"),
+        "mode": mode,
         "dataset": (
             commodity.get("dataset")
             or commodity.get("dataset_title")
@@ -2452,6 +2466,23 @@ def _commodity(report: Mapping[str, Any], metrics: Mapping[str, Any]) -> dict[st
             ]["value"],
         },
     }
+    if mode == "probability_threshold":
+        extensions = report.get("extensions", {})
+        commodity_extension = (
+            extensions.get("commodity_assessment", {}) if isinstance(extensions, Mapping) else {}
+        )
+        provenance = (
+            commodity_extension.get("provenance", {})
+            if isinstance(commodity_extension, Mapping)
+            else {}
+        )
+        result["probability_band"] = commodity_params.get("probability_band")
+        result["threshold"] = commodity_params.get("threshold")
+        result["sensitivity_thresholds"] = commodity_params.get("sensitivity_thresholds") or []
+        result["probability_profile"] = (
+            provenance.get("probability_profile") if isinstance(provenance, Mapping) else None
+        )
+    return result
 
 
 def _assessment(*, metrics: Mapping[str, Any], evidence_gaps: list[dict[str, Any]]) -> dict[str, Any]:

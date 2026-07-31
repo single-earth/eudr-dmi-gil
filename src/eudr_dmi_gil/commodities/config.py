@@ -6,6 +6,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+MODE_DISCRETE_CLASSES = "discrete_classes"
+MODE_PROBABILITY_THRESHOLD = "probability_threshold"
+VALID_MODES = (MODE_DISCRETE_CLASSES, MODE_PROBABILITY_THRESHOLD)
+
+DEFAULT_PROBABILITY_BAND = "probability"
+
 
 @dataclass(frozen=True)
 class CommodityConfig:
@@ -15,10 +21,14 @@ class CommodityConfig:
     dataset_title: str
     dataset_version: str
     asset_id: str
-    class_values: tuple[int, ...]
-    class_labels: tuple[str, ...]
     observation_year: int
     country_scope: tuple[str, ...]
+    mode: str = MODE_DISCRETE_CLASSES
+    class_values: tuple[int, ...] = ()
+    class_labels: tuple[str, ...] = ()
+    probability_band: str | None = None
+    threshold: float | None = None
+    sensitivity_thresholds: tuple[float, ...] = ()
     optional: bool = True
     local_path: str | None = None
     source_url: str | None = None
@@ -28,6 +38,7 @@ class CommodityConfig:
         out["class_values"] = list(self.class_values)
         out["class_labels"] = list(self.class_labels)
         out["country_scope"] = list(self.country_scope)
+        out["sensitivity_thresholds"] = list(self.sensitivity_thresholds)
         return out
 
     @property
@@ -70,18 +81,48 @@ def resolve_commodity_config(
     return config
 
 
+def _validate_unit_interval(value: float, *, label: str) -> float:
+    if not (0.0 <= value <= 1.0):
+        raise ValueError(f"{label} must be within [0, 1], got {value!r}")
+    return value
+
+
 def _commodity_config_from_mapping(raw: dict[str, Any]) -> CommodityConfig:
     commodity_id = str(raw.get("id") or raw.get("commodity") or "").strip().lower()
     if not commodity_id:
         raise ValueError("Commodity config requires id")
 
+    mode = str(raw.get("mode") or MODE_DISCRETE_CLASSES).strip().lower()
+    if mode not in VALID_MODES:
+        raise ValueError(
+            f"Unsupported commodity mode: {mode!r} (expected one of {VALID_MODES})"
+        )
+
     class_values = tuple(int(v) for v in raw.get("class_values", []))
-    if not class_values:
-        raise ValueError("Commodity config requires at least one class value")
     class_labels_raw = tuple(str(v) for v in raw.get("class_labels", []))
     if class_labels_raw and len(class_labels_raw) != len(class_values):
         raise ValueError("Commodity class_labels length must match class_values length")
     class_labels = class_labels_raw or tuple(str(v) for v in class_values)
+
+    threshold: float | None = None
+    probability_band: str | None = None
+    sensitivity_thresholds: tuple[float, ...] = ()
+
+    if mode == MODE_DISCRETE_CLASSES:
+        if not class_values:
+            raise ValueError("Commodity config requires at least one class value")
+    else:  # MODE_PROBABILITY_THRESHOLD
+        if "threshold" not in raw or raw.get("threshold") is None:
+            raise ValueError(
+                "Commodity config in probability_threshold mode requires a caller-supplied "
+                "'threshold' (no default is provided by the provider)"
+            )
+        threshold = _validate_unit_interval(float(raw["threshold"]), label="threshold")
+        probability_band = str(raw.get("probability_band") or DEFAULT_PROBABILITY_BAND).strip()
+        sensitivity_thresholds = tuple(
+            _validate_unit_interval(float(v), label="sensitivity_thresholds entry")
+            for v in raw.get("sensitivity_thresholds", [])
+        )
 
     country_scope = tuple(str(v).strip() for v in raw.get("country_scope", []) if str(v).strip())
     if not country_scope:
@@ -98,10 +139,14 @@ def _commodity_config_from_mapping(raw: dict[str, Any]) -> CommodityConfig:
         dataset_title=str(raw.get("dataset_title") or raw.get("dataset") or "").strip(),
         dataset_version=str(raw.get("dataset_version") or raw.get("version") or "").strip(),
         asset_id=str(raw.get("asset_id") or raw.get("source") or "").strip(),
-        class_values=class_values,
-        class_labels=class_labels,
         observation_year=observation_year,
         country_scope=country_scope,
+        mode=mode,
+        class_values=class_values,
+        class_labels=class_labels,
+        probability_band=probability_band,
+        threshold=threshold,
+        sensitivity_thresholds=sensitivity_thresholds,
         optional=bool(raw.get("optional", True)),
         local_path=str(raw.get("local_path")).strip() if raw.get("local_path") else None,
         source_url=str(raw.get("source_url")).strip() if raw.get("source_url") else None,
@@ -121,10 +166,11 @@ def _builtin_commodity_config(commodity_id: str) -> CommodityConfig:
         dataset_title="MapBiomas Brazil Land Cover",
         dataset_version=dataset_version,
         asset_id=asset_id,
-        class_values=(46,),
-        class_labels=("Coffee plantations",),
         observation_year=2023,
         country_scope=("Brazil",),
+        mode=MODE_DISCRETE_CLASSES,
+        class_values=(46,),
+        class_labels=("Coffee plantations",),
         optional=True,
         local_path=local_path,
         source_url="https://brasil.mapbiomas.org/",

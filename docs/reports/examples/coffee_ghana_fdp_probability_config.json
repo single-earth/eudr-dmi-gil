@@ -1,0 +1,19 @@
+{
+  "commodity": {
+    "id": "coffee",
+    "display_name": "Coffee",
+    "provider": "forestdatapartnership",
+    "mode": "probability_threshold",
+    "dataset_title": "FDP Coffee Probability model 2025b",
+    "dataset_version": "2025b",
+    "asset_id": "projects/forestdatapartnership/assets/coffee/model_2025b",
+    "observation_year": 2024,
+    "probability_band": "probability",
+    "threshold": 0.1,
+    "sensitivity_thresholds": [0.28, 0.5],
+    "country_scope": ["Ghana"],
+    "optional": true,
+    "local_path": "out/ghana_west_africa_shared_aoi_inputs/fdp_coffee_probability_2024.tif",
+    "source_url": "https://developers.google.com/earth-engine/datasets/catalog/projects_forestdatapartnership_assets_coffee_model_2025b"
+  }
+}
