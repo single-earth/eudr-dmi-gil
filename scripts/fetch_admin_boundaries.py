@@ -34,6 +34,17 @@ COUNTRY_SOURCES = {
         "name_property": "name",
         "dataset_title": "Brazil state (UF) boundaries, published via click_that_hood",
     },
+    "ghana": {
+        "url": (
+            "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/"
+            "GHA/ADM1/geoBoundaries-GHA-ADM1_simplified.geojson"
+        ),
+        "name_property": "shapeName",
+        "dataset_title": (
+            "Ghana region (ADM1) boundaries, published via geoBoundaries "
+            "(CC BY-SA, OpenStreetMap-derived, build gbOpen/GHA/ADM1 9469f09)"
+        ),
+    },
 }
 
 
