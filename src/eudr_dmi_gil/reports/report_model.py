@@ -1284,10 +1284,12 @@ def _render_gap_rows(gaps: list[Any]) -> str:
     for gap in gaps:
         if not isinstance(gap, Mapping):
             continue
+        label = gap.get("artifact_id") or gap.get("gap_id") or gap.get("code") or "gap"
+        detail = gap.get("status") or gap.get("reason") or gap.get("description") or gap.get("message") or ""
         rows.append(
             "<tr>"
-            f"<th>{html.escape(str(gap.get('artifact_id') or gap.get('gap_id') or 'gap'))}</th>"
-            f"<td>{html.escape(str(gap.get('status') or gap.get('reason') or gap.get('description') or ''))}</td>"
+            f"<th>{html.escape(str(label))}</th>"
+            f"<td>{html.escape(str(detail))}</td>"
             f"<td>{html.escape(str(gap.get('path') or ''))}</td>"
             "</tr>"
         )
@@ -2227,8 +2229,12 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     gaps = payload.get("evidence_gaps") or []
     if gaps:
         for gap in gaps[:7]:
-            label = gap.get("gap_id") or gap.get("artifact_id") or "gap" if isinstance(gap, Mapping) else "gap"
-            status = gap.get("status") or gap.get("reason") or gap.get("description") if isinstance(gap, Mapping) else str(gap)
+            if isinstance(gap, Mapping):
+                label = gap.get("gap_id") or gap.get("artifact_id") or gap.get("code") or "gap"
+                status = gap.get("status") or gap.get("reason") or gap.get("description") or gap.get("message") or ""
+            else:
+                label = "gap"
+                status = str(gap)
             y = draw_wrapped(f"{label}: {status}", margin, y, content_w, size=8.2, leading=11, max_lines=2)
             y -= 4
     else:

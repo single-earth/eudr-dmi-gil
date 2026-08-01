@@ -11,6 +11,7 @@ import pytest
 
 from eudr_dmi_gil.reports.report_model import (
     ArtifactRef,
+    _render_gap_rows,
     canonical_report_from_aoi_report_v2,
     materialize_evidence_pngs,
     render_canonical_html,
@@ -267,6 +268,32 @@ def _pdf_text(pdf_path: Path) -> str:
         pytest.skip("pdftotext is not available")
     proc = subprocess.run([pdftotext, str(pdf_path), "-"], text=True, capture_output=True, check=True)
     return proc.stdout
+
+
+def test_render_gap_rows_shows_code_message_schema_not_literal_gap_placeholder() -> None:
+    # commodities/analysis.py and commodities/providers.py declare gaps as {code, severity,
+    # message}, not {gap_id/artifact_id, status/reason/description} — the renderer must read
+    # both schemas or every such gap silently collapses to a blank "gap" row (regression this
+    # test guards against).
+    gaps = [
+        {
+            "code": "commodity_threshold_not_locally_calibrated",
+            "severity": "warning",
+            "message": "The configured probability threshold (0.01) is a generic model cutoff.",
+        },
+        {
+            "gap_id": "missing_regional_overview_png",
+            "artifact_id": "regional_overview_png",
+            "status": "not_available_in_local_bundle",
+            "path": None,
+        },
+    ]
+    html = _render_gap_rows(gaps)
+    assert "commodity_threshold_not_locally_calibrated" in html
+    assert "generic model cutoff" in html
+    assert "regional_overview_png" in html
+    assert "not_available_in_local_bundle" in html
+    assert "<th>gap</th>" not in html
 
 
 def test_canonical_schema_and_missing_optional_commodity_artifact(tmp_path: Path) -> None:
