@@ -67,8 +67,21 @@ BEFORE_AFTER_PANEL_PIXEL_WIDTH = round(
 # from loss elsewhere in the AOI. Both colors match the standalone `commodity_layer`/`intersection`
 # evidence artifacts already produced by `materialize_evidence_pngs`, so every view of this data
 # agrees.
-_COMMODITY_OVERLAY_COLOR = (139, 90, 43, 230)
-_COMMODITY_OVERLAY_ALPHA = 0.42
+#
+# Round 26 (elevated from a Brazil/coffee task-bundle finding): the original commodity color,
+# (139, 90, 43) - a "natural-looking" brown chosen to suggest bare/cropland soil - measured almost
+# indistinguishable from the real basemap color under real coffee-plantation pixels for a live-GEE
+# AOI (~RGB(140, 95, 65) basemap vs (139, 90, 43) overlay), so blending at any reasonable alpha
+# shifted the composited pixel by only a few RGB units: a genuinely invisible overlay, not a
+# rendering failure (the mask rasterized and blended correctly; see
+# `coffee_brazil_minas_gerais_eudr_compliant` bundle round 4). Real-world commodity/cropland colors
+# cluster in the same brown/tan/green hue family as most satellite basemap imagery, so any
+# "natural" color risks the same failure on some AOI's basemap. The overlay color is now a
+# saturated blue with no natural-terrain analogue, chosen to sit far in hue from forest-green,
+# loss-red, intersection-purple, and the AOI-boundary yellow already in use - and the overlay alpha
+# is raised so the blend is assertive rather than barely-there.
+_COMMODITY_OVERLAY_COLOR = (30, 136, 229, 230)
+_COMMODITY_OVERLAY_ALPHA = 0.6
 _COMMODITY_LOSS_OVERLAY_COLOR = (102, 45, 145, 230)
 _COMMODITY_LOSS_OVERLAY_ALPHA = 0.85
 
@@ -279,6 +292,12 @@ def materialize_evidence_pngs(
     satellite_recent_path = (
         bundle_root / satellite_recent_ref if satellite_recent_ref and (bundle_root / satellite_recent_ref).is_file() else None
     )
+    satellite_baseline_ref = _ref_relpath(satellite_outputs, "baseline_raster_ref")
+    satellite_baseline_path = (
+        bundle_root / satellite_baseline_ref
+        if satellite_baseline_ref and (bundle_root / satellite_baseline_ref).is_file()
+        else None
+    )
     artifacts["aoi_satellite"] = _write_satellite_context_png(
         bundle_root=bundle_root,
         raster_relpath=satellite_recent_ref,
@@ -327,38 +346,78 @@ def materialize_evidence_pngs(
     )
 
     baseline_ref = _ref_relpath(jrc_outputs, "baseline_mask_ref")
-    artifacts["jrc_forest_2020"] = _png_from_geojson_ref(
-        bundle_root=bundle_root,
-        relpath=baseline_ref,
+    baseline_mask_path = (
+        bundle_root / baseline_ref if baseline_ref and (bundle_root / baseline_ref).is_file() else None
+    )
+    loss_ref = _ref_relpath(jrc_outputs, "loss_mask_ref")
+    loss_mask_path = bundle_root / loss_ref if loss_ref and (bundle_root / loss_ref).is_file() else None
+
+    # Round 26: this composite ("Forest Baseline 2020", page 5) is now drawn over the actual 2020
+    # satellite raster instead of the 2025 "recent" one every mask-over-basemap composite
+    # previously used regardless of the page's own subject year - every other evidence-map page's
+    # basemap year now matches its own subject year (page 6/current-state below is 2025-over-2025;
+    # this page is 2020-over-2020). Falls back to the recent raster only if no 2020 raster was
+    # actually fetched for this AOI (never fabricates a 2020-labeled image from later imagery when
+    # a real 2020 one is simply absent - it draws nothing rather than a mislabeled substitute).
+    artifacts["jrc_forest_2020"] = _layered_png_from_geojson_refs(
+        layers=[
+            (baseline_mask_path, (33, 122, 72), 0.62),
+            (commodity_mask_path, _COMMODITY_OVERLAY_COLOR[:3], _COMMODITY_OVERLAY_ALPHA),
+        ],
         output_path=evidence_dir / "02_jrc_forest_2020.png",
-        color=(33, 122, 72, 230),
-        unavailable_reason="jrc_forest_2020_mask_not_available",
-        background_raster_path=satellite_recent_path,
+        background_raster_path=satellite_baseline_path or satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
-        overlay_path=commodity_mask_path,
-        overlay_color=_COMMODITY_OVERLAY_COLOR,
-        overlay_alpha=_COMMODITY_OVERLAY_ALPHA,
+        unavailable_reason="jrc_forest_2020_mask_not_available",
     )
 
-    loss_ref = _ref_relpath(jrc_outputs, "loss_mask_ref")
-    artifacts["forest_loss"] = _png_from_geojson_ref(
-        bundle_root=bundle_root,
-        relpath=loss_ref,
+    # Round 26: this composite ("Forest Loss After 2020", page 6) used to draw only the raw
+    # loss-mask polygon (plus, when present, the loss-and-commodity intersection); its legend
+    # already carried a "Forest (JRC 2020 baseline)" row next to that, but no forest-green pixel
+    # was ever actually rasterized onto this image - only onto the separate page-5 composite. That
+    # is the same class of defect as the commodity-overlay-color problem above (a legend row
+    # advertising a layer the image doesn't actually draw), just never previously noticed because
+    # it required checking the rendered pixels against the legend rather than a color swatch
+    # against a background color. It also meant any AOI with zero measured loss fell back to a
+    # plain, no-overlay satellite basemap, because the sole mask it ever tried to rasterize (the
+    # loss mask) is empty by definition whenever loss is zero.
+    #
+    # Both are fixed together by making this composite's primary layer "current forest" - the JRC
+    # 2020 baseline forest polygon minus whatever the Hansen loss mask actually removed from it
+    # (identical to the baseline polygon when loss is zero, a proper geometric subset of it
+    # otherwise) - stacked with the same commodity overlay page 5 uses, then the raw loss mask on
+    # top (present only when loss is nonzero), then the loss-and-commodity intersection on top of
+    # that (present only where loss actually fell inside the commodity layer). Every layer in the
+    # stack is real, rasterized geometry, never a placeholder: `render_canonical_pdf` gates each
+    # legend row on whether its corresponding layer here actually contributed nonzero area (see the
+    # `new_page(6, ...)` block). A zero-loss AOI now renders forest + commodity context on page 6
+    # instead of a bare basemap; a nonzero-loss AOI now actually shows the surviving-forest pixels
+    # its legend already claimed.
+    current_forest_geom = _load_layer_geometry(baseline_mask_path)
+    loss_geom_for_diff = _load_layer_geometry(loss_mask_path)
+    if current_forest_geom is not None and loss_geom_for_diff is not None:
+        try:
+            current_forest_geom = current_forest_geom.difference(loss_geom_for_diff)
+        except Exception:
+            pass  # keep the undifferenced baseline geometry rather than fail the whole composite
+
+    artifacts["forest_loss"] = _layered_png_from_geojson_refs(
+        layers=[
+            (current_forest_geom, (33, 122, 72), 0.62),
+            (commodity_mask_path, _COMMODITY_OVERLAY_COLOR[:3], _COMMODITY_OVERLAY_ALPHA),
+            (loss_mask_path, (198, 40, 40), 0.75),
+            (commodity_loss_overlap_path, _COMMODITY_LOSS_OVERLAY_COLOR[:3], _COMMODITY_LOSS_OVERLAY_ALPHA),
+        ],
         output_path=evidence_dir / f"03_forest_loss_2021_{effective_end_year}.png",
-        color=(198, 40, 40, 230),
-        unavailable_reason="post_2020_loss_mask_not_available",
         background_raster_path=satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
-        overlay_path=commodity_loss_overlap_path,
-        overlay_color=_COMMODITY_LOSS_OVERLAY_COLOR,
-        overlay_alpha=_COMMODITY_LOSS_OVERLAY_ALPHA,
+        unavailable_reason="post_2020_loss_mask_not_available",
     )
 
     artifacts["commodity_layer"] = _png_from_geojson_ref(
         bundle_root=bundle_root,
         relpath=commodity_mask_ref,
         output_path=evidence_dir / "04_commodity_layer.png",
-        color=(139, 90, 43, 230),
+        color=_COMMODITY_OVERLAY_COLOR,
         unavailable_reason="usable_commodity_layer_not_available",
         background_raster_path=satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
@@ -375,7 +434,6 @@ def materialize_evidence_pngs(
         aoi_geom_wgs84=aoi_geom_wgs84,
     )
 
-    satellite_baseline_ref = _ref_relpath(satellite_outputs, "baseline_raster_ref")
     artifacts["before_after"] = _write_before_after_png(
         bundle_root=bundle_root,
         baseline_relpath=satellite_baseline_ref,
@@ -627,7 +685,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .swatch {{ width: 18px; height: 8px; border-radius: 2px; display: inline-block; }}
     .forest {{ background: #217a48; }}
     .loss {{ background: #c62828; }}
-    .commodity-swatch {{ background: #8b5a2b; }}
+    .commodity-swatch {{ background: #1e88e5; }}
     .intersection-swatch {{ background: #662d91; }}
     .detail-list {{ border-top: 1px solid var(--line); }}
     .detail {{ display: grid; grid-template-columns: 142px minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 13px; }}
@@ -1990,7 +2048,7 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         commodity_overlay_available
         and metric_value("post_2020_loss_and_commodity_overlap_ha") is not None
     )
-    commodity_swatch = colors.HexColor("#8b5a2b")
+    commodity_swatch = colors.HexColor("#1e88e5")
     commodity_loss_swatch = colors.HexColor("#662d91")
     commodity_label = f"{commodity_name} plantations ({_display_value(commodity.get('observation_year'))})"
 
@@ -2016,13 +2074,12 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
 
     new_page(6, "Forest Loss After 2020")
     y = content_top
-    # Round 25: when no loss mask is renderable (most commonly a verified-zero-loss AOI, per
-    # `_png_from_geojson_ref`'s `source_mask_contains_no_renderable_features` case), this page
-    # used to fall back to a text-only gap panel with no map at all, unlike every other
-    # evidence-map page. It now falls back to the same plain satellite basemap image the AOI
-    # context page (1) and the layer viewer's own hero already use (GEE `Map.setOptions
-    # ('SATELLITE')`-equivalent - no loss/forest overlay drawn on it), so page 6 always shows the
-    # AOI in at least one rendering when any satellite imagery is available at all.
+    # Round 26: `forest_loss` (see materialize_evidence_pngs) is now a stacked composite - current
+    # forest (JRC 2020 baseline minus any detected loss), the commodity overlay, the raw loss
+    # mask, and the loss-and-commodity intersection, in that draw order - so it renders whenever
+    # this AOI has a computed forest baseline and/or commodity layer, not only when loss is
+    # nonzero. The plain satellite-only fallback below (round 25) is now the true last resort: it
+    # only triggers when none of those four layers has any geometry at all for this AOI.
     loss_image = image_path("forest_loss")
     satellite_image = image_path("satellite_evidence_map")
     page6_image = loss_image or satellite_image
@@ -2031,8 +2088,29 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     forest_loss_status = (
         forest_loss_layer.get("availability_status") if isinstance(forest_loss_layer, Mapping) else None
     )
-    if loss_image is not None:
-        intro_text = f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}."
+    # The composite's "current forest" layer is derived from the same baseline mask page 5's
+    # `jrc_forest_2020` layer reports on, so that layer's own availability flag is reused here
+    # rather than re-deriving a third copy of the same fact - this only diverges from what the
+    # image actually contains in the edge case of measured loss consuming the entire baseline
+    # forest polygon (a scenario already flagged for human review via `needs_review`/`loss_positive`
+    # regardless of this legend row).
+    forest_context_shown = bool(
+        loss_image is not None
+        and isinstance(layers.get("jrc_forest_2020"), Mapping)
+        and layers["jrc_forest_2020"].get("available")
+    )
+    commodity_suffix = f" and {commodity_name.lower()} plantation" if commodity_overlay_available else ""
+    if loss_image is not None and loss_positive:
+        intro_text = (
+            f"Tree-cover loss evidence detected by Hansen Global Forest Change during "
+            f"{evidence_period}, shown together with current forest{commodity_suffix} extent for "
+            f"context."
+        )
+    elif loss_image is not None:
+        intro_text = (
+            f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
+            f"{evidence_period}; current forest{commodity_suffix} extent shown for AOI context."
+        )
     elif using_satellite_fallback and forest_loss_status == "source_mask_contains_no_renderable_features":
         intro_text = (
             f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
@@ -2054,14 +2132,20 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     draw_image_fit(page6_image, margin, img_top, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
     if using_satellite_fallback:
         draw_photo_chip(margin + 10, img_top - 10, "SATELLITE BASEMAP - NO LOSS OVERLAY", align="left")
-    page6_legend_items = (
-        [(aoi_boundary, "AOI boundary")]
-        if using_satellite_fallback
-        else [
-            (colors.HexColor("#c62828"), f"Loss ({evidence_period})"),
-            (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)"),
-        ]
-    )
+    elif loss_image is not None and not loss_positive:
+        draw_photo_chip(margin + 10, img_top - 10, "NO LOSS DETECTED - FOREST/COMMODITY CONTEXT SHOWN", align="left")
+    if using_satellite_fallback:
+        page6_legend_items = [(aoi_boundary, "AOI boundary")]
+    else:
+        page6_legend_items = []
+        if loss_positive:
+            page6_legend_items.append((colors.HexColor("#c62828"), f"Loss ({evidence_period})"))
+        if forest_context_shown:
+            page6_legend_items.append(
+                (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)")
+            )
+        if commodity_overlay_available:
+            page6_legend_items.append((commodity_swatch, commodity_label))
     primary_metric = (
         "Forest loss after 2020",
         metric("forest_loss_post_2020_on_baseline_ha"),
@@ -2069,9 +2153,14 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         warning if loss_positive else forest,
     )
     if commodity_loss_metric_available:
-        page6_legend_items.append(
-            (commodity_loss_swatch, f"Loss within {commodity_name.lower()} plantations")
-        )
+        # Round 26: this legend row is now only added when loss is actually positive - the
+        # underlying metric (and its explicit "0 ha" secondary value on the card below) is still
+        # shown regardless, since a numeric zero is a disclosure, not a claim that a purple swatch
+        # appears somewhere on the map with nothing actually drawn under it.
+        if loss_positive:
+            page6_legend_items.append(
+                (commodity_loss_swatch, f"Loss within {commodity_name.lower()} plantations")
+            )
         # Intersection of JRC 2020 forest, Hansen post-2020 loss, and the configured commodity
         # (coffee) layer: the area of forest lost during evidence_period that falls inside the
         # commodity/coffee-plantation mask - the headline "forest loss at the coffee plantations"
@@ -2679,7 +2768,8 @@ def _layers(
             artifacts["forest_loss"],
             "hansen_lossyear",
             str(temporal_scope["effective_end_year"]),
-            "Post-2020 loss evidence intersected with baseline forest",
+            "Post-2020 loss evidence intersected with baseline forest, alongside current forest "
+            "and commodity extent for AOI context",
             str(temporal_scope["effective_end_year"]),
         ),
         "commodity": _layer(
@@ -3455,6 +3545,194 @@ def _write_mask_over_basemap_png(
     _write_png_rgba(output_path, rgba)
 
 
+def _load_layer_geometry(source: Path | Any | None) -> Any | None:
+    """Resolve one layer's geometry, whether given as a GeoJSON path or an already-resolved
+    Shapely geometry (round 26: the page-6 "current forest" layer is computed in-memory as a
+    baseline-minus-loss difference rather than read from its own file, so
+    `_write_layered_mask_over_basemap_png`'s callers need to pass either kind interchangeably).
+    Returns ``None`` for anything empty/missing/unparseable - never raises, since an absent layer
+    is a normal, expected case for every caller of this function, not an error.
+    """
+    from shapely.geometry import shape
+    from shapely.geometry.base import BaseGeometry
+    from shapely.ops import unary_union
+
+    if source is None:
+        return None
+    if isinstance(source, BaseGeometry):
+        return None if source.is_empty else source
+    path = Path(source)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    features = payload.get("features") if isinstance(payload, Mapping) else None
+    if not isinstance(features, list) or not features:
+        return None
+    geoms = []
+    for feature in features:
+        if not isinstance(feature, Mapping) or not isinstance(feature.get("geometry"), Mapping):
+            continue
+        geom = shape(feature["geometry"])
+        if not geom.is_empty:
+            geoms.append(geom)
+    if not geoms:
+        return None
+    return unary_union(geoms)
+
+
+def _write_layered_mask_over_basemap_png(
+    *,
+    layers: list[tuple[Path | Any | None, tuple[int, int, int], float]],
+    output_path: Path,
+    background_raster_path: Path,
+    aoi_geom_wgs84: Any,
+) -> None:
+    """Composite an ordered stack of evidence-mask layers (each its own color/alpha) over a real
+    satellite basemap crop, with the AOI boundary drawn on top last - round 26's generalization of
+    `_write_mask_over_basemap_png`'s single-mask-plus-one-overlay case to an arbitrary-length
+    stack, so one composite (page 6's "current forest + commodity + loss" evidence map) can show
+    every layer relevant to it without a bespoke function per layer combination. Each ``layers``
+    entry is ``(source, color_rgb, alpha)``; ``source`` may be a GeoJSON path, an in-memory
+    Shapely geometry, or ``None`` - entries that resolve to no geometry (via
+    `_load_layer_geometry`) are silently skipped, not an error, so callers can pass every
+    candidate layer for an AOI regardless of which ones actually have data. Layers are blended in
+    list order, so later entries draw on top of earlier ones. Raises ``ValueError`` only when
+    *every* entry is empty - matching `_png_from_geojson_ref`'s existing
+    ``source_mask_contains_no_renderable_features`` handling for its caller to catch.
+    """
+    import numpy as np
+    from rasterio.features import rasterize
+    from rasterio.warp import transform_geom
+    from shapely.geometry import mapping, shape
+    from shapely.ops import unary_union
+
+    resolved: list[tuple[Any, tuple[int, int, int], float]] = []
+    for source, color, alpha in layers:
+        geom = _load_layer_geometry(source)
+        if geom is not None:
+            resolved.append((geom, color, alpha))
+    if not resolved:
+        raise ValueError("no renderable layers")
+
+    frame_geom = unary_union([aoi_geom_wgs84, *(geom for geom, _, _ in resolved)])
+    width, height = EVIDENCE_MAP_PIXEL_WIDTH, EVIDENCE_MAP_PIXEL_HEIGHT
+    rgba, dst_crs, dst_transform = _reproject_raster_to_grid(
+        background_raster_path, frame_geom, pad_factor=0.12, width=width, height=height
+    )
+
+    for geom, color, alpha in resolved:
+        geom_target = shape(transform_geom("EPSG:4326", dst_crs, mapping(geom)))
+        mask = rasterize(
+            [(mapping(geom_target), 1)],
+            out_shape=(height, width),
+            transform=dst_transform,
+            fill=0,
+            dtype="uint8",
+            all_touched=True,
+        )
+        mask_bool = mask.astype(bool)
+        if not np.count_nonzero(mask_bool):
+            continue
+        color_arr = np.array(color, dtype=np.float64)
+        blended = rgba[mask_bool, :3].astype(np.float64) * (1 - alpha) + color_arr * alpha
+        rgba[mask_bool, :3] = blended.astype(np.uint8)
+        rgba[mask_bool, 3] = 255
+
+    _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform)
+    _write_png_rgba(output_path, rgba)
+
+
+def _write_layered_mask_flat_png(
+    *,
+    layers: list[tuple[Path | Any | None, tuple[int, int, int], float]],
+    output_path: Path,
+) -> None:
+    """`_write_geojson_mask_png`'s multi-layer counterpart, used (like that function) only when no
+    background satellite raster is available to composite onto - flat opaque colors on a plain
+    background instead of a basemap crop, framed around the union of whichever layers actually
+    have geometry. Later entries in ``layers`` paint over earlier ones, same draw order as
+    `_write_layered_mask_over_basemap_png`.
+    """
+    import numpy as np
+    from rasterio.features import rasterize
+    from rasterio.transform import from_bounds
+    from shapely.ops import unary_union
+
+    resolved: list[tuple[Any, tuple[int, int, int]]] = []
+    for source, color, _alpha in layers:
+        geom = _load_layer_geometry(source)
+        if geom is not None:
+            resolved.append((geom, color))
+    if not resolved:
+        raise ValueError("no renderable layers")
+
+    union = unary_union([geom for geom, _ in resolved])
+    minx, miny, maxx, maxy = union.bounds
+    if minx == maxx:
+        minx -= 0.0001
+        maxx += 0.0001
+    if miny == maxy:
+        miny -= 0.0001
+        maxy += 0.0001
+    width, height = 640, 420
+    transform = from_bounds(minx, miny, maxx, maxy, width, height)
+    rgba = np.zeros((height, width, 4), dtype=np.uint8)
+    rgba[:, :, :] = np.array([248, 250, 247, 255], dtype=np.uint8)
+    any_drawn = False
+    for geom, color in resolved:
+        mask = rasterize(
+            [(geom, 1)],
+            out_shape=(height, width),
+            transform=transform,
+            fill=0,
+            dtype="uint8",
+            all_touched=True,
+        )
+        mask_bool = mask.astype(bool)
+        if not np.count_nonzero(mask_bool):
+            continue
+        any_drawn = True
+        rgba[mask_bool] = np.array((*color, 255), dtype=np.uint8)
+    if not any_drawn:
+        raise ValueError("empty rasterized mask")
+    _write_png_rgba(output_path, rgba)
+
+
+def _layered_png_from_geojson_refs(
+    *,
+    layers: list[tuple[Path | Any | None, tuple[int, int, int], float]],
+    output_path: Path,
+    background_raster_path: Path | None,
+    aoi_geom_wgs84: Any | None,
+    unavailable_reason: str,
+) -> ArtifactRef:
+    """`_png_from_geojson_ref`'s multi-layer counterpart: same availability contract (no basemap
+    raster falls back to a flat rendering via `_write_layered_mask_flat_png`; every layer empty
+    resolves to a `_missing` artifact with the same `source_mask_contains_no_renderable_features`
+    reason the single-mask path uses), but for an ordered stack of layers rendered by
+    `_write_layered_mask_over_basemap_png` instead of one mask plus one overlay.
+    """
+    if background_raster_path is not None and aoi_geom_wgs84 is not None:
+        try:
+            _write_layered_mask_over_basemap_png(
+                layers=layers,
+                output_path=output_path,
+                background_raster_path=background_raster_path,
+                aoi_geom_wgs84=aoi_geom_wgs84,
+            )
+            return _available(output_path, output_path.parents[1])
+        except ValueError:
+            return _missing("source_mask_contains_no_renderable_features")
+    try:
+        _write_layered_mask_flat_png(layers=layers, output_path=output_path)
+    except ValueError:
+        return _missing(unavailable_reason)
+    return _available(output_path, output_path.parents[1])
+
+
 def _write_legend_png(output_path: Path) -> None:
     import numpy as np
 
@@ -3465,7 +3743,7 @@ def _write_legend_png(output_path: Path) -> None:
     swatches = [
         (20, 20, (33, 122, 72, 255)),
         (20, 55, (198, 40, 40, 255)),
-        (20, 90, (139, 90, 43, 255)),
+        (20, 90, (30, 136, 229, 255)),
         (220, 20, (102, 45, 145, 255)),
     ]
     for x, y, color in swatches:
