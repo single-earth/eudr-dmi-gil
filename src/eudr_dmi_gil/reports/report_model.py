@@ -295,6 +295,20 @@ def materialize_evidence_pngs(
         height=COVER_HERO_PIXEL_HEIGHT,
     )
 
+    # Round 25: a plain satellite basemap sized to the same EVIDENCE_MAP_PIXEL_WIDTH/HEIGHT box
+    # as jrc_forest_2020/forest_loss/commodity_layer/intersection below, so pages 5/6 can fall
+    # back to it edge-to-edge (no letterboxing) whenever there is no mask to overlay - unlike
+    # `aoi_satellite` above, which is fixed at 640x420 for the page-1/cover box's own aspect and
+    # would only partially fill the evidence-map box's different aspect ratio.
+    artifacts["satellite_evidence_map"] = _write_satellite_context_png(
+        bundle_root=bundle_root,
+        raster_relpath=satellite_recent_ref,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+        output_path=evidence_dir / "01b_aoi_satellite_evidence_map.png",
+        width=EVIDENCE_MAP_PIXEL_WIDTH,
+        height=EVIDENCE_MAP_PIXEL_HEIGHT,
+    )
+
     # Resolved ahead of the baseline/loss evidence maps below (round 18) so pages 5/6 can layer the
     # commodity/coffee-plantation evidence directly onto those same map images whenever a
     # commodity layer is actually configured and available for this AOI, instead of leaving it as
@@ -2002,16 +2016,52 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
 
     new_page(6, "Forest Loss After 2020")
     y = content_top
-    y = draw_wrapped(f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}.", margin, y, content_w, size=9, leading=12)
+    # Round 25: when no loss mask is renderable (most commonly a verified-zero-loss AOI, per
+    # `_png_from_geojson_ref`'s `source_mask_contains_no_renderable_features` case), this page
+    # used to fall back to a text-only gap panel with no map at all, unlike every other
+    # evidence-map page. It now falls back to the same plain satellite basemap image the AOI
+    # context page (1) and the layer viewer's own hero already use (GEE `Map.setOptions
+    # ('SATELLITE')`-equivalent - no loss/forest overlay drawn on it), so page 6 always shows the
+    # AOI in at least one rendering when any satellite imagery is available at all.
+    loss_image = image_path("forest_loss")
+    satellite_image = image_path("satellite_evidence_map")
+    page6_image = loss_image or satellite_image
+    using_satellite_fallback = loss_image is None and satellite_image is not None
+    forest_loss_layer = layers.get("forest_loss")
+    forest_loss_status = (
+        forest_loss_layer.get("availability_status") if isinstance(forest_loss_layer, Mapping) else None
+    )
+    if loss_image is not None:
+        intro_text = f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}."
+    elif using_satellite_fallback and forest_loss_status == "source_mask_contains_no_renderable_features":
+        intro_text = (
+            f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
+            f"{evidence_period}; satellite basemap shown for AOI context."
+        )
+    elif using_satellite_fallback:
+        intro_text = (
+            f"Post-2020 tree-cover loss evidence from Hansen Global Forest Change is unavailable "
+            f"for this AOI during {evidence_period}; satellite basemap shown for AOI context."
+        )
+    else:
+        intro_text = f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}."
+    y = draw_wrapped(intro_text, margin, y, content_w, size=9, leading=12)
     # See the matching comment on page 5 above: fill=False is intentional here now. When the
     # post-2020-loss-and-commodity intersection is available, this image also carries a stronger
     # overlay of that intersection (see materialize_evidence_pngs) so loss detected inside the
     # commodity layer visually stands out from loss elsewhere in the AOI.
-    draw_image_fit(image_path("forest_loss"), margin, y - 18, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
-    page6_legend_items = [
-        (colors.HexColor("#c62828"), f"Loss ({evidence_period})"),
-        (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)"),
-    ]
+    img_top = y - 18
+    draw_image_fit(page6_image, margin, img_top, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
+    if using_satellite_fallback:
+        draw_photo_chip(margin + 10, img_top - 10, "SATELLITE BASEMAP - NO LOSS OVERLAY", align="left")
+    page6_legend_items = (
+        [(aoi_boundary, "AOI boundary")]
+        if using_satellite_fallback
+        else [
+            (colors.HexColor("#c62828"), f"Loss ({evidence_period})"),
+            (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)"),
+        ]
+    )
     primary_metric = (
         "Forest loss after 2020",
         metric("forest_loss_post_2020_on_baseline_ha"),
@@ -2584,6 +2634,16 @@ def _layers(
             satellite_dataset,
             satellite_version,
             "Visual AOI context from source imagery",
+            satellite_date,
+        ),
+        "satellite_evidence_map": _layer(
+            "satellite_evidence_map",
+            "AOI satellite context (evidence-map aspect)",
+            artifacts.get("satellite_evidence_map") or _missing("satellite_evidence_map_not_materialized"),
+            satellite_dataset,
+            satellite_version,
+            "Plain satellite basemap, sized to the evidence-map page box, used on pages 5/6 when no "
+            "forest/loss mask is renderable",
             satellite_date,
         ),
         "cover_hero": _layer(
