@@ -765,7 +765,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .notice {{ margin-top: 16px; padding: 16px 18px; border-radius: var(--radius); background: #fff8dc; color: #55430a; font-size: 13px; }}
     .two-col {{ display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: 28px; align-items: start; }}
     .three-col {{ display: grid; grid-template-columns: 1.05fr .82fr .9fr; gap: 28px; align-items: start; }}
-    .viewer {{ overflow: hidden; min-height: 490px; background: #121916; }}
+    .viewer {{ overflow: hidden; height: 490px; min-height: 490px; background: #121916; }}
     .viewer img {{ width: 100%; min-height: 490px; height: 100%; object-fit: contain; display: block; background: #121916; }}
     .empty-viewer {{ min-height: 490px; display: grid; place-items: center; padding: 28px; color: #fff; text-align: center; }}
     .legend {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin-top: 12px; color: var(--muted); font-size: 12px; }}
@@ -815,9 +815,9 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .method-index {{ display: grid; place-items: center; width: 42px; height: 42px; border-radius: 8px; background: #eef7e9; color: #397b38; font-weight: 850; }}
     .method-step strong {{ display: block; }}
     .method-step span {{ color: var(--muted); font-size: 12px; }}
-    .comparison {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }}
+    .comparison {{ display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }}
     .comparison figure {{ margin: 0; }}
-    .comparison img {{ width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border: 1px solid var(--line); border-radius: var(--radius); background: #121916; display: block; }}
+    .comparison img {{ width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #121916; display: block; }}
     .comparison figcaption {{ margin-top: 8px; color: var(--muted); font-size: 12px; }}
     .quality {{ border-top: 1px solid var(--line); }}
     .quality-row {{ display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 13px; }}
@@ -848,7 +848,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
       main {{ padding: 34px 15px 56px; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .detail, .quality-row {{ grid-template-columns: 1fr; gap: 4px; }}
-      .viewer, .viewer img, .empty-viewer {{ min-height: 340px; }}
+      .viewer, .viewer img, .empty-viewer {{ height: 340px; min-height: 340px; }}
       .comparison, .artifact-links {{ grid-template-columns: 1fr; }}
       .evidence-row {{ grid-template-columns: 1fr; }}
       .evidence-value {{ white-space: normal; }}
