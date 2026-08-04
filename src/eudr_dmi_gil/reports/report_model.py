@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import html
+import io
 import json
 import os
 import struct
@@ -37,6 +38,28 @@ EVIDENCE_MAP_PIXEL_HEIGHT = round(EVIDENCE_MAP_PIXEL_WIDTH / _EVIDENCE_MAP_BOX_A
 # left to crop and the whole padded AOI frame - polygon included - stays inside the page.
 COVER_HERO_PIXEL_WIDTH = 640
 COVER_HERO_PIXEL_HEIGHT = round(COVER_HERO_PIXEL_WIDTH * 841.8897637795277 / 595.2755905511812)
+
+# Cover (page 1) and regional-overview (page 4) basemaps are composited from the Esri World
+# Imagery export service instead of the locally pinned Sentinel-2 GeoTIFFs every other evidence
+# image in this module still uses (01_aoi_satellite.png, 01b_..., 02-06). This is a deliberate,
+# per-image basemap-provider substitution, not a change to the underlying JRC/Hansen/commodity
+# analysis pipeline - see the task bundle's reproduction docs for why these two specifically were
+# switched. Unlike the checked-in Sentinel-2 rasters, Esri World Imagery is a live remote service
+# with no content hash to pin: a rerun can legitimately return non-byte-identical tiles if Esri's
+# backing mosaic has been refreshed since the previous run.
+ESRI_WORLDIMAGERY_EXPORT_URL = (
+    "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+)
+ESRI_WORLDIMAGERY_TILE_URL_TEMPLATE = (
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+)
+ESRI_WORLDIMAGERY_DATASET_TITLE = "Esri World Imagery"
+ESRI_WORLDIMAGERY_DATASET_VERSION = "world_imagery_current"
+ESRI_WORLDIMAGERY_SOURCE_URL = (
+    "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+)
+ESRI_WORLDIMAGERY_ATTRIBUTION = "Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+ESRI_WORLDIMAGERY_LICENSE = "Esri master license agreement (basemap use permitted for web/print display with attribution)"
 
 # Page 7 (Satellite Evidence, see `new_page(7, ...)` below) draws the before/after comparison
 # into an A4 box capped at (content width x BEFORE_AFTER_BOX_HEIGHT pt) - the same technique as
@@ -256,6 +279,21 @@ def _references(layers: Mapping[str, "LayerEntry"]) -> list[dict[str, Any]]:
                 "url": "https://earth-search.aws.element84.com/v1",
             }
         )
+    cover_hero_layer = layers.get("cover_hero")
+    regional_overview_layer = layers.get("regional_overview")
+    if getattr(cover_hero_layer, "available", False) or getattr(regional_overview_layer, "available", False):
+        refs.append(
+            {
+                "id": "esri_world_imagery",
+                "citation": (
+                    f"Basemap imagery: {ESRI_WORLDIMAGERY_ATTRIBUTION}, via the Esri World "
+                    "Imagery export service (cover page and regional-overview page only; every "
+                    "other satellite-context image in this report uses Sentinel-2, see the "
+                    "sentinel2 reference above)."
+                ),
+                "url": ESRI_WORLDIMAGERY_SOURCE_URL,
+            }
+        )
     return refs
 
 
@@ -305,13 +343,26 @@ def materialize_evidence_pngs(
         output_path=evidence_dir / "01_aoi_satellite.png",
     )
 
-    artifacts["cover_hero"] = _write_satellite_context_png(
-        bundle_root=bundle_root,
-        raster_relpath=satellite_recent_ref,
+    # The cover hero basemap is fetched live from Esri World Imagery instead of the local
+    # Sentinel-2 "recent" raster every other satellite-context image on this AOI still uses (see
+    # the ESRI_WORLDIMAGERY_* constants above for why: a deliberate, per-image basemap-provider
+    # substitution, not a pipeline change).
+    artifacts["cover_hero"] = _write_esri_satellite_context_png(
         aoi_geom_wgs84=aoi_geom_wgs84,
         output_path=evidence_dir / "08_cover_hero.png",
         width=COVER_HERO_PIXEL_WIDTH,
         height=COVER_HERO_PIXEL_HEIGHT,
+    )
+
+    # A standalone, single-AOI interactive Leaflet map (this AOI's own boundary only, over an
+    # Esri World Imagery basemap) - the report.html "AOI satellite context" viewer/tab links to
+    # this in place of a static PNG for that slot (see render_canonical_html); the underlying
+    # 01_aoi_satellite.png role above is retained unchanged for report.pdf's cover-image fallback
+    # and the deterministic-artifact inventory, so nothing existing regresses.
+    artifacts["aoi_satellite_map"] = _write_esri_leaflet_aoi_map_html(
+        aoi_geom_wgs84=aoi_geom_wgs84,
+        aoi_name=str(report.get("aoi_id", "unknown")),
+        output_path=evidence_dir / "01c_aoi_satellite_map.html",
     )
 
     # Round 25: a plain satellite basemap sized to the same EVIDENCE_MAP_PIXEL_WIDTH/HEIGHT box
@@ -442,14 +493,15 @@ def materialize_evidence_pngs(
         output_path=evidence_dir / "06_before_after.png",
     )
 
-    regional_ref = _ref_relpath(satellite_outputs, "regional_raster_ref")
     admin_boundaries_ref = _ref_relpath(satellite_outputs, "regional_admin_boundaries_ref")
-    artifacts["regional_overview"] = _write_regional_overview_png(
+    # Regional-overview basemap also switched to the live Esri World Imagery export service (see
+    # the cover_hero note above); the real admin-boundary GeoJSON overlay is unaffected and still
+    # comes from the locally pinned fetch (scripts/fetch_admin_boundaries.py).
+    artifacts["regional_overview"] = _write_regional_overview_png_esri(
         bundle_root=bundle_root,
-        raster_relpath=regional_ref or satellite_recent_ref,
         aoi_geom_wgs84=aoi_geom_wgs84,
         output_path=evidence_dir / "07_regional_overview.png",
-        pad_factor=3.0 if regional_ref else 0.5,
+        pad_factor=3.0,
         admin_boundaries_relpath=admin_boundaries_ref,
     )
 
@@ -528,12 +580,48 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         (layer for layer in switcher_layers if layer.get("available") and layer.get("path")),
         switcher_layers[0] if switcher_layers else None,
     )
+    # Computed from the un-overridden `layers` (below) so the hero's CSS background - which can
+    # only ever be a real image - keeps using the static 01_aoi_satellite.png even after the
+    # "satellite" switcher tab is repointed at the interactive map just below.
     hero_layer = _first_available_layer(layers, ["satellite", "intersection", "forest_loss", "jrc_forest_2020"])
     hero_style = (
         f' style="--hero-image:url(\'{_esc_attr(hero_layer["path"])}\')"'
         if hero_layer and hero_layer.get("path")
         else ""
     )
+
+    # The "satellite" layer/tab - report.html's viewer for the "AOI satellite context" slot -
+    # links to the interactive Leaflet map (`satellite_interactive_map`, an .html artifact, see
+    # `_write_esri_leaflet_aoi_map_html`) instead of the static PNG, for this HTML rendering only.
+    # report.json's own `layers.satellite` (a separate `to_dict()` call elsewhere), report.pdf's
+    # cover-image fallback, and the deterministic-artifact inventory all still reference the real
+    # PNG unaffected - only this function's local `payload`/`layers` copy (and its embedded
+    # `data_json`, so the client-side switcher agrees with the server-rendered initial view) is
+    # overridden.
+    interactive_map_layer = layers.get("satellite_interactive_map")
+    if (
+        isinstance(interactive_map_layer, Mapping)
+        and interactive_map_layer.get("available")
+        and interactive_map_layer.get("path")
+    ):
+        layers = dict(layers)
+        layers["satellite"] = {
+            **(layers.get("satellite") or {}),
+            "path": interactive_map_layer["path"],
+            "available": True,
+            "availability_status": interactive_map_layer.get("availability_status"),
+            "checksum_sha256": interactive_map_layer.get("checksum_sha256"),
+        }
+        payload["layers"] = layers
+        switcher_layers = [
+            layers[key]
+            for key in ordered_layer_ids
+            if key in layers and _show_layer_in_switcher(key, layers[key])
+        ]
+        initial_layer = next(
+            (layer for layer in switcher_layers if layer.get("available") and layer.get("path")),
+            switcher_layers[0] if switcher_layers else None,
+        )
 
     layer_buttons = _render_layer_buttons(switcher_layers, initial_layer, output_path)
     main_viewer = _render_main_viewer(initial_layer, output_path)
@@ -960,10 +1048,17 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
       const downloads = document.getElementById("layer-downloads");
       const exists = new Map(buttons.map((button) => [button.dataset.layer, button.dataset.pathStatus]));
       const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}}[char]));
+      const isHtmlPath = (path) => String(path || "").toLowerCase().endsWith(".html");
       function layerDownloadRows() {{
         const rows = buttons
           .filter((button) => !button.disabled && button.dataset.path)
-          .map((button) => `<a href="${{escapeHTML(button.dataset.path)}}" download>${{escapeHTML(button.textContent.trim())}}</a>`);
+          .map((button) => {{
+            const path = button.dataset.path;
+            const label = escapeHTML(button.textContent.trim());
+            return isHtmlPath(path)
+              ? `<a href="${{escapeHTML(path)}}" target="_blank" rel="noopener">${{label}} (interactive map)</a>`
+              : `<a href="${{escapeHTML(path)}}" download>${{label}}</a>`;
+          }});
         return rows.length ? `<div class="download-list">${{rows.join("")}}</div>` : `<div class="gap">No downloadable layer images are available.</div>`;
       }}
       function selectLayer(key) {{
@@ -972,7 +1067,9 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         buttons.forEach((button) => button.setAttribute("aria-selected", String(button.dataset.layer === key)));
         const pathStatus = exists.get(key);
         if (layer.available && layer.path && pathStatus !== "missing") {{
-          panel.innerHTML = `<img src="${{escapeHTML(layer.path)}}" alt="${{escapeHTML(layer.title)}} evidence layer">`;
+          panel.innerHTML = isHtmlPath(layer.path)
+            ? `<iframe src="${{escapeHTML(layer.path)}}" title="${{escapeHTML(layer.title)}} interactive map" loading="lazy" style="width:100%;height:100%;border:0;"></iframe>`
+            : `<img src="${{escapeHTML(layer.path)}}" alt="${{escapeHTML(layer.title)}} evidence layer">`;
         }} else {{
           const reason = pathStatus === "missing" ? "Declared artifact path was not found in the generated bundle." : (layer.availability_status || "Layer unavailable.");
           panel.innerHTML = `<div class="empty-viewer">${{escapeHTML(reason)}}</div>`;
@@ -1134,11 +1231,21 @@ def _render_layer_buttons(
     return "".join(rows) or '<p class="gap">No report layers were declared.</p>'
 
 
+def _is_html_layer_path(path: Any) -> bool:
+    return str(path or "").lower().endswith(".html")
+
+
 def _render_main_viewer(layer: Mapping[str, Any] | None, output_path: Path) -> str:
     if not isinstance(layer, Mapping):
         return '<div class="empty-viewer">No evidence layer is available.</div>'
     status = _layer_path_status(layer, output_path)
     if layer.get("available") and layer.get("path") and status != "missing":
+        if _is_html_layer_path(layer["path"]):
+            return (
+                f'<iframe src="{_esc_attr(layer["path"])}" '
+                f'title="{_esc_attr(layer.get("title") or "Evidence layer")} interactive map" '
+                'loading="lazy" style="width:100%;height:100%;border:0;"></iframe>'
+            )
         return (
             f'<img src="{_esc_attr(layer["path"])}" '
             f'alt="{_esc_attr(layer.get("title") or "Evidence layer")} evidence layer">'
@@ -1178,9 +1285,12 @@ def _render_layer_downloads(layers: list[Mapping[str, Any]], output_path: Path) 
             continue
         if _layer_path_status(layer, output_path) == "missing":
             continue
-        links.append(
-            f'<a href="{_esc_attr(layer["path"])}" download>{html.escape(str(layer.get("title") or layer["path"]))}</a>'
-        )
+        title = html.escape(str(layer.get("title") or layer["path"]))
+        if _is_html_layer_path(layer["path"]):
+            # An interactive map should navigate, not force a "save file" dialog.
+            links.append(f'<a href="{_esc_attr(layer["path"])}" target="_blank" rel="noopener">{title} (interactive map)</a>')
+        else:
+            links.append(f'<a href="{_esc_attr(layer["path"])}" download>{title}</a>')
     if not links:
         return '<div class="gap">No downloadable layer images are available.</div>'
     return f'<div class="download-list">{"".join(links)}</div>'
@@ -2714,7 +2824,6 @@ def _layers(
     recent_date = satellite_outputs.get("recent_date")
     if baseline_date or recent_date:
         before_after_date = f"{baseline_date or '?'} vs {recent_date or '?'}"
-    regional_date = str(satellite_outputs.get("regional_date") or "") or satellite_date
     return {
         "satellite": _layer(
             "satellite",
@@ -2739,19 +2848,30 @@ def _layers(
             "cover_hero",
             "Cover hero context",
             artifacts.get("cover_hero") or _missing("cover_hero_not_materialized"),
-            satellite_dataset,
-            satellite_version,
+            ESRI_WORLDIMAGERY_DATASET_TITLE,
+            ESRI_WORLDIMAGERY_DATASET_VERSION,
             "Full-bleed AOI satellite context for the report cover page",
-            satellite_date,
+            None,
         ),
         "regional_overview": _layer(
             "regional_overview",
             "Regional overview",
             artifacts.get("regional_overview") or _missing("regional_overview_not_materialized"),
-            satellite_dataset,
-            satellite_version,
+            ESRI_WORLDIMAGERY_DATASET_TITLE,
+            ESRI_WORLDIMAGERY_DATASET_VERSION,
             "Wider-context satellite view showing the AOI within its surrounding region",
-            regional_date,
+            None,
+        ),
+        "satellite_interactive_map": _layer(
+            "satellite_interactive_map",
+            "AOI satellite context (interactive)",
+            artifacts.get("aoi_satellite_map") or _missing("aoi_satellite_map_not_materialized"),
+            ESRI_WORLDIMAGERY_DATASET_TITLE,
+            ESRI_WORLDIMAGERY_DATASET_VERSION,
+            "Interactive Leaflet map of this AOI's boundary over an Esri World Imagery satellite "
+            "mosaic; report.html's AOI satellite context viewer links to this in place of a "
+            "static image",
+            None,
         ),
         "jrc_forest_2020": _layer(
             "jrc_forest_2020",
@@ -3426,6 +3546,202 @@ def _write_regional_overview_png(
     except Exception:
         return _missing("regional_overview_could_not_be_rendered")
     _write_png_rgba(output_path, rgba)
+    return _available(output_path, output_path.parents[1])
+
+
+def _fetch_esri_worldimagery_export_png(
+    *,
+    bbox_wgs84: tuple[float, float, float, float],
+    width: int,
+    height: int,
+    timeout: float = 20.0,
+) -> bytes:
+    """Fetch a single, already-mosaicked satellite PNG for ``bbox_wgs84`` from the Esri World
+    Imagery export REST service, sized exactly to ``width``x``height`` pixels - no client-side
+    tile-stitching required (unlike the raw XYZ tile endpoint), since the export service accepts
+    an arbitrary bbox and output size directly."""
+    import urllib.parse
+    import urllib.request
+
+    min_lon, min_lat, max_lon, max_lat = bbox_wgs84
+    params = {
+        "bbox": f"{min_lon},{min_lat},{max_lon},{max_lat}",
+        "bboxSR": "4326",
+        "imageSR": "4326",
+        "size": f"{width},{height}",
+        "format": "png32",
+        "f": "image",
+    }
+    url = ESRI_WORLDIMAGERY_EXPORT_URL + "?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(url, headers={"User-Agent": "eudr-dmi-gil-report/1.0"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
+
+
+def _reproject_esri_worldimagery_to_grid(
+    aoi_geom_wgs84: Any,
+    *,
+    pad_factor: float = 0.12,
+    width: int = 640,
+    height: int = 420,
+) -> tuple[Any, Any, Any]:
+    """Fetch an Esri World Imagery crop framed around ``aoi_geom_wgs84`` onto a fixed-size RGBA
+    grid, mirroring ``_reproject_raster_to_grid``'s ``(rgba, dst_crs, dst_transform)`` contract so
+    the same ``_draw_aoi_outline_inplace``/``_draw_admin_boundaries_inplace`` overlay helpers work
+    unchanged regardless of whether the basemap came from a local raster or this live service.
+
+    Padding and aspect-fit are computed in Web Mercator (EPSG:3857, the CRS Esri's own tiles are
+    served in), not raw WGS84 degrees, so the AOI's true on-the-ground aspect ratio is preserved
+    at any latitude rather than being skewed by degree-per-km distortion.
+    """
+    import numpy as np
+    from PIL import Image
+    from rasterio.crs import CRS
+    from rasterio.transform import from_bounds
+    from rasterio.warp import transform_bounds
+
+    minx, miny, maxx, maxy = aoi_geom_wgs84.bounds
+    pad_x = (maxx - minx) * pad_factor or 0.001
+    pad_y = (maxy - miny) * pad_factor or 0.001
+    minx, maxx = minx - pad_x, maxx + pad_x
+    miny, maxy = miny - pad_y, maxy + pad_y
+
+    dst_crs = CRS.from_epsg(3857)
+    left, bottom, right, top = transform_bounds("EPSG:4326", dst_crs, minx, miny, maxx, maxy)
+    target_aspect = width / height
+    frame_w, frame_h = right - left, top - bottom
+    frame_aspect = (frame_w / frame_h) if frame_h else target_aspect
+    if frame_aspect < target_aspect:
+        new_w = frame_h * target_aspect
+        cx = (left + right) / 2
+        left, right = cx - new_w / 2, cx + new_w / 2
+    elif frame_aspect > target_aspect:
+        new_h = frame_w / target_aspect
+        cy = (bottom + top) / 2
+        bottom, top = cy - new_h / 2, cy + new_h / 2
+
+    request_bbox = transform_bounds(dst_crs, "EPSG:4326", left, bottom, right, top)
+    image_bytes = _fetch_esri_worldimagery_export_png(bbox_wgs84=request_bbox, width=width, height=height)
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    if img.size != (width, height):
+        img = img.resize((width, height), Image.Resampling.LANCZOS)
+    rgba = np.array(img)
+    dst_transform = from_bounds(left, bottom, right, top, width, height)
+    return rgba, dst_crs, dst_transform
+
+
+def _write_esri_satellite_context_png(
+    *,
+    aoi_geom_wgs84: Any | None,
+    output_path: Path,
+    width: int = 640,
+    height: int = 420,
+    pad_factor: float = 0.12,
+) -> ArtifactRef:
+    if aoi_geom_wgs84 is None:
+        return _missing("aoi_geometry_not_available_for_esri_satellite_context")
+    try:
+        rgba, dst_crs, dst_transform = _reproject_esri_worldimagery_to_grid(
+            aoi_geom_wgs84, pad_factor=pad_factor, width=width, height=height
+        )
+        _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform)
+    except Exception:
+        return _missing("esri_satellite_imagery_could_not_be_fetched_or_rendered")
+    _write_png_rgba(output_path, rgba)
+    return _available(output_path, output_path.parents[1])
+
+
+def _write_regional_overview_png_esri(
+    *,
+    bundle_root: Path,
+    aoi_geom_wgs84: Any | None,
+    output_path: Path,
+    pad_factor: float = 3.0,
+    admin_boundaries_relpath: str | None = None,
+) -> ArtifactRef:
+    if aoi_geom_wgs84 is None:
+        return _missing("aoi_geometry_not_available_for_esri_regional_overview")
+    try:
+        rgba, dst_crs, dst_transform = _reproject_esri_worldimagery_to_grid(
+            aoi_geom_wgs84, pad_factor=pad_factor, width=900, height=620
+        )
+        if admin_boundaries_relpath:
+            boundaries_path = bundle_root / admin_boundaries_relpath
+            if boundaries_path.is_file():
+                try:
+                    _draw_admin_boundaries_inplace(rgba, boundaries_path, dst_crs, dst_transform)
+                except Exception:
+                    pass  # optional regional-context layer; never blocks the base evidence image
+        _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform, min_stroke_px=2.0)
+    except Exception:
+        return _missing("esri_regional_overview_could_not_be_fetched_or_rendered")
+    _write_png_rgba(output_path, rgba)
+    return _available(output_path, output_path.parents[1])
+
+
+def _write_esri_leaflet_aoi_map_html(
+    *,
+    aoi_geom_wgs84: Any | None,
+    aoi_name: str,
+    output_path: Path,
+) -> ArtifactRef:
+    """Render a standalone, single-AOI interactive Leaflet map: this AOI's own boundary (only -
+    no sibling-bundle AOI) over an Esri World Imagery tile basemap. Uses the Leaflet CDN build
+    (leaflet.js/leaflet.css from unpkg), the same approach as the framework repo's
+    ``tools/render_two_aoi_geemap_satellite_tiles.py`` reference script - viewing this file later
+    requires network access to that CDN, an explicit, documented limitation, not a hidden one."""
+    from shapely.geometry import mapping as shapely_mapping
+
+    if aoi_geom_wgs84 is None:
+        return _missing("aoi_geometry_not_available_for_interactive_map")
+    minx, miny, maxx, maxy = aoi_geom_wgs84.bounds
+    center_lat, center_lon = (miny + maxy) / 2, (minx + maxx) / 2
+    aoi_feature_collection = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": aoi_name},
+                "geometry": shapely_mapping(aoi_geom_wgs84),
+            }
+        ],
+    }
+    safe_title = html.escape(aoi_name)
+    doc = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{safe_title} - satellite AOI map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map {{ height: 100%; margin: 0; background: #101416; }}
+    .title {{
+      position: absolute; z-index: 1000; left: 14px; top: 12px; max-width: 72%;
+      color: #f7fbfb; font: 700 16px Arial, sans-serif;
+      background: rgba(7, 10, 12, 0.82); padding: 8px 12px; border-radius: 8px;
+    }}
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="title">{safe_title} &mdash; Esri World Imagery basemap</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([{center_lat}, {center_lon}], 13);
+L.tileLayer({json.dumps(ESRI_WORLDIMAGERY_TILE_URL_TEMPLATE)}, {{
+  maxZoom: 19,
+  attribution: {json.dumps(ESRI_WORLDIMAGERY_ATTRIBUTION)}
+}}).addTo(map);
+const aoiLayer = L.geoJSON({json.dumps(aoi_feature_collection)}, {{
+  style: {{color: '#ffcc00', weight: 3, dashArray: '6 5', fillColor: '#ffcc00', fillOpacity: 0.18}}
+}}).addTo(map);
+map.fitBounds(aoiLayer.getBounds(), {{padding: [24, 24]}});
+</script>
+</body>
+</html>
+"""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(doc, encoding="utf-8")
     return _available(output_path, output_path.parents[1])
 
 

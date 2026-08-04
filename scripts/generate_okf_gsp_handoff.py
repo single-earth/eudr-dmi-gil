@@ -51,6 +51,7 @@ _ROLE_RULES: list[tuple[str, str]] = [
     ("jrc_post2020_loss_debug.json", "post_2020_loss_on_2020_forest_debug"),
     ("evidence/01_aoi_satellite.png", "aoi_satellite_basemap"),
     ("evidence/01b_aoi_satellite_evidence_map.png", "aoi_satellite_evidence_map_basemap_png"),
+    ("evidence/01c_aoi_satellite_map.html", "aoi_satellite_interactive_map_html"),
     ("evidence/02_jrc_forest_2020.png", "jrc_forest_2020_mask_png"),
     ("evidence/03_forest_loss", "post_2020_loss_on_2020_forest_mask_png"),
     ("evidence/04_commodity_layer.png", "commodity_mask_png"),
