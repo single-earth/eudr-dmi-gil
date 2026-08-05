@@ -354,17 +354,6 @@ def materialize_evidence_pngs(
         height=COVER_HERO_PIXEL_HEIGHT,
     )
 
-    # A standalone, single-AOI interactive Leaflet map (this AOI's own boundary only, over an
-    # Esri World Imagery basemap) - the report.html "AOI satellite context" viewer/tab links to
-    # this in place of a static PNG for that slot (see render_canonical_html); the underlying
-    # 01_aoi_satellite.png role above is retained unchanged for report.pdf's cover-image fallback
-    # and the deterministic-artifact inventory, so nothing existing regresses.
-    artifacts["aoi_satellite_map"] = _write_esri_leaflet_aoi_map_html(
-        aoi_geom_wgs84=aoi_geom_wgs84,
-        aoi_name=str(report.get("aoi_id", "unknown")),
-        output_path=evidence_dir / "01c_aoi_satellite_map.html",
-    )
-
     # Round 25: a plain satellite basemap sized to the same EVIDENCE_MAP_PIXEL_WIDTH/HEIGHT box
     # as jrc_forest_2020/forest_loss/commodity_layer/intersection below, so pages 5/6 can fall
     # back to it edge-to-edge (no letterboxing) whenever there is no mask to overlay - unlike
@@ -485,6 +474,25 @@ def materialize_evidence_pngs(
         aoi_geom_wgs84=aoi_geom_wgs84,
     )
 
+    # A standalone interactive Leaflet map: this AOI's own boundary over an Esri World Imagery
+    # basemap, with the same JRC 2020 baseline / forest loss / commodity / intersection masks the
+    # static evidence PNGs above draw, exposed here as independently toggle-able overlay layers
+    # instead of one fixed composite - report.html's "Image Downloads" list links to this single
+    # file in place of separate per-layer PNG downloads (see render_canonical_html). Moved below
+    # the mask-path resolution above (round 7) so it can be given real overlay geometry instead of
+    # just the AOI outline; colors match the static composites' own layer colors for consistency.
+    artifacts["aoi_satellite_map"] = _write_esri_leaflet_aoi_map_html(
+        aoi_geom_wgs84=aoi_geom_wgs84,
+        aoi_name=str(report.get("aoi_id", "unknown")),
+        output_path=evidence_dir / "01c_aoi_satellite_map.html",
+        overlay_layers=[
+            ("JRC Global Forest Cover 2020", baseline_mask_path, (33, 122, 72)),
+            (f"Forest loss 2021-{effective_end_year}", loss_mask_path, (198, 40, 40)),
+            ("Commodity layer", commodity_mask_path, _COMMODITY_OVERLAY_COLOR[:3]),
+            ("Intersection", commodity_loss_overlap_path, _COMMODITY_LOSS_OVERLAY_COLOR[:3]),
+        ],
+    )
+
     artifacts["before_after"] = _write_before_after_png(
         bundle_root=bundle_root,
         baseline_relpath=satellite_baseline_ref,
@@ -590,43 +598,18 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         else ""
     )
 
-    # The "satellite" layer/tab - report.html's viewer for the "AOI satellite context" slot -
-    # links to the interactive Leaflet map (`satellite_interactive_map`, an .html artifact, see
-    # `_write_esri_leaflet_aoi_map_html`) instead of the static PNG, for this HTML rendering only.
-    # report.json's own `layers.satellite` (a separate `to_dict()` call elsewhere), report.pdf's
-    # cover-image fallback, and the deterministic-artifact inventory all still reference the real
-    # PNG unaffected - only this function's local `payload`/`layers` copy (and its embedded
-    # `data_json`, so the client-side switcher agrees with the server-rendered initial view) is
-    # overridden.
-    interactive_map_layer = layers.get("satellite_interactive_map")
-    if (
-        isinstance(interactive_map_layer, Mapping)
-        and interactive_map_layer.get("available")
-        and interactive_map_layer.get("path")
-    ):
-        layers = dict(layers)
-        layers["satellite"] = {
-            **(layers.get("satellite") or {}),
-            "path": interactive_map_layer["path"],
-            "available": True,
-            "availability_status": interactive_map_layer.get("availability_status"),
-            "checksum_sha256": interactive_map_layer.get("checksum_sha256"),
-        }
-        payload["layers"] = layers
-        switcher_layers = [
-            layers[key]
-            for key in ordered_layer_ids
-            if key in layers and _show_layer_in_switcher(key, layers[key])
-        ]
-        initial_layer = next(
-            (layer for layer in switcher_layers if layer.get("available") and layer.get("path")),
-            switcher_layers[0] if switcher_layers else None,
-        )
+    # Round 7 (geospatial-evidence-framework, coffee_brazil_minas_gerais_eudr_compliant bundle):
+    # the "satellite" layer/tab used to be swapped for the interactive Leaflet map here (an
+    # .html artifact, see `_write_esri_leaflet_aoi_map_html`) so the "Area Of Interest" viewer
+    # opened it directly. That made the panel's static-image use case (a plain, always-loads
+    # snapshot) redundant with the interactive map, which remains one click away via the "Image
+    # Downloads" list below. Reverted: the "satellite" tab/viewer is the real static PNG again,
+    # exactly like every other switcher tab.
 
     layer_buttons = _render_layer_buttons(switcher_layers, initial_layer, output_path)
     main_viewer = _render_main_viewer(initial_layer, output_path)
     layer_info = _render_layer_info(initial_layer, output_path)
-    downloads = _render_layer_downloads(switcher_layers, output_path)
+    downloads = _render_layer_downloads(layers, output_path)
 
     data_json_raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     data_json = html.escape(data_json_raw)
@@ -1278,22 +1261,23 @@ def _render_layer_info(layer: Mapping[str, Any] | None, output_path: Path) -> st
     )
 
 
-def _render_layer_downloads(layers: list[Mapping[str, Any]], output_path: Path) -> str:
-    links = []
-    for layer in layers:
-        if not layer.get("available") or not layer.get("path"):
-            continue
-        if _layer_path_status(layer, output_path) == "missing":
-            continue
-        title = html.escape(str(layer.get("title") or layer["path"]))
-        if _is_html_layer_path(layer["path"]):
-            # An interactive map should navigate, not force a "save file" dialog.
-            links.append(f'<a href="{_esc_attr(layer["path"])}" target="_blank" rel="noopener">{title} (interactive map)</a>')
-        else:
-            links.append(f'<a href="{_esc_attr(layer["path"])}" download>{title}</a>')
-    if not links:
-        return '<div class="gap">No downloadable layer images are available.</div>'
-    return f'<div class="download-list">{"".join(links)}</div>'
+def _render_layer_downloads(layers: Mapping[str, Any], output_path: Path) -> str:
+    # Round 7: a single combined interactive map (AOI boundary + JRC 2020 / forest loss /
+    # commodity / intersection as toggle-able overlays, see `_write_esri_leaflet_aoi_map_html`)
+    # replaces what used to be one download link per static evidence-layer PNG - the same PNGs
+    # remain viewable in-page via the Layer Switcher tabs above, so nothing is actually lost, only
+    # de-duplicated.
+    interactive = layers.get("satellite_interactive_map") if isinstance(layers, Mapping) else None
+    if (
+        isinstance(interactive, Mapping)
+        and interactive.get("available")
+        and interactive.get("path")
+        and _layer_path_status(interactive, output_path) != "missing"
+    ):
+        title = html.escape(str(interactive.get("title") or "Evidence layers"))
+        link = f'<a href="{_esc_attr(interactive["path"])}" target="_blank" rel="noopener">{title}</a>'
+        return f'<div class="download-list">{link}</div>'
+    return '<div class="gap">No downloadable layer images are available.</div>'
 
 
 def _render_satellite_evidence(layers: Mapping[str, Any], output_path: Path) -> str:
@@ -2864,13 +2848,14 @@ def _layers(
         ),
         "satellite_interactive_map": _layer(
             "satellite_interactive_map",
-            "AOI satellite context (interactive)",
+            "Evidence layers (interactive map)",
             artifacts.get("aoi_satellite_map") or _missing("aoi_satellite_map_not_materialized"),
             ESRI_WORLDIMAGERY_DATASET_TITLE,
             ESRI_WORLDIMAGERY_DATASET_VERSION,
             "Interactive Leaflet map of this AOI's boundary over an Esri World Imagery satellite "
-            "mosaic; report.html's AOI satellite context viewer links to this in place of a "
-            "static image",
+            "mosaic, with the JRC 2020 baseline, forest loss, commodity, and intersection masks "
+            "as independently toggle-able overlay layers; report.html's Image Downloads list "
+            "links to this single file in place of separate per-layer PNG downloads",
             None,
         ),
         "jrc_forest_2020": _layer(
@@ -3684,10 +3669,16 @@ def _write_esri_leaflet_aoi_map_html(
     aoi_geom_wgs84: Any | None,
     aoi_name: str,
     output_path: Path,
+    overlay_layers: list[tuple[str, Path | Any | None, tuple[int, int, int]]] | None = None,
 ) -> ArtifactRef:
-    """Render a standalone, single-AOI interactive Leaflet map: this AOI's own boundary (only -
-    no sibling-bundle AOI) over an Esri World Imagery tile basemap. Uses the Leaflet CDN build
-    (leaflet.js/leaflet.css from unpkg), the same approach as the framework repo's
+    """Render a standalone interactive Leaflet map: this AOI's own boundary (only - no
+    sibling-bundle AOI) over an Esri World Imagery tile basemap, plus zero or more optional,
+    independently toggle-able overlay layers (round 7: JRC 2020 baseline / forest loss /
+    commodity / intersection masks, so this one file replaces separate per-layer PNG downloads).
+    Each ``overlay_layers`` entry is ``(label, geojson-path-or-shapely-geometry-or-None, rgb)`` -
+    entries with no geometry (unavailable/empty for this AOI) are silently skipped, never
+    rendered as an empty/broken layer. Uses the Leaflet CDN build (leaflet.js/leaflet.css from
+    unpkg), the same approach as the framework repo's
     ``tools/render_two_aoi_geemap_satellite_tiles.py`` reference script - viewing this file later
     requires network access to that CDN, an explicit, documented limitation, not a hidden one."""
     from shapely.geometry import mapping as shapely_mapping
@@ -3706,7 +3697,32 @@ def _write_esri_leaflet_aoi_map_html(
             }
         ],
     }
+
+    overlay_js_blocks = []
+    overlay_map_entries = []
+    for index, (label, source, rgb) in enumerate(overlay_layers or []):
+        geom = _load_layer_geometry(source)
+        if geom is None:
+            continue
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "properties": {}, "geometry": shapely_mapping(geom)}],
+        }
+        css_color = f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})"
+        var_name = f"overlayLayer{index}"
+        overlay_js_blocks.append(
+            f"const {var_name} = L.geoJSON({json.dumps(feature_collection)}, {{\n"
+            f"  style: {{color: {json.dumps(css_color)}, weight: 1.5, fillColor: {json.dumps(css_color)}, fillOpacity: 0.55}}\n"
+            f"}}).addTo(map);"
+        )
+        overlay_map_entries.append(f"{json.dumps(html.escape(label))}: {var_name}")
+
     safe_title = html.escape(aoi_name)
+    layer_control_js = (
+        f"L.control.layers(null, {{{', '.join(overlay_map_entries)}}}, {{collapsed: false}}).addTo(map);"
+        if overlay_map_entries
+        else ""
+    )
     doc = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -3735,6 +3751,8 @@ L.tileLayer({json.dumps(ESRI_WORLDIMAGERY_TILE_URL_TEMPLATE)}, {{
 const aoiLayer = L.geoJSON({json.dumps(aoi_feature_collection)}, {{
   style: {{color: '#ffcc00', weight: 3, dashArray: '6 5', fillColor: '#ffcc00', fillOpacity: 0.18}}
 }}).addTo(map);
+{chr(10).join(overlay_js_blocks)}
+{layer_control_js}
 map.fitBounds(aoiLayer.getBounds(), {{padding: [24, 24]}});
 </script>
 </body>
