@@ -796,6 +796,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
+        "--hansen-treecover2000-raster",
+        default=os.environ.get("EUDR_DMI_HANSEN_TREECOVER2000_RASTER"),
+        help=(
+            "Optional local Hansen treecover2000 raster. When provided (together with "
+            "--hansen-lossyear-raster), computes a second forest baseline "
+            "(treecover2000 >= --hansen-canopy-threshold, the FAO/EUDR Art.2 forest definition) "
+            "alongside the JRC GFC2020 baseline, reported as separate metrics "
+            "(env: EUDR_DMI_HANSEN_TREECOVER2000_RASTER)."
+        ),
+    )
+
+    p.add_argument(
         "--satellite-baseline-raster",
         default=os.environ.get("EUDR_DMI_SATELLITE_BASELINE_RASTER"),
         help=(
@@ -1173,6 +1185,8 @@ def main(argv: list[str] | None = None) -> int:
     forest_metrics_debug_block: dict[str, Any] | None = None
     jrc_analysis = None
     commodity_analysis = None
+    hansen_canopy_analysis = None
+    hansen_canopy_commodity_metrics = None
     if args.enable_hansen_post_2020_loss:
         from eudr_dmi_gil.analysis.forest_loss_post_2020 import run_forest_loss_post_2020
         from eudr_dmi_gil.tasks.forest_loss_post_2020 import load_hansen_config
@@ -1406,6 +1420,90 @@ def main(argv: list[str] | None = None) -> int:
             )
             for name, entry in commodity_analysis.metrics.to_metric_rows().items()
         )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    hansen_treecover_raster_arg = str(args.hansen_treecover2000_raster or "").strip()
+    if hansen_treecover_raster_arg:
+        if geo_kind != "geojson":
+            raise RuntimeError("Hansen canopy baseline calculation requires --aoi-geojson input")
+        if jrc_analysis is None:
+            raise RuntimeError(
+                "--hansen-treecover2000-raster requires --jrc-gfc2020-raster and "
+                "--hansen-lossyear-raster to also be provided"
+            )
+
+        from eudr_dmi_gil.analysis.hansen_canopy_post2020_loss import (
+            compute_hansen_canopy_commodity_overlap,
+            compute_hansen_canopy_post2020_loss,
+        )
+        from eudr_dmi_gil.providers.hansen_treecover2000 import LocalHansenTreecoverProvider
+
+        hansen_treecover_raster_path = Path(hansen_treecover_raster_arg)
+        if not hansen_treecover_raster_path.is_file():
+            raise FileNotFoundError(
+                f"Hansen treecover2000 raster not found: {hansen_treecover_raster_path}"
+            )
+
+        hansen_treecover_provider = LocalHansenTreecoverProvider(
+            hansen_treecover_raster_path,
+            canopy_threshold_percent=args.hansen_canopy_threshold,
+            dataset_version=loss_dataset_version,
+            processed_at_utc=generated_at_utc,
+        )
+        hansen_canopy_output_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "hansen_canopy"
+        with _timed("hansen_canopy_post2020_loss"):
+            hansen_canopy_analysis = compute_hansen_canopy_post2020_loss(
+                aoi_geojson_path=geo_path,
+                hansen_treecover_raster_path=hansen_treecover_raster_path,
+                hansen_lossyear_raster_path=hansen_lossyear_raster_path,
+                output_dir=hansen_canopy_output_dir,
+                baseline_metadata=hansen_treecover_provider.metadata(),
+                loss_metadata=loss_metadata,
+                requested_end_year=jrc_analysis.metrics.requested_end_year,
+                canopy_threshold_percent=args.hansen_canopy_threshold,
+                target_crs=args.analysis_target_crs,
+                target_resolution_m=args.analysis_target_resolution_m,
+            )
+
+        canonical_metric_names = set(hansen_canopy_analysis.metrics.to_metric_rows())
+        metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+        metric_rows.extend(
+            MetricRow(
+                variable=name,
+                value=entry["value"],
+                unit=entry["unit"],
+                source="hansen_treecover2000+hansen_lossyear",
+                notes=str(entry.get("notes", "")),
+            )
+            for name, entry in hansen_canopy_analysis.metrics.to_metric_rows().items()
+        )
+
+        if commodity_config is not None and commodity_analysis is not None:
+            hansen_canopy_commodity_metrics = compute_hansen_canopy_commodity_overlap(
+                config=commodity_config,
+                aoi_geojson_path=geo_path,
+                aoi_country=aoi_country_from_geojson(geo_path),
+                hansen_canopy_result=hansen_canopy_analysis,
+                output_dir=bdir
+                / "reports"
+                / "aoi_report_v2"
+                / aoi_id
+                / "commodity"
+                / commodity_config.id,
+            )
+            if hansen_canopy_commodity_metrics is not None:
+                canonical_metric_names = set(hansen_canopy_commodity_metrics.to_metric_rows())
+                metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+                metric_rows.extend(
+                    MetricRow(
+                        variable=name,
+                        value=entry["value"],
+                        unit=entry["unit"],
+                        source=f"commodity:{commodity_config.provider}+hansen_treecover2000",
+                        notes=str(entry.get("notes", "")),
+                    )
+                    for name, entry in hansen_canopy_commodity_metrics.to_metric_rows().items()
+                )
         metric_rows = sorted(metric_rows, key=lambda r: r.variable)
 
     if maaamet_top10_result is None and geo_kind == "geojson":
@@ -2299,6 +2397,110 @@ def main(argv: list[str] | None = None) -> int:
                 jrc_analysis.debug_path,
             ]
         )
+
+    if hansen_canopy_analysis is not None:
+        report["methodology"]["post_2020_loss_on_hansen10pct_canopy_baseline"] = {
+            "data_sources": ["hansen_treecover2000", "hansen_lossyear"],
+            "calculation": {
+                "method": "deterministic_categorical_raster_intersection",
+                "expression": (
+                    f"AOI AND hansen_treecover2000 >= {args.hansen_canopy_threshold} "
+                    "AND NOT hansen_lossyear in [1,20] AND hansen_lossyear >= 21 "
+                    "AND hansen_lossyear <= effective_end_year - 2000"
+                ),
+                "area_units": "ha",
+                "area_method": "equal_area_projected_pixel_count",
+                "target_crs": hansen_canopy_analysis.grid["target_crs"],
+                "target_resolution_m": hansen_canopy_analysis.grid["target_resolution_m"],
+                "resampling": "nearest",
+                "boundary_rule": hansen_canopy_analysis.grid["boundary_rule"],
+            },
+            "baseline_provider": hansen_canopy_analysis.baseline_metadata.to_dict(),
+            "loss_dataset": hansen_canopy_analysis.loss_metadata.to_dict(),
+            "is_placeholder": False,
+            "notes": (
+                "Second, parallel forest baseline (Hansen treecover2000 >= threshold, the "
+                "FAO/EUDR Art.2 canopy-cover forest definition) reported alongside the "
+                "JRC GFC2020 closed-canopy baseline; the two can disagree on the same AOI."
+            ),
+        }
+        report["computed"]["post_2020_loss_on_hansen10pct_canopy_baseline"] = {
+            key: value["value"]
+            for key, value in hansen_canopy_analysis.metrics.to_metric_rows().items()
+        }
+        report["computed_outputs"]["post_2020_loss_on_hansen10pct_canopy_baseline"] = {
+            "summary_ref": {
+                "relpath": str(hansen_canopy_analysis.summary_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(hansen_canopy_analysis.summary_path),
+                "content_type": "application/json",
+            },
+            "baseline_mask_ref": {
+                "relpath": str(
+                    hansen_canopy_analysis.baseline_mask_path.relative_to(bdir)
+                ).replace("\\", "/"),
+                "sha256": compute_sha256(hansen_canopy_analysis.baseline_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "loss_mask_ref": {
+                "relpath": str(hansen_canopy_analysis.loss_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(hansen_canopy_analysis.loss_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "debug_ref": {
+                "relpath": str(hansen_canopy_analysis.debug_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(hansen_canopy_analysis.debug_path),
+                "content_type": "application/json",
+            },
+        }
+        report["evidence_registry"]["evidence_classes"].extend(
+            [
+                {
+                    "class_id": "hansen10pct_canopy_forest_baseline_2000",
+                    "mandatory": False,
+                    "status": "present",
+                },
+                {
+                    "class_id": "post_2020_loss_on_hansen10pct_canopy_baseline",
+                    "mandatory": False,
+                    "status": "present",
+                },
+            ]
+        )
+        report["extensions"]["hansen_canopy_post2020_loss"] = {
+            "evidence_gaps": hansen_canopy_analysis.evidence_gaps,
+        }
+        report["assumptions"].append(
+            {
+                "assumption_id": "hansen-treecover2000-canopy-baseline-evidence-layer",
+                "description": (
+                    "Hansen treecover2000 >= threshold is used as a second forest baseline "
+                    "evidence layer (the FAO/EUDR Art.2 canopy-cover definition), alongside "
+                    "the JRC GFC2020 closed-canopy baseline; it is not a legal determination."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+        artifact_paths.extend(
+            [
+                hansen_canopy_analysis.summary_path,
+                hansen_canopy_analysis.baseline_mask_path,
+                hansen_canopy_analysis.loss_mask_path,
+                hansen_canopy_analysis.debug_path,
+            ]
+        )
+
+    if hansen_canopy_commodity_metrics is not None:
+        report["computed"]["hansen_canopy_commodity_overlap"] = {
+            key: value["value"]
+            for key, value in hansen_canopy_commodity_metrics.to_metric_rows().items()
+        }
 
     if commodity_analysis is not None:
         report["methodology"]["single_commodity_assessment"] = {

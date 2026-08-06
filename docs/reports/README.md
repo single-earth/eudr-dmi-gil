@@ -110,6 +110,21 @@ python -m eudr_dmi_gil.reports.cli \
   --commodity-config docs/reports/examples/coffee_commodity_config.json
 ```
 
+### Acquiring pinned raster inputs
+
+`--jrc-gfc2020-raster`, `--hansen-lossyear-raster`, and any commodity `local_path` raster must be
+real Google Earth Engine downloads clipped to the AOI, never hand-built or synthetic fixtures — a
+report's evidence is only as good as its inputs, and a fabricated raster silently produces a
+fabricated verdict. Acquire them with a small `tmp/acquire_<aoi>_inputs.py` script following the
+existing pattern in `tmp/acquire_brazil_compliant_inputs.py`, `tmp/acquire_brazil_coffee_inputs.py`,
+and `tmp/acquire_ghana_baseline_inputs.py`: `ee.Image(asset_id).select([band]).clip(geometry)`,
+downloaded via `getDownloadURL(...)`, with an `.acquisition_metadata.json` sidecar recording the
+asset id, band, scale, projection, access timestamp, and output sha256. A quick sanity check that
+catches fabricated inputs before they reach a report: independently acquired bands at different
+native resolutions (e.g. JRC at 10 m vs Hansen/MapBiomas at 30 m) must have different pixel grids
+over the same AOI — identical grids across bands acquired at different scales means the file was
+not actually downloaded from the asset it claims to be.
+
 ## Canonical report schema and artifacts
 
 Schema:

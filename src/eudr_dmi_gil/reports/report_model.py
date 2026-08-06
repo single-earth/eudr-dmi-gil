@@ -2734,6 +2734,19 @@ def _assessment(*, metrics: Mapping[str, Any], evidence_gaps: list[dict[str, Any
         if human_review
         else "No post-2020 forest loss on the JRC 2020 baseline was detected by the configured evidence."
     )
+    hansen_overlap_entry = metrics.get(
+        "forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_ha"
+    )
+    hansen_overlap = hansen_overlap_entry["value"] if isinstance(hansen_overlap_entry, Mapping) else None
+    if isinstance(hansen_overlap, (int, float)) and hansen_overlap > 0:
+        human_review = True
+        status = "human_review_required"
+        summary += (
+            f" Under a broader tree-canopy (>=10%) forest baseline (the FAO/EUDR Art.2 forest "
+            f"definition), {hansen_overlap:,.2f} ha of post-2020 forest loss overlaps the "
+            "configured commodity layer, even though the stricter JRC closed-canopy baseline "
+            "shows no such overlap; both baselines are reported, not reconciled into one figure."
+        )
     return {
         "status": status,
         "human_review_required": human_review,
@@ -2756,7 +2769,11 @@ def _collect_evidence_gaps(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     gaps: list[dict[str, Any]] = []
     extensions = report.get("extensions", {})
     if isinstance(extensions, Mapping):
-        for key in ["post_2020_loss_on_2020_forest", "commodity_assessment"]:
+        for key in [
+            "post_2020_loss_on_2020_forest",
+            "commodity_assessment",
+            "hansen_canopy_post2020_loss",
+        ]:
             block = extensions.get(key)
             if isinstance(block, Mapping):
                 for gap in block.get("evidence_gaps") or []:

@@ -21,12 +21,17 @@ import pytest
 
 from eudr_dmi_gil.reports.validate import validate_aoi_report_file
 
+# "intersection" is deliberately excluded: against the real pinned Hansen/JRC/MapBiomas rasters
+# this AOI has post-2020 forest loss that does not overlap the coffee commodity layer
+# (post_2020_loss_and_commodity_overlap_ha == 0.0), so evidence/05_intersection.png is genuinely
+# absent -- see scripts/run_brazil_coffee_report_clean.sh's verify_zero_loss_commodity_overlap step
+# and the sibling run_brazil_coffee_eudr_compliant_report_clean.sh, which documents the same
+# "absent when there is no overlap geometry" behavior for its own zero-loss case.
 REQUIRED_CANONICAL_LAYERS = [
     "satellite",
     "jrc_forest_2020",
     "forest_loss",
     "commodity",
-    "intersection",
     "before_after",
     "regional_overview",
     "cover_hero",
@@ -42,7 +47,6 @@ REQUIRED_DETERMINISTIC_ARTIFACTS_PAGE_FILES = [
     "evidence/01_aoi_satellite.png",
     "evidence/02_jrc_forest_2020.png",
     "evidence/04_commodity_layer.png",
-    "evidence/05_intersection.png",
     "evidence/06_before_after.png",
     "evidence/legend.png",
 ]
@@ -109,8 +113,9 @@ def brazil_bundle_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     for required in [
         AOI_PATH,
         COMMODITY_CONFIG,
-        INPUTS_DIR / "jrc_gfc2020_fixture.tif",
-        INPUTS_DIR / "hansen_lossyear_fixture.tif",
+        INPUTS_DIR / "jrc_gfc2020_v3.tif",
+        INPUTS_DIR / "hansen_lossyear_2025_v1_13.tif",
+        INPUTS_DIR / "hansen_treecover2000_2025_v1_13.tif",
         INPUTS_DIR / "sentinel2_baseline_2020.tif",
         INPUTS_DIR / "sentinel2_recent_2025.tif",
         INPUTS_DIR / "sentinel2_regional_overview.tif",
@@ -143,9 +148,11 @@ def brazil_bundle_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "--out-format",
         "both",
         "--jrc-gfc2020-raster",
-        str(INPUTS_DIR / "jrc_gfc2020_fixture.tif"),
+        str(INPUTS_DIR / "jrc_gfc2020_v3.tif"),
         "--hansen-lossyear-raster",
-        str(INPUTS_DIR / "hansen_lossyear_fixture.tif"),
+        str(INPUTS_DIR / "hansen_lossyear_2025_v1_13.tif"),
+        "--hansen-treecover2000-raster",
+        str(INPUTS_DIR / "hansen_treecover2000_2025_v1_13.tif"),
         "--commodity",
         "coffee",
         "--commodity-config",
@@ -245,6 +252,46 @@ def test_brazil_required_canonical_layers_are_all_available(brazil_bundle_dir: P
         path = layer.get("path")
         assert path, f"required layer {key} has no path"
         assert (canonical_dir / path).is_file(), f"required layer {key} artifact missing on disk: {path}"
+
+    intersection = layers.get("intersection")
+    assert intersection is not None, "intersection layer key missing from report.json layers"
+    assert intersection.get("available") is False, (
+        f"expected intersection layer unavailable (real data has zero loss/commodity overlap "
+        f"for this AOI), got: {intersection}"
+    )
+    assert intersection.get("path") is None, f"expected no intersection layer path, got: {intersection}"
+
+
+def test_brazil_dual_baseline_loss_commodity_overlap(brazil_bundle_dir: Path) -> None:
+    """Pins this AOI's real, corrected evidentiary finding: the JRC closed-canopy baseline shows
+    zero loss/commodity overlap, but the Hansen tree-canopy>=10% baseline (the FAO/EUDR Art.2
+    forest definition) shows real, majority-overlapping post-2020 forest-to-coffee conversion.
+    Regression-guards the fabricated-fixture defect and the JRC-only-baseline blind spot both
+    being fixed at once (see scripts/run_brazil_coffee_report_clean.sh's own equivalent check)."""
+    canonical_dir = brazil_bundle_dir / "reports" / "aoi_report_v2" / AOI_ID
+    report = json.loads((canonical_dir / "report.json").read_text(encoding="utf-8"))
+    metrics = report["metrics"]
+
+    jrc_loss = metrics["forest_loss_post_2020_on_baseline_ha"]["value"]
+    jrc_overlap = metrics["post_2020_loss_and_commodity_overlap_ha"]["value"]
+    hansen_loss = metrics["forest_loss_post_2020_on_hansen10pct_baseline_ha"]["value"]
+    hansen_overlap = metrics[
+        "forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_ha"
+    ]["value"]
+
+    assert jrc_loss > 0.0
+    assert jrc_overlap == 0.0
+    assert hansen_loss > 0.0
+    assert hansen_overlap > 0.0
+    assert hansen_overlap > jrc_loss, (
+        "Hansen-canopy-baseline loss/commodity overlap should be a real, substantial signal, "
+        "not a rounding artifact"
+    )
+
+    summary = report["assessment"]["summary"]
+    assert "tree-canopy" in summary.lower() or "canopy" in summary.lower(), (
+        f"assessment summary should surface the Hansen-canopy-baseline finding, got: {summary!r}"
+    )
 
 
 def test_brazil_metrics_agree_between_json_and_csv(brazil_bundle_dir: Path) -> None:
