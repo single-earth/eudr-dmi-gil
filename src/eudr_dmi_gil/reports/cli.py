@@ -2501,6 +2501,7 @@ def main(argv: list[str] | None = None) -> int:
             key: value["value"]
             for key, value in hansen_canopy_commodity_metrics.to_metric_rows().items()
         }
+        artifact_paths.append(hansen_canopy_commodity_metrics.overlap_mask_path)
 
     if commodity_analysis is not None:
         report["methodology"]["single_commodity_assessment"] = {

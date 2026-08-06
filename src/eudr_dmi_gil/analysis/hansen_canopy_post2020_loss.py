@@ -281,6 +281,7 @@ class HansenCanopyCommodityOverlapMetrics:
     forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_ha: float | None
     forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_percent_of_aoi: float | None
     forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_percent_of_loss: float | None
+    overlap_mask_path: Path
 
     def to_metric_rows(self) -> dict[str, dict[str, Any]]:
         return {
@@ -376,6 +377,7 @@ def compute_hansen_canopy_commodity_overlap(
         forest_loss_post_2020_and_commodity_overlap_hansen10pct_baseline_percent_of_loss=_percent(
             overlap_area, loss_area
         ),
+        overlap_mask_path=overlap_mask_path,
     )
 
 
