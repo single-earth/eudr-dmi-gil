@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import rasterio
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src"
 sys.path.insert(0, str(SRC_ROOT))
@@ -42,6 +45,33 @@ def download(url: str, out_path: Path) -> None:
         out_path.write_bytes(response.read())
 
 
+def validate_visual_raster_coverage(path: Path, *, min_valid_percent: float = 98.0) -> dict[str, Any]:
+    """Reject visual-context rasters with large nodata/black export gaps."""
+    with rasterio.open(path) as ds:
+        mask = ds.dataset_mask()
+        valid_pixels = int(np.count_nonzero(mask))
+        total_pixels = int(mask.size)
+        valid_percent = (valid_pixels / total_pixels * 100.0) if total_pixels else 0.0
+        left_mask = mask[:, : mask.shape[1] // 2]
+        left_valid_percent = (
+            float(np.count_nonzero(left_mask)) / float(left_mask.size) * 100.0
+            if left_mask.size
+            else 0.0
+        )
+    if valid_percent < min_valid_percent or left_valid_percent < min_valid_percent:
+        raise ValueError(
+            f"Visual raster {path} has insufficient valid coverage: "
+            f"overall={valid_percent:.2f}% left_half={left_valid_percent:.2f}%"
+        )
+    return {
+        "valid_pixels": valid_pixels,
+        "total_pixels": total_pixels,
+        "valid_percent": round(valid_percent, 6),
+        "left_half_valid_percent": round(left_valid_percent, 6),
+        "coverage_gate_min_valid_percent": min_valid_percent,
+    }
+
+
 def acquire_image(
     *,
     image: ee.Image,
@@ -58,6 +88,9 @@ def acquire_image(
     )
     out_path = OUT_DIR / out_name
     download(url, out_path)
+    coverage: dict[str, Any] | None = None
+    if role.startswith("sentinel2_visual_context"):
+        coverage = validate_visual_raster_coverage(out_path)
     metadata = {
         "dataset_id": dataset_id,
         "dataset_version": dataset_version,
@@ -73,6 +106,8 @@ def acquire_image(
         "output_size_bytes": out_path.stat().st_size,
         "output_sha256": sha256_file(out_path),
     }
+    if coverage:
+        metadata["visual_raster_coverage"] = coverage
     write_json(OUT_DIR / f"{out_name}.acquisition_metadata.json", metadata)
     print(f"Wrote {out_path} ({metadata['output_size_bytes']} bytes)")
     return metadata
@@ -107,7 +142,7 @@ def s2_best_and_diagnostics(year: int) -> tuple[ee.Image, dict[str, Any]]:
     col = s2_season(year)
     masked = col.map(mask_s2_sr)
     sorted_first = col.sort("CLOUDY_PIXEL_PERCENTAGE").first()
-    best = ee.Image(mask_s2_sr(ee.Image(sorted_first))).clip(export_region)
+    composite = masked.median().clip(export_region)
     valid_obs = masked.select("B4").count().rename("valid_obs").clip(geometry)
     diagnostics = ee.Dictionary(
         {
@@ -130,7 +165,7 @@ def s2_best_and_diagnostics(year: int) -> tuple[ee.Image, dict[str, Any]]:
             ).get("valid_obs"),
         }
     ).getInfo()
-    visual = best.visualize(bands=["B4", "B3", "B2"], min=0.0, max=0.3)
+    visual = composite.visualize(bands=["B4", "B3", "B2"], min=0.0, max=0.3)
     return visual, diagnostics
 
 
