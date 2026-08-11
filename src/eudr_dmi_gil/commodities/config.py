@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,9 @@ class CommodityConfig:
     asset_id: str
     observation_year: int
     country_scope: tuple[str, ...]
+    baseline_observation_year: int | None = None
+    baseline_local_path: str | None = None
+    baseline_asset_id: str | None = None
     mode: str = MODE_DISCRETE_CLASSES
     class_values: tuple[int, ...] = ()
     class_labels: tuple[str, ...] = ()
@@ -32,6 +35,7 @@ class CommodityConfig:
     optional: bool = True
     local_path: str | None = None
     source_url: str | None = None
+    companion_sources: tuple[CommodityConfig, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -39,27 +43,37 @@ class CommodityConfig:
         out["class_labels"] = list(self.class_labels)
         out["country_scope"] = list(self.country_scope)
         out["sensitivity_thresholds"] = list(self.sensitivity_thresholds)
+        out["companion_sources"] = [source.to_dict() for source in self.companion_sources]
         return out
 
     @property
     def raster_source(self) -> str:
         return self.local_path or self.asset_id
 
+    @property
+    def baseline_raster_source(self) -> str | None:
+        return self.baseline_local_path or self.baseline_asset_id
+
 
 def load_commodity_config(path: str | Path) -> CommodityConfig:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    companion_sources: tuple[CommodityConfig, ...] = ()
     if "commodities" in payload:
         commodities = payload.get("commodities")
-        if isinstance(commodities, list) and len(commodities) != 1:
-            raise ValueError(
-                "Commodity config must contain exactly one commodity; multi-commodity mode is not implemented"
-            )
         if isinstance(commodities, list) and commodities:
+            companion_sources = tuple(
+                _commodity_config_from_mapping(item)
+                for item in commodities[1:]
+                if isinstance(item, dict)
+            )
             payload = {"commodity": commodities[0]}
     raw = payload.get("commodity", payload)
     if not isinstance(raw, dict):
         raise ValueError("Commodity config must be an object")
-    return _commodity_config_from_mapping(raw)
+    config = _commodity_config_from_mapping(raw)
+    if companion_sources:
+        config = replace(config, companion_sources=companion_sources)
+    return config
 
 
 def resolve_commodity_config(
@@ -131,6 +145,13 @@ def _commodity_config_from_mapping(raw: dict[str, Any]) -> CommodityConfig:
     observation_year = int(raw["observation_year"])
     if observation_year < 1900:
         raise ValueError("Commodity observation_year must be >= 1900")
+    baseline_observation_year = (
+        int(raw["baseline_observation_year"])
+        if raw.get("baseline_observation_year") is not None
+        else None
+    )
+    if baseline_observation_year is not None and baseline_observation_year < 1900:
+        raise ValueError("Commodity baseline_observation_year must be >= 1900")
 
     return CommodityConfig(
         id=commodity_id,
@@ -141,6 +162,12 @@ def _commodity_config_from_mapping(raw: dict[str, Any]) -> CommodityConfig:
         asset_id=str(raw.get("asset_id") or raw.get("source") or "").strip(),
         observation_year=observation_year,
         country_scope=country_scope,
+        baseline_observation_year=baseline_observation_year,
+        baseline_local_path=str(raw.get("baseline_local_path")).strip()
+        if raw.get("baseline_local_path")
+        else None,
+        baseline_asset_id=str(raw.get("baseline_asset_id") or raw.get("baseline_source") or "").strip()
+        or None,
         mode=mode,
         class_values=class_values,
         class_labels=class_labels,

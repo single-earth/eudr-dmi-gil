@@ -166,6 +166,7 @@ def canonical_report_from_aoi_report_v2(
     run_id = str(report.get("bundle_id", "unknown"))
     generated_utc = str(report.get("generated_at_utc", ""))
     metrics = _canonical_metrics(report.get("metrics", {}))
+    metrics.update(_interactive_overlay_availability_metrics(generated_artifacts))
     temporal_scope = _temporal_scope(report)
     evidence_gaps = _collect_evidence_gaps(report) + _artifact_evidence_gaps(generated_artifacts)
     layers = _layers(report, generated_artifacts, temporal_scope)
@@ -384,6 +385,34 @@ def materialize_evidence_pngs(
         if commodity_loss_overlap_ref and (bundle_root / commodity_loss_overlap_ref).is_file()
         else None
     )
+    new_fdp_ref = _ref_relpath(commodity_outputs, "fdp_new_commodity_since_baseline_mask_ref")
+    new_fdp_path = (
+        bundle_root / new_fdp_ref if new_fdp_ref and (bundle_root / new_fdp_ref).is_file() else None
+    )
+    new_mapbiomas_ref = _ref_relpath(
+        commodity_outputs, "mapbiomas_new_commodity_since_baseline_mask_ref"
+    )
+    new_mapbiomas_path = (
+        bundle_root / new_mapbiomas_ref
+        if new_mapbiomas_ref and (bundle_root / new_mapbiomas_ref).is_file()
+        else None
+    )
+    source_conversion_ref = _ref_relpath(
+        commodity_outputs, "post_2020_loss_and_source_specific_new_commodity_mask_ref"
+    )
+    source_conversion_path = (
+        bundle_root / source_conversion_ref
+        if source_conversion_ref and (bundle_root / source_conversion_ref).is_file()
+        else None
+    )
+    agreement_conversion_ref = _ref_relpath(
+        commodity_outputs, "post_2020_loss_and_both_source_agreement_new_commodity_mask_ref"
+    )
+    agreement_conversion_path = (
+        bundle_root / agreement_conversion_ref
+        if agreement_conversion_ref and (bundle_root / agreement_conversion_ref).is_file()
+        else None
+    )
 
     baseline_ref = _ref_relpath(jrc_outputs, "baseline_mask_ref")
     baseline_mask_path = (
@@ -474,6 +503,43 @@ def materialize_evidence_pngs(
         aoi_geom_wgs84=aoi_geom_wgs84,
     )
 
+    artifacts["fdp_new_commodity"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=new_fdp_ref,
+        output_path=evidence_dir / "09_fdp_new_commodity_since_baseline.png",
+        color=(0, 132, 124, 220),
+        unavailable_reason="fdp_new_commodity_layer_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["mapbiomas_new_commodity"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=new_mapbiomas_ref,
+        output_path=evidence_dir / "10_mapbiomas_new_commodity_since_baseline.png",
+        color=(30, 136, 229, 220),
+        unavailable_reason="mapbiomas_new_commodity_layer_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["source_specific_conversion"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=source_conversion_ref,
+        output_path=evidence_dir / "11_source_specific_conversion.png",
+        color=(245, 124, 0, 230),
+        unavailable_reason="source_specific_conversion_layer_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["both_source_agreement_conversion"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=agreement_conversion_ref,
+        output_path=evidence_dir / "12_both_source_agreement_conversion.png",
+        color=(106, 27, 154, 230),
+        unavailable_reason="both_source_agreement_conversion_layer_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+
     # A standalone interactive Leaflet map: this AOI's own boundary over an Esri World Imagery
     # basemap, with the same JRC 2020 baseline / forest loss / commodity / intersection masks the
     # static evidence PNGs above draw, exposed here as independently toggle-able overlay layers
@@ -488,8 +554,12 @@ def materialize_evidence_pngs(
         overlay_layers=[
             ("JRC Global Forest Cover 2020", baseline_mask_path, (33, 122, 72)),
             (f"Forest loss 2021-{effective_end_year}", loss_mask_path, (198, 40, 40)),
+            ("New FDP coffee after baseline", new_fdp_path, (0, 132, 124)),
+            ("New MapBiomas coffee after baseline", new_mapbiomas_path, (30, 136, 229)),
+            ("Source-specific conversion", source_conversion_path, (245, 124, 0)),
+            ("Both-source agreement conversion", agreement_conversion_path, (106, 27, 154)),
             ("Commodity layer", commodity_mask_path, _COMMODITY_OVERLAY_COLOR[:3]),
-            ("Intersection", commodity_loss_overlap_path, _COMMODITY_LOSS_OVERLAY_COLOR[:3]),
+            ("Loss and commodity intersection", commodity_loss_overlap_path, _COMMODITY_LOSS_OVERLAY_COLOR[:3]),
         ],
     )
 
@@ -576,6 +646,10 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         "satellite",
         "jrc_forest_2020",
         "forest_loss",
+        "fdp_new_commodity",
+        "mapbiomas_new_commodity",
+        "source_specific_conversion",
+        "both_source_agreement_conversion",
         "commodity",
         "intersection",
     ]
@@ -610,6 +684,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     main_viewer = _render_main_viewer(initial_layer, output_path)
     layer_info = _render_layer_info(initial_layer, output_path)
     downloads = _render_layer_downloads(layers, output_path)
+    layer_legend = _render_report_layer_legend(layers, output_path)
 
     data_json_raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     data_json = html.escape(data_json_raw)
@@ -620,6 +695,13 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     gap_rows = _render_gap_rows(payload.get("evidence_gaps") or [])
     artifact_rows = _render_artifact_rows(payload.get("artifacts") or {})
     reference_rows = _render_reference_rows(payload.get("references") or [])
+    two_situations_section = _render_two_situations_section(
+        metrics,
+        commodity,
+        temporal,
+        evidence_period,
+    )
+    sentinel_diagnostics_section = _render_sentinel_diagnostics_section(metrics)
 
     json_href = _artifact_href(payload, "report.json") or "report.json"
     pdf_href = _artifact_href(payload, "report.pdf") or "report.pdf"
@@ -758,6 +840,10 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .loss {{ background: #c62828; }}
     .commodity-swatch {{ background: #1e88e5; }}
     .intersection-swatch {{ background: #662d91; }}
+    .fdp-new-swatch {{ background: #00847c; }}
+    .mapbiomas-new-swatch {{ background: #1e88e5; }}
+    .source-conversion-swatch {{ background: #f57c00; }}
+    .agreement-conversion-swatch {{ background: #6a1b9a; }}
     .detail-list {{ border-top: 1px solid var(--line); }}
     .detail {{ display: grid; grid-template-columns: 142px minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 13px; }}
     .detail-key {{ color: var(--muted); }}
@@ -805,6 +891,13 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .quality {{ border-top: 1px solid var(--line); }}
     .quality-row {{ display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 13px; }}
     .quality-row span:first-child {{ color: var(--muted); }}
+    .situation-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }}
+    .situation-list {{ display: grid; gap: 12px; }}
+    .situation-row {{ display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }}
+    .situation-row:last-child {{ border-bottom: 0; }}
+    .situation-name {{ font-weight: 680; }}
+    .situation-note {{ margin-top: 3px; color: var(--muted); font-size: 12px; }}
+    .situation-value {{ font-weight: 780; white-space: nowrap; }}
     .appendix {{ margin-top: 70px; border-top: 1px solid var(--line); padding-top: 28px; }}
     details {{ border-bottom: 1px solid var(--line); }}
     summary {{ cursor: pointer; padding: 16px 0; font-weight: 700; }}
@@ -821,6 +914,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .artifact-links a {{ overflow-wrap: anywhere; }}
     @media (max-width: 1100px) {{
       .hero, .two-col, .three-col, .footer-grid {{ grid-template-columns: 1fr; }}
+      .situation-grid {{ grid-template-columns: 1fr; }}
       .metrics {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
     }}
     @media (max-width: 760px) {{
@@ -898,10 +992,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
           {main_viewer}
         </div>
         <div class="legend" aria-label="Map legend">
-          <span><i class="swatch forest"></i>JRC forest baseline</span>
-          <span><i class="swatch loss"></i>Forest loss</span>
-          <span><i class="swatch commodity-swatch"></i>Commodity layer</span>
-          <span><i class="swatch intersection-swatch"></i>Intersection</span>
+          {layer_legend}
         </div>
       </div>
       <aside>
@@ -964,6 +1055,9 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         </div>
       </article>
     </section>
+
+    {two_situations_section}
+    {sentinel_diagnostics_section}
 
     <section class="section two-col">
       <div>
@@ -1294,6 +1388,153 @@ def _render_satellite_evidence(layers: Mapping[str, Any], output_path: Path) -> 
         f'<img src="{_esc_attr(before_after["path"])}" alt="{_esc_attr(before_after.get("title") or "Before/after evidence")}">'
         f'<figcaption>{html.escape(str(before_after.get("title") or "Before/after evidence"))}</figcaption>'
         '</figure></div>'
+    )
+
+
+def _layer_is_rendered(layers: Mapping[str, Any], key: str, output_path: Path) -> bool:
+    layer = layers.get(key)
+    return bool(
+        isinstance(layer, Mapping)
+        and layer.get("available")
+        and layer.get("path")
+        and _layer_path_status(layer, output_path) != "missing"
+    )
+
+
+def _render_report_layer_legend(layers: Mapping[str, Any], output_path: Path) -> str:
+    specs = [
+        ("jrc_forest_2020", "forest", "JRC forest baseline"),
+        ("forest_loss", "loss", "Forest loss"),
+        ("fdp_new_commodity", "fdp-new-swatch", "New FDP coffee"),
+        ("mapbiomas_new_commodity", "mapbiomas-new-swatch", "New MapBiomas coffee"),
+        ("source_specific_conversion", "source-conversion-swatch", "Source-specific conversion"),
+        (
+            "both_source_agreement_conversion",
+            "agreement-conversion-swatch",
+            "Both-source agreement conversion",
+        ),
+        ("commodity", "commodity-swatch", "Commodity layer"),
+        ("intersection", "intersection-swatch", "Loss and commodity intersection"),
+    ]
+    rows = [
+        f'<span><i class="swatch {css_class}"></i>{html.escape(label)}</span>'
+        for key, css_class, label in specs
+        if _layer_is_rendered(layers, key, output_path)
+    ]
+    return "".join(rows) or "<span>No rendered overlay layers</span>"
+
+
+def _render_two_situations_section(
+    metrics: Mapping[str, Any],
+    commodity: Mapping[str, Any],
+    temporal: Mapping[str, Any],
+    evidence_period: str,
+) -> str:
+    baseline_year = _metric_value(metrics, "commodity_baseline_observation_year") or 2020
+    latest_year = commodity.get("observation_year") or _metric_value(metrics, "commodity_observation_year")
+    commodity_name = _display_value(commodity.get("display_name") or commodity.get("id"))
+
+    baseline_rows = [
+        _situation_row(
+            "JRC forest baseline",
+            f"Forest evidence at the {temporal['cutoff_date']} cutoff",
+            _fmt_metric(metrics, "forest_baseline_2020_ha"),
+        ),
+        _situation_row(
+            f"{commodity_name} baseline by primary source",
+            f"Configured commodity evidence for {baseline_year}",
+            _fmt_metric(metrics, "baseline_forest_and_commodity_overlap_ha"),
+        ),
+        _situation_row(
+            "FDP new-coffee baseline denominator",
+            "Only rendered when both FDP years are configured",
+            _fmt_metric(metrics, "fdp_new_commodity_since_baseline_ha"),
+        ),
+        _situation_row(
+            "MapBiomas new-coffee baseline denominator",
+            "Only rendered when both MapBiomas years are configured",
+            _fmt_metric(metrics, "mapbiomas_new_commodity_since_baseline_ha"),
+        ),
+    ]
+    change_rows = [
+        _situation_row(
+            "JRC/Hansen forest loss",
+            f"Loss inside JRC baseline during {evidence_period}",
+            _fmt_metric(metrics, "forest_loss_post_2020_on_baseline_ha"),
+        ),
+        _situation_row(
+            f"New {commodity_name.lower()} after baseline",
+            f"Latest commodity evidence ({_display_value(latest_year)}) minus {baseline_year}",
+            _fmt_metric(metrics, "new_commodity_since_baseline_ha"),
+        ),
+        _situation_row(
+            "Loss and new commodity",
+            "Strict conversion-screening signal",
+            _fmt_metric(metrics, "post_2020_loss_and_new_commodity_overlap_ha"),
+        ),
+        _situation_row(
+            "Both-source agreement conversion",
+            "Loss intersecting new commodity where FDP and MapBiomas agree",
+            _fmt_metric(metrics, "post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha"),
+        ),
+    ]
+    return f"""
+    <section class="section">
+      <h2 class="section-title">Two Situations</h2>
+      <div class="situation-grid">
+        <article class="panel layer-meta">
+          <h3>Baseline {html.escape(str(baseline_year))}</h3>
+          <div class="situation-list">{''.join(baseline_rows)}</div>
+        </article>
+        <article class="panel layer-meta">
+          <h3>Change {html.escape(evidence_period)}</h3>
+          <div class="situation-list">{''.join(change_rows)}</div>
+        </article>
+      </div>
+    </section>
+"""
+
+
+def _situation_row(name: str, note: str, value: str) -> str:
+    return (
+        '<div class="situation-row">'
+        f'<div><div class="situation-name">{html.escape(name)}</div>'
+        f'<div class="situation-note">{html.escape(note)}</div></div>'
+        f'<div class="situation-value">{html.escape(value)}</div>'
+        '</div>'
+    )
+
+
+def _render_sentinel_diagnostics_section(metrics: Mapping[str, Any]) -> str:
+    rows = []
+    years = sorted(
+        {
+            key.split("_")[1]
+            for key in metrics
+            if key.startswith("s2_") and key.endswith("_scene_count")
+        }
+    )
+    for year in years:
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(year)}</td>"
+            f"<td>{html.escape(_fmt_metric(metrics, f's2_{year}_scene_count'))}</td>"
+            f"<td>{html.escape(_display_value(_metric_value(metrics, f's2_{year}_least_cloudy_scene_date')))}</td>"
+            f"<td>{html.escape(_fmt_metric(metrics, f's2_{year}_least_cloudy_scene_cloud_pct'))}</td>"
+            f"<td>{html.escape(_fmt_metric(metrics, f's2_{year}_mean_valid_obs_per_pixel'))}</td>"
+            f"<td>{html.escape(_fmt_metric(metrics, f's2_{year}_min_valid_obs_per_pixel'))}</td>"
+            "</tr>"
+        )
+    if not rows:
+        return ""
+    return (
+        '<section class="section">'
+        '<h2 class="section-title">Sentinel-2 Scene Depth</h2>'
+        '<div class="panel layer-meta">'
+        '<table><thead><tr><th>Year</th><th>Scene count</th><th>Least-cloudy date</th>'
+        '<th>Cloud %</th><th>Mean valid obs</th><th>Min valid obs</th></tr></thead>'
+        f"<tbody>{''.join(rows)}</tbody></table>"
+        '</div></section>'
     )
 
 
@@ -2590,6 +2831,34 @@ def _canonical_metrics(raw: Any) -> dict[str, Any]:
     return out
 
 
+def _interactive_overlay_availability_metrics(
+    artifacts: Mapping[str, ArtifactRef],
+) -> dict[str, dict[str, Any]]:
+    overlay_artifacts = [
+        "jrc_forest_2020",
+        "forest_loss",
+        "fdp_new_commodity",
+        "mapbiomas_new_commodity",
+        "source_specific_conversion",
+        "both_source_agreement_conversion",
+    ]
+    rows: dict[str, dict[str, Any]] = {}
+    for artifact_id in overlay_artifacts:
+        artifact = artifacts.get(artifact_id)
+        available = bool(artifact and artifact.available and artifact.path)
+        rows[f"interactive_overlay_{artifact_id}_available"] = {
+            "value": available,
+            "unit": "boolean",
+            "description": (
+                "Whether this optional overlay was rendered into the interactive AOI map; "
+                "false records a per-AOI empty/unavailable-layer omission."
+            ),
+            "provenance": "generated_artifacts",
+            "availability_status": artifact.availability_status if artifact else "not_materialized",
+        }
+    return rows
+
+
 def _temporal_scope(report: Mapping[str, Any]) -> dict[str, Any]:
     params = report.get("parameters", {})
     assessment = params.get("assessment_end_year", {}) if isinstance(params, Mapping) else {}
@@ -2910,6 +3179,45 @@ def _layers(
             "derived_intersection",
             SCHEMA_VERSION,
             "Intersection evidence used for review prioritization",
+            str(temporal_scope["effective_end_year"]),
+        ),
+        "fdp_new_commodity": _layer(
+            "fdp_new_commodity",
+            "New FDP coffee after baseline",
+            artifacts.get("fdp_new_commodity") or _missing("fdp_new_commodity_not_materialized"),
+            "derived_fdp_commodity_change",
+            SCHEMA_VERSION,
+            "FDP latest commodity evidence minus baseline-year FDP commodity evidence",
+            str(commodity.get("observation_year") or "") or None,
+        ),
+        "mapbiomas_new_commodity": _layer(
+            "mapbiomas_new_commodity",
+            "New MapBiomas coffee after baseline",
+            artifacts.get("mapbiomas_new_commodity")
+            or _missing("mapbiomas_new_commodity_not_materialized"),
+            "derived_mapbiomas_commodity_change",
+            SCHEMA_VERSION,
+            "MapBiomas latest commodity evidence minus baseline-year MapBiomas commodity evidence",
+            str(commodity.get("observation_year") or "") or None,
+        ),
+        "source_specific_conversion": _layer(
+            "source_specific_conversion",
+            "Source-specific conversion",
+            artifacts.get("source_specific_conversion")
+            or _missing("source_specific_conversion_not_materialized"),
+            "derived_source_specific_conversion",
+            SCHEMA_VERSION,
+            "Post-2020 baseline forest loss intersected with FDP-only or MapBiomas-only new commodity",
+            str(temporal_scope["effective_end_year"]),
+        ),
+        "both_source_agreement_conversion": _layer(
+            "both_source_agreement_conversion",
+            "Both-source agreement conversion",
+            artifacts.get("both_source_agreement_conversion")
+            or _missing("both_source_agreement_conversion_not_materialized"),
+            "derived_both_source_agreement_conversion",
+            SCHEMA_VERSION,
+            "Post-2020 baseline forest loss intersected with new commodity where FDP and MapBiomas agree",
             str(temporal_scope["effective_end_year"]),
         ),
         "before_after": _layer(
@@ -3689,11 +3997,11 @@ def _write_esri_leaflet_aoi_map_html(
     overlay_layers: list[tuple[str, Path | Any | None, tuple[int, int, int]]] | None = None,
 ) -> ArtifactRef:
     """Render a standalone interactive Leaflet map: this AOI's own boundary (only - no
-    sibling-bundle AOI) over an Esri World Imagery tile basemap, plus zero or more optional,
+    sibling-bundle AOI) over Esri World Imagery and OpenStreetMap tile basemaps, plus zero or more optional,
     independently toggle-able overlay layers (round 7: JRC 2020 baseline / forest loss /
     commodity / intersection masks, so this one file replaces separate per-layer PNG downloads).
     Each ``overlay_layers`` entry is ``(label, geojson-path-or-shapely-geometry-or-None, rgb)`` -
-    entries with no geometry (unavailable/empty for this AOI) are silently skipped, never
+    entries with no geometry (unavailable/empty for this AOI) are skipped and listed in-map, never
     rendered as an empty/broken layer. Uses the Leaflet CDN build (leaflet.js/leaflet.css from
     unpkg), the same approach as the framework repo's
     ``tools/render_two_aoi_geemap_satellite_tiles.py`` reference script - viewing this file later
@@ -3717,9 +4025,11 @@ def _write_esri_leaflet_aoi_map_html(
 
     overlay_js_blocks = []
     overlay_map_entries = []
+    omitted_overlay_labels = []
     for index, (label, source, rgb) in enumerate(overlay_layers or []):
         geom = _load_layer_geometry(source)
         if geom is None:
+            omitted_overlay_labels.append(label)
             continue
         feature_collection = {
             "type": "FeatureCollection",
@@ -3732,12 +4042,20 @@ def _write_esri_leaflet_aoi_map_html(
             f"  style: {{color: {json.dumps(css_color)}, weight: 1.5, fillColor: {json.dumps(css_color)}, fillOpacity: 0.55}}\n"
             f"}}).addTo(map);"
         )
-        overlay_map_entries.append(f"{json.dumps(html.escape(label))}: {var_name}")
+        overlay_map_entries.append(f"{json.dumps(label)}: {var_name}")
 
     safe_title = html.escape(aoi_name)
     layer_control_js = (
-        f"L.control.layers(null, {{{', '.join(overlay_map_entries)}}}, {{collapsed: false}}).addTo(map);"
-        if overlay_map_entries
+        "L.control.layers(baseMaps, "
+        f"{{{', '.join(overlay_map_entries)}}}, "
+        "{collapsed: false}).addTo(map);"
+    )
+    omitted_items = "".join(
+        f"<li>{html.escape(label)}</li>" for label in omitted_overlay_labels
+    )
+    omissions_html = (
+        f"<div class=\"omissions\"><strong>Omitted empty/unavailable overlays</strong><ul>{omitted_items}</ul></div>"
+        if omitted_overlay_labels
         else ""
     )
     doc = f"""<!doctype html>
@@ -3753,18 +4071,34 @@ def _write_esri_leaflet_aoi_map_html(
       color: #f7fbfb; font: 700 16px Arial, sans-serif;
       background: rgba(7, 10, 12, 0.82); padding: 8px 12px; border-radius: 8px;
     }}
+    .omissions {{
+      position: absolute; z-index: 1000; left: 14px; bottom: 14px; max-width: min(420px, 74%);
+      color: #f7fbfb; font: 12px Arial, sans-serif;
+      background: rgba(7, 10, 12, 0.82); padding: 10px 12px; border-radius: 8px;
+    }}
+    .omissions ul {{ margin: 6px 0 0; padding-left: 18px; }}
   </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="title">{safe_title} &mdash; Esri World Imagery basemap</div>
+<div class="title">{safe_title} - satellite and street basemaps</div>
+{omissions_html}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map = L.map('map').setView([{center_lat}, {center_lon}], 13);
-L.tileLayer({json.dumps(ESRI_WORLDIMAGERY_TILE_URL_TEMPLATE)}, {{
+const esriWorldImagery = L.tileLayer({json.dumps(ESRI_WORLDIMAGERY_TILE_URL_TEMPLATE)}, {{
   maxZoom: 19,
   attribution: {json.dumps(ESRI_WORLDIMAGERY_ATTRIBUTION)}
-}}).addTo(map);
+}});
+const openStreetMap = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}});
+const baseMaps = {{
+  'Esri World Imagery': esriWorldImagery,
+  'OpenStreetMap Mapnik': openStreetMap
+}};
+esriWorldImagery.addTo(map);
 const aoiLayer = L.geoJSON({json.dumps(aoi_feature_collection)}, {{
   style: {{color: '#ffcc00', weight: 3, dashArray: '6 5', fillColor: '#ffcc00', fillOpacity: 0.18}}
 }}).addTo(map);

@@ -10,7 +10,7 @@ from rasterio.transform import from_bounds
 
 from eudr_dmi_gil.analysis.jrc_post2020_loss import build_hansen_lossyear_metadata
 from eudr_dmi_gil.commodities.analysis import run_commodity_assessment
-from eudr_dmi_gil.commodities.config import CommodityConfig
+from eudr_dmi_gil.commodities.config import CommodityConfig, MODE_PROBABILITY_THRESHOLD
 from eudr_dmi_gil.providers.jrc_gfc2020 import LocalJrcGfc2020Provider
 
 
@@ -204,3 +204,99 @@ def test_structured_commodity_overrides_aoi_filename_and_properties(tmp_path: Pa
 
     assert result.metadata.commodity_id == "coffee"
     assert result.metadata.display_name == "Coffee"
+
+
+def test_two_source_baseline_latest_differencing_keeps_agreement_distinct(
+    tmp_path: Path,
+) -> None:
+    aoi_path = tmp_path / "aoi.geojson"
+    jrc_path = tmp_path / "jrc.tif"
+    loss_path = tmp_path / "lossyear.tif"
+    fdp_baseline_path = tmp_path / "fdp_2020.tif"
+    fdp_latest_path = tmp_path / "fdp_2024.tif"
+    mapbiomas_baseline_path = tmp_path / "mapbiomas_2020.tif"
+    mapbiomas_latest_path = tmp_path / "mapbiomas_2024.tif"
+    _write_aoi(aoi_path)
+    _write_raster(jrc_path, np.ones((10, 10), dtype=np.uint8))
+    loss = np.zeros((10, 10), dtype=np.uint8)
+    loss[5, 5] = 21
+    _write_raster(loss_path, loss)
+
+    fdp_baseline = np.zeros((10, 10), dtype=np.float32)
+    fdp_latest = np.zeros((10, 10), dtype=np.float32)
+    fdp_latest[5, 5] = 0.8
+    _write_raster(fdp_baseline_path, fdp_baseline)
+    _write_raster(fdp_latest_path, fdp_latest)
+
+    mapbiomas_baseline = np.zeros((10, 10), dtype=np.uint8)
+    mapbiomas_baseline[0, 0] = 46
+    mapbiomas_latest = np.zeros((10, 10), dtype=np.uint8)
+    mapbiomas_latest[5, 5] = 46
+    _write_raster(mapbiomas_baseline_path, mapbiomas_baseline)
+    _write_raster(mapbiomas_latest_path, mapbiomas_latest)
+
+    baseline_provider = LocalJrcGfc2020Provider(jrc_path, processed_at_utc=FIXED_TS)
+    loss_metadata = build_hansen_lossyear_metadata(
+        raster_path=loss_path,
+        dataset_version="2025-v1.13",
+        latest_available_year=2025,
+        processed_at_utc=FIXED_TS,
+        source_url="https://example.test/hansen",
+        asset_identifier="UMD/hansen/global_forest_change_2025_v1_13",
+    )
+    mapbiomas_config = CommodityConfig(
+        id="coffee",
+        display_name="Coffee",
+        provider="mapbiomas_brazil",
+        dataset_title="MapBiomas Brazil Land Cover",
+        dataset_version="collection-10-2024",
+        asset_id=mapbiomas_latest_path.as_posix(),
+        local_path=mapbiomas_latest_path.as_posix(),
+        baseline_asset_id=mapbiomas_baseline_path.as_posix(),
+        baseline_local_path=mapbiomas_baseline_path.as_posix(),
+        baseline_observation_year=2020,
+        class_values=(46,),
+        class_labels=("Coffee plantations",),
+        observation_year=2024,
+        country_scope=("Brazil",),
+    )
+    fdp_config = CommodityConfig(
+        id="coffee",
+        display_name="Coffee",
+        provider="forestdatapartnership",
+        dataset_title="FDP Coffee Probability model 2025b",
+        dataset_version="2025b",
+        asset_id=fdp_latest_path.as_posix(),
+        local_path=fdp_latest_path.as_posix(),
+        baseline_asset_id=fdp_baseline_path.as_posix(),
+        baseline_local_path=fdp_baseline_path.as_posix(),
+        baseline_observation_year=2020,
+        observation_year=2024,
+        country_scope=("Brazil",),
+        mode=MODE_PROBABILITY_THRESHOLD,
+        probability_band="probability",
+        threshold=0.25,
+        companion_sources=(mapbiomas_config,),
+    )
+
+    result = run_commodity_assessment(
+        config=fdp_config,
+        aoi_geojson_path=aoi_path,
+        aoi_country="Brazil",
+        jrc_gfc2020_raster_path=jrc_path,
+        hansen_lossyear_raster_path=loss_path,
+        output_dir=tmp_path / "out",
+        baseline_metadata=baseline_provider.metadata(),
+        loss_metadata=loss_metadata,
+        requested_end_year=2025,
+        target_resolution_m=500.0,
+    )
+
+    rows = result.metrics.to_metric_rows()
+    assert rows["fdp_new_commodity_since_baseline_ha"]["value"] > 0
+    assert rows["mapbiomas_new_commodity_since_baseline_ha"]["value"] > 0
+    assert rows["both_source_agreement_new_commodity_since_baseline_ha"]["value"] > 0
+    assert rows["post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha"]["value"] > 0
+    assert "fdp_new_commodity_since_baseline" in result.derived_mask_paths
+    assert "mapbiomas_new_commodity_since_baseline" in result.derived_mask_paths
+    assert "post_2020_loss_and_both_source_agreement_new_commodity" in result.derived_mask_paths

@@ -1,0 +1,52 @@
+{
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -46.917509,
+              -18.536301
+            ],
+            [
+              -46.878303,
+              -18.536695
+            ],
+            [
+              -46.877895,
+              -18.499297
+            ],
+            [
+              -46.917093,
+              -18.498904
+            ],
+            [
+              -46.917509,
+              -18.536301
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "aoi_id": "fazenda_sucuri_screening_aoi",
+        "center_lat": -18.5178,
+        "center_lon": -46.8977,
+        "country": "Brazil",
+        "description": "Approximate screening polygon reconstructed from published centre and property area; not a cadastral farm boundary. The supplied brief says this is a no-evidence case for coffee-linked forest loss since 2021.",
+        "geometry_type": "Polygon",
+        "municipality": "Coromandel",
+        "name": "Fazenda Sucuri / Coromandel, Minas Gerais",
+        "published_center_lat": -18.5178,
+        "published_center_lon": -46.8977,
+        "published_property_area_ha": 1714,
+        "region": "Minas Gerais",
+        "source_js": "tmp/fazenda_sucuri_eudr_two_situations.js",
+        "title": "Fazenda Sucuri / Coromandel, Minas Gerais",
+        "zoom": 14
+      },
+      "type": "Feature"
+    }
+  ],
+  "type": "FeatureCollection"
+}

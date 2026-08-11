@@ -1,0 +1,6 @@
+dataset_id,dataset_name,asset_id,role,notes
+hansen_gfc_2025_v1_13,Global Forest Change 2000-2025 v1.13,UMD/hansen/global_forest_change_2025_v1_13,forest_loss,Hansen lossyear source for post-2020 loss window.
+fdp_coffee_model_2025b,Forest Data Partnership coffee probability model 2025b,projects/forestdatapartnership/assets/coffee/model_2025b,commodity_probability,FDP coffee probability ImageCollection; threshold configured in two_situation_geemap_pipeline_config.json.
+mapbiomas_brazil_lulc_v1,MapBiomas Brazil Land Cover Collection 10 v1,projects/mapbiomas-public/assets/brazil/lulc/v1,commodity_classification,MapBiomas LULC ImageCollection filtered by collection_id and version from pipeline config.
+copernicus_s2_sr_harmonized,Sentinel-2 MSI Level-2A Surface Reflectance Harmonized,COPERNICUS/S2_SR_HARMONIZED,optical_context,Sentinel-2 SR collection used for matched-season before/after context.
+jrc_gfc2020_v3,JRC Global Forest Cover 2020 V3,JRC/GFC2020/V3,forest_baseline,JRC 2020 forest baseline evidence layer.

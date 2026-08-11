@@ -11,10 +11,16 @@
     {
       "type": "Feature",
       "properties": {
+        "aoi_id": "coffee_brazil_minas_gerais",
         "aoi_name": "Coffee sample AOI (Brazil, Cerrado Mineiro / Minas Gerais)",
+        "center_lat": -18.992,
+        "center_lon": -46.967,
         "commodity": "coffee",
         "country": "Brazil",
         "approx_area_ha": 5063.18,
+        "description": "Sample AOI polygon for portal testing; not a verified farm boundary. The supplied brief says this is a no-evidence case for coffee-linked forest loss since 2021.",
+        "geometry_type": "Polygon",
+        "name": "Cerrado Mineiro / Minas Gerais, Brazil",
         "note": "Sample AOI polygon for portal testing (not a verified farm boundary).",
         "reference_sources": [
           {
@@ -31,6 +37,9 @@
           }
         ],
         "commodity_rationale": "AOI placed within the Cerrado Mineiro designated coffee-growing origin (Minas Gerais); contains several mapped reference coffee plantations, not a verified single farm boundary.",
+        "source_js": "tmp/coffee_brazil_minas_gerais_eudr_two_situations.js",
+        "title": "Cerrado Mineiro / Minas Gerais, Brazil",
+        "zoom": 13,
         "reference_plantations": [
           {
             "name": "Fazenda Boa Vista",

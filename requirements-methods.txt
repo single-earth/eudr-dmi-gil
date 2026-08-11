@@ -12,3 +12,4 @@ minio
 numba
 Pillow
 requests
+geemap

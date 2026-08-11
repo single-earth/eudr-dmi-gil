@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,18 @@ class CommodityMetrics:
     post_2020_loss_and_commodity_percent_of_aoi: float | None
     post_2020_loss_and_commodity_percent_of_loss: float | None
     commodity_observation_year: int
+    commodity_baseline_observation_year: int | None = None
+    new_commodity_since_baseline_ha: float | None = None
+    post_2020_loss_and_new_commodity_overlap_ha: float | None = None
+    post_2020_loss_and_new_commodity_percent_of_loss: float | None = None
+    fdp_new_commodity_since_baseline_ha: float | None = None
+    mapbiomas_new_commodity_since_baseline_ha: float | None = None
+    fdp_only_new_commodity_since_baseline_ha: float | None = None
+    mapbiomas_only_new_commodity_since_baseline_ha: float | None = None
+    both_source_agreement_new_commodity_since_baseline_ha: float | None = None
+    post_2020_loss_and_fdp_new_commodity_overlap_ha: float | None = None
+    post_2020_loss_and_mapbiomas_new_commodity_overlap_ha: float | None = None
+    post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha: float | None = None
     probability_configured_threshold: float | None = None
     probability_valid_coverage_of_aoi_percent: float | None = None
     probability_admitted_share_of_valid_pixels_percent: float | None = None
@@ -70,6 +82,71 @@ class CommodityMetrics:
                 "unit": "year",
             },
         }
+        if self.commodity_baseline_observation_year is not None:
+            rows["commodity_baseline_observation_year"] = {
+                "value": self.commodity_baseline_observation_year,
+                "unit": "year",
+            }
+        optional_rows = {
+            "new_commodity_since_baseline_ha": (
+                self.new_commodity_since_baseline_ha,
+                "ha",
+                "latest commodity mask minus baseline-year commodity mask",
+            ),
+            "post_2020_loss_and_new_commodity_overlap_ha": (
+                self.post_2020_loss_and_new_commodity_overlap_ha,
+                "ha",
+                "post-2020 baseline forest loss intersected with new commodity after the baseline year",
+            ),
+            "post_2020_loss_and_new_commodity_percent_of_loss": (
+                self.post_2020_loss_and_new_commodity_percent_of_loss,
+                "percent",
+                "share of post-2020 baseline forest loss intersecting new commodity after the baseline year",
+            ),
+            "fdp_new_commodity_since_baseline_ha": (
+                self.fdp_new_commodity_since_baseline_ha,
+                "ha",
+                "FDP latest commodity probability mask minus FDP baseline-year commodity probability mask",
+            ),
+            "mapbiomas_new_commodity_since_baseline_ha": (
+                self.mapbiomas_new_commodity_since_baseline_ha,
+                "ha",
+                "MapBiomas latest commodity class mask minus MapBiomas baseline-year commodity class mask",
+            ),
+            "fdp_only_new_commodity_since_baseline_ha": (
+                self.fdp_only_new_commodity_since_baseline_ha,
+                "ha",
+                "new commodity after the baseline year present in FDP and absent from MapBiomas",
+            ),
+            "mapbiomas_only_new_commodity_since_baseline_ha": (
+                self.mapbiomas_only_new_commodity_since_baseline_ha,
+                "ha",
+                "new commodity after the baseline year present in MapBiomas and absent from FDP",
+            ),
+            "both_source_agreement_new_commodity_since_baseline_ha": (
+                self.both_source_agreement_new_commodity_since_baseline_ha,
+                "ha",
+                "new commodity after the baseline year where FDP and MapBiomas agree",
+            ),
+            "post_2020_loss_and_fdp_new_commodity_overlap_ha": (
+                self.post_2020_loss_and_fdp_new_commodity_overlap_ha,
+                "ha",
+                "post-2020 baseline forest loss intersected with FDP new commodity after the baseline year",
+            ),
+            "post_2020_loss_and_mapbiomas_new_commodity_overlap_ha": (
+                self.post_2020_loss_and_mapbiomas_new_commodity_overlap_ha,
+                "ha",
+                "post-2020 baseline forest loss intersected with MapBiomas new commodity after the baseline year",
+            ),
+            "post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha": (
+                self.post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha,
+                "ha",
+                "post-2020 baseline forest loss intersected with both-source agreement new commodity",
+            ),
+        }
+        for name, (value, unit, notes) in optional_rows.items():
+            if value is not None:
+                rows[name] = {"value": value, "unit": unit, "notes": notes}
         if self.probability_configured_threshold is not None:
             rows["commodity_probability_configured_threshold"] = {
                 "value": self.probability_configured_threshold,
@@ -115,6 +192,7 @@ class CommodityAssessmentResult:
     summary_path: Path | None
     commodity_mask_path: Path | None
     overlap_mask_path: Path | None
+    derived_mask_paths: dict[str, Path]
     debug_path: Path | None
     provenance: dict[str, Any]
     nodata: dict[str, Any]
@@ -227,6 +305,107 @@ def run_commodity_assessment(
     baseline_and_commodity = baseline_forest & commodity_mask
     loss_and_commodity = post_2020_loss_on_baseline & commodity_mask
 
+    source_new_masks: dict[str, np.ndarray] = {}
+    source_latest_masks: dict[str, np.ndarray] = {}
+    source_baseline_masks: dict[str, np.ndarray] = {}
+    source_diagnostics: dict[str, Any] = {}
+    derived_masks: dict[str, np.ndarray] = {}
+
+    for source_config in (config, *config.companion_sources):
+        key = _commodity_source_key(source_config)
+        source_provider = provider_for_config(source_config)
+        source_metadata = source_provider.metadata()
+        source_latest = (
+            commodity
+            if source_config is config
+            else source_provider.aligned_mask(
+                target_crs=target_crs,
+                target_transform=target_transform,
+                width=width,
+                height=height,
+                aoi_mask=aoi_mask,
+            )
+        )
+        source_diagnostics[key] = {
+            "provider": source_config.provider,
+            "dataset_id": source_metadata.dataset_id,
+            "observation_year": source_config.observation_year,
+            "baseline_observation_year": source_config.baseline_observation_year,
+            "latest_available": source_latest.evidence_available,
+            "latest_coverage_status": source_latest.coverage_status,
+            "evidence_gaps": source_latest.evidence_gaps,
+        }
+        if not source_latest.evidence_available or source_latest.mask is None:
+            continue
+        source_latest_masks[key] = source_latest.mask
+
+        baseline_source = source_config.baseline_raster_source
+        if not baseline_source or source_config.baseline_observation_year is None:
+            source_diagnostics[key]["baseline_available"] = False
+            source_diagnostics[key]["baseline_omission_reason"] = (
+                "commodity_baseline_raster_not_configured"
+            )
+            continue
+        baseline_config = replace(
+            source_config,
+            observation_year=source_config.baseline_observation_year,
+            local_path=source_config.baseline_local_path,
+            asset_id=source_config.baseline_asset_id or source_config.asset_id,
+            baseline_observation_year=None,
+            baseline_local_path=None,
+            baseline_asset_id=None,
+            companion_sources=(),
+        )
+        baseline_provider = provider_for_config(baseline_config)
+        baseline_mask = baseline_provider.aligned_mask(
+            target_crs=target_crs,
+            target_transform=target_transform,
+            width=width,
+            height=height,
+            aoi_mask=aoi_mask,
+        )
+        source_diagnostics[key]["baseline_available"] = baseline_mask.evidence_available
+        source_diagnostics[key]["baseline_coverage_status"] = baseline_mask.coverage_status
+        source_diagnostics[key]["baseline_evidence_gaps"] = baseline_mask.evidence_gaps
+        if not baseline_mask.evidence_available or baseline_mask.mask is None:
+            continue
+        source_baseline_masks[key] = baseline_mask.mask
+        source_new_masks[key] = source_latest.mask & ~baseline_mask.mask
+
+    if source_new_masks:
+        primary_key = _commodity_source_key(config)
+        primary_new = source_new_masks.get(primary_key)
+        if primary_new is not None:
+            derived_masks["new_commodity_since_baseline"] = primary_new
+            derived_masks["post_2020_loss_and_new_commodity"] = (
+                post_2020_loss_on_baseline & primary_new
+            )
+        fdp_new = _first_named_source_mask(source_new_masks, ("fdp", "forest_data_partnership"))
+        mapbiomas_new = _first_named_source_mask(source_new_masks, ("mapbiomas",))
+        if fdp_new is not None:
+            derived_masks["fdp_new_commodity_since_baseline"] = fdp_new
+            derived_masks["post_2020_loss_and_fdp_new_commodity"] = (
+                post_2020_loss_on_baseline & fdp_new
+            )
+        if mapbiomas_new is not None:
+            derived_masks["mapbiomas_new_commodity_since_baseline"] = mapbiomas_new
+            derived_masks["post_2020_loss_and_mapbiomas_new_commodity"] = (
+                post_2020_loss_on_baseline & mapbiomas_new
+            )
+        if fdp_new is not None and mapbiomas_new is not None:
+            fdp_only = fdp_new & ~mapbiomas_new
+            mapbiomas_only = mapbiomas_new & ~fdp_new
+            agreement = fdp_new & mapbiomas_new
+            derived_masks["fdp_only_new_commodity_since_baseline"] = fdp_only
+            derived_masks["mapbiomas_only_new_commodity_since_baseline"] = mapbiomas_only
+            derived_masks["both_source_agreement_new_commodity_since_baseline"] = agreement
+            derived_masks["post_2020_loss_and_source_specific_new_commodity"] = (
+                post_2020_loss_on_baseline & (fdp_only | mapbiomas_only)
+            )
+            derived_masks["post_2020_loss_and_both_source_agreement_new_commodity"] = (
+                post_2020_loss_on_baseline & agreement
+            )
+
     commodity_area = _area_ha(commodity_mask, pixel_area_ha)
     loss_area = _area_ha(post_2020_loss_on_baseline, pixel_area_ha)
     overlap_area = _area_ha(loss_and_commodity, pixel_area_ha)
@@ -250,6 +429,10 @@ def run_commodity_assessment(
             "probability_median": stats.get("median"),
         }
 
+    primary_new_overlap_area = _mask_area_or_none(
+        derived_masks.get("post_2020_loss_and_new_commodity"), pixel_area_ha
+    )
+
     metrics = CommodityMetrics(
         commodity_area_ha=commodity_area,
         commodity_percent_of_aoi=_percent(commodity_area, aoi_area_ha),
@@ -260,6 +443,41 @@ def run_commodity_assessment(
         post_2020_loss_and_commodity_percent_of_aoi=_percent(overlap_area, aoi_area_ha),
         post_2020_loss_and_commodity_percent_of_loss=_percent(overlap_area, loss_area),
         commodity_observation_year=config.observation_year,
+        commodity_baseline_observation_year=config.baseline_observation_year,
+        new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("new_commodity_since_baseline"), pixel_area_ha
+        ),
+        post_2020_loss_and_new_commodity_overlap_ha=primary_new_overlap_area,
+        post_2020_loss_and_new_commodity_percent_of_loss=_percent(
+            primary_new_overlap_area,
+            loss_area,
+        )
+        if primary_new_overlap_area is not None
+        else None,
+        fdp_new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("fdp_new_commodity_since_baseline"), pixel_area_ha
+        ),
+        mapbiomas_new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("mapbiomas_new_commodity_since_baseline"), pixel_area_ha
+        ),
+        fdp_only_new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("fdp_only_new_commodity_since_baseline"), pixel_area_ha
+        ),
+        mapbiomas_only_new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("mapbiomas_only_new_commodity_since_baseline"), pixel_area_ha
+        ),
+        both_source_agreement_new_commodity_since_baseline_ha=_mask_area_or_none(
+            derived_masks.get("both_source_agreement_new_commodity_since_baseline"), pixel_area_ha
+        ),
+        post_2020_loss_and_fdp_new_commodity_overlap_ha=_mask_area_or_none(
+            derived_masks.get("post_2020_loss_and_fdp_new_commodity"), pixel_area_ha
+        ),
+        post_2020_loss_and_mapbiomas_new_commodity_overlap_ha=_mask_area_or_none(
+            derived_masks.get("post_2020_loss_and_mapbiomas_new_commodity"), pixel_area_ha
+        ),
+        post_2020_loss_and_both_source_agreement_new_commodity_overlap_ha=_mask_area_or_none(
+            derived_masks.get("post_2020_loss_and_both_source_agreement_new_commodity"), pixel_area_ha
+        ),
         **probability_metric_fields,
     )
 
@@ -272,6 +490,11 @@ def run_commodity_assessment(
     summary_path = output_dir / f"{config.id}_commodity_summary.json"
     _write_mask_geojson(commodity_mask_path, commodity_mask, target_transform, target_crs)
     _write_mask_geojson(overlap_mask_path, loss_and_commodity, target_transform, target_crs)
+    derived_mask_paths: dict[str, Path] = {}
+    for name, mask in sorted(derived_masks.items()):
+        path = output_dir / f"{config.id}_{name}.geojson"
+        _write_mask_geojson(path, mask, target_transform, target_crs)
+        derived_mask_paths[name] = path
 
     grid = {
         "target_crs": target_crs,
@@ -301,6 +524,10 @@ def run_commodity_assessment(
             ),
             "baseline_forest_and_commodity": int(np.count_nonzero(baseline_and_commodity)),
             "post_2020_loss_and_commodity": int(np.count_nonzero(loss_and_commodity)),
+            **{
+                name: int(np.count_nonzero(mask))
+                for name, mask in sorted(derived_masks.items())
+            },
         },
         "nodata": {
             "commodity": commodity.nodata,
@@ -312,6 +539,7 @@ def run_commodity_assessment(
             "baseline": baseline_info,
             "loss": loss_info,
         },
+        "source_specific_commodity_masks": source_diagnostics,
     }
     write_json(debug_path, debug)
     summary = {
@@ -336,6 +564,14 @@ def run_commodity_assessment(
                 "commodity-probability overlap is not, by itself, confirmed agricultural "
                 "conversion evidence."
             ),
+            "new_commodity_after_baseline": (
+                "E: latest configured commodity mask minus baseline-year commodity mask, when "
+                "both years are available from the source"
+            ),
+            "source_specific_new_commodity": (
+                "F: FDP-only, MapBiomas-only, and both-source agreement masks are reported "
+                "separately when both sources are configured"
+            ),
         },
         "metrics": metrics.to_metric_rows(),
         "status_messages": status_messages,
@@ -348,6 +584,7 @@ def run_commodity_assessment(
             "commodity_mask": commodity_mask_path.name,
             "post_2020_loss_overlap_mask": overlap_mask_path.name,
             "debug": debug_path.name,
+            **{name: path.name for name, path in sorted(derived_mask_paths.items())},
         },
     }
     write_json(summary_path, summary)
@@ -363,6 +600,7 @@ def run_commodity_assessment(
         summary_path=summary_path,
         commodity_mask_path=commodity_mask_path,
         overlap_mask_path=overlap_mask_path,
+        derived_mask_paths=derived_mask_paths,
         debug_path=debug_path,
         provenance=commodity.provenance,
         nodata=commodity.nodata,
@@ -424,6 +662,7 @@ def _unavailable_result(
         post_2020_loss_and_commodity_percent_of_aoi=None,
         post_2020_loss_and_commodity_percent_of_loss=None,
         commodity_observation_year=config.observation_year,
+        commodity_baseline_observation_year=config.baseline_observation_year,
     )
     return CommodityAssessmentResult(
         config=config,
@@ -436,6 +675,7 @@ def _unavailable_result(
         summary_path=None,
         commodity_mask_path=None,
         overlap_mask_path=None,
+        derived_mask_paths={},
         debug_path=None,
         provenance=provenance,
         nodata=nodata,
@@ -445,6 +685,31 @@ def _unavailable_result(
 
 def _area_ha(mask: np.ndarray, pixel_area_ha: float) -> float:
     return _round6(float(np.count_nonzero(mask)) * pixel_area_ha)
+
+
+def _mask_area_or_none(mask: np.ndarray | None, pixel_area_ha: float) -> float | None:
+    return None if mask is None else _area_ha(mask, pixel_area_ha)
+
+
+def _commodity_source_key(config: CommodityConfig) -> str:
+    provider = config.provider.strip().lower().replace("-", "_").replace(" ", "_")
+    if "forest" in provider and "partnership" in provider:
+        provider = "fdp"
+    if "forestdatapartnership" in provider:
+        provider = "fdp"
+    if "mapbiomas" in provider:
+        provider = "mapbiomas"
+    return f"{provider or 'commodity'}_{config.observation_year}"
+
+
+def _first_named_source_mask(
+    masks: dict[str, np.ndarray],
+    needles: tuple[str, ...],
+) -> np.ndarray | None:
+    for key, mask in masks.items():
+        if any(needle in key for needle in needles):
+            return mask
+    return None
 
 
 def _status_messages(*, loss_area: float, overlap_area: float, config: CommodityConfig) -> list[str]:
@@ -469,6 +734,7 @@ def artifact_refs(result: CommodityAssessmentResult, bundle_root: Path) -> dict[
         "summary_ref": result.summary_path,
         "commodity_mask_ref": result.commodity_mask_path,
         "post_2020_loss_overlap_mask_ref": result.overlap_mask_path,
+        **{f"{name}_mask_ref": path for name, path in result.derived_mask_paths.items()},
         "debug_ref": result.debug_path,
     }.items():
         if path is None:

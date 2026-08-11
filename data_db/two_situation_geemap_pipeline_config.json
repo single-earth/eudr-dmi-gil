@@ -1,0 +1,36 @@
+{
+  "pipeline_id": "two_situation_geemap_pipeline",
+  "asset_catalogue": "data_db/two_situation_geemap_pipeline_assets.csv",
+  "aoi_geojsons": [
+    "aoi_json_examples/fazenda_sucuri_screening_aoi.geojson",
+    "aoi_json_examples/coffee_brazil_minas_gerais.geojson",
+    "aoi_json_examples/coffee_brazil_ibia_patrocinio_mg.geojson"
+  ],
+  "variables": {
+    "baseline_year": 2020,
+    "change_start_year": 2021,
+    "change_end_year": 2025,
+    "latest_coffee_year": 2024,
+    "coffee_class": 46,
+    "fdp_threshold": 0.25,
+    "intersection_scale": 30,
+    "season_start_mmdd": "07-01",
+    "season_end_mmdd": "10-01",
+    "s2_max_scene_cloud": 20,
+    "mapbiomas_collection_id": 10.0,
+    "mapbiomas_version": "v1"
+  },
+  "asset_keys": {
+    "hansen_gfc": "hansen_gfc_2025_v1_13",
+    "fdp_coffee": "fdp_coffee_model_2025b",
+    "mapbiomas_lulc": "mapbiomas_brazil_lulc_v1",
+    "sentinel2": "copernicus_s2_sr_harmonized",
+    "jrc_gfc2020": "jrc_gfc2020_v3"
+  },
+  "basemap": {
+    "esri_world_imagery": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    "esri_attribution": "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+    "openstreetmap_mapnik": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "openstreetmap_attribution": "&copy; OpenStreetMap contributors"
+  }
+}

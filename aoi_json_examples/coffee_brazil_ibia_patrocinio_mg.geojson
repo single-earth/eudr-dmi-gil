@@ -1,0 +1,49 @@
+{
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -46.775,
+              -19.26
+            ],
+            [
+              -46.745,
+              -19.26
+            ],
+            [
+              -46.745,
+              -19.23
+            ],
+            [
+              -46.775,
+              -19.23
+            ],
+            [
+              -46.775,
+              -19.26
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "aoi_id": "coffee_brazil_ibia_patrocinio_mg",
+        "center_lat": -19.245,
+        "center_lon": -46.76,
+        "commodity": "coffee",
+        "country": "Brazil",
+        "description": "Rectangular rural coffee sample AOI; not a verified farm boundary.",
+        "geometry_type": "Polygon",
+        "name": "Ibia / Patrocinio border, Minas Gerais",
+        "region": "Ibia / Patrocinio border, Minas Gerais",
+        "source_js": "tmp/coffee_brazil_ibia_patrocinio_eudr_two_situations.js",
+        "title": "Ibia / Patrocinio border, Minas Gerais",
+        "zoom": 14
+      },
+      "type": "Feature"
+    }
+  ],
+  "type": "FeatureCollection"
+}

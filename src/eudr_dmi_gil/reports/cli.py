@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -889,6 +890,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("EUDR_DMI_SATELLITE_SELECTION_METHOD", ""),
         help="Free-text description of how the satellite scenes/composite were selected.",
     )
+    p.add_argument(
+        "--satellite-diagnostics-json",
+        default=os.environ.get("EUDR_DMI_SATELLITE_DIAGNOSTICS_JSON"),
+        help=(
+            "Optional JSON carrying Sentinel-2 scene/depth diagnostics. Accepts either the "
+            "two-situation metric names (s2_2020_scene_count, etc.) or a {'years': ...} object."
+        ),
+    )
 
     p.add_argument(
         "--loss-dataset-end-year",
@@ -1059,6 +1068,18 @@ def main(argv: list[str] | None = None) -> int:
             "sha256": compute_sha256(boundaries_dst),
             "content_type": "application/geo+json",
         }
+
+    satellite_diagnostics = _load_satellite_diagnostics(args.satellite_diagnostics_json)
+    if satellite_diagnostics:
+        if satellite_info is None:
+            satellite_info = {
+                "dataset_title": args.satellite_dataset_title,
+                "dataset_version": args.satellite_dataset_version,
+                "source_url": args.satellite_source_url,
+                "license": args.satellite_license,
+                "selection_method": args.satellite_selection_method,
+            }
+        satellite_info["scene_diagnostics"] = satellite_diagnostics
 
     aoi_area_ha: float | None = None
     aoi_area_method = ""
@@ -1420,6 +1441,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             for name, entry in commodity_analysis.metrics.to_metric_rows().items()
         )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    if satellite_diagnostics:
+        diagnostic_rows = _satellite_diagnostic_metric_rows(satellite_diagnostics)
+        diagnostic_metric_names = {r.variable for r in diagnostic_rows}
+        metric_rows = [r for r in metric_rows if r.variable not in diagnostic_metric_names]
+        metric_rows.extend(diagnostic_rows)
         metric_rows = sorted(metric_rows, key=lambda r: r.variable)
 
     hansen_treecover_raster_arg = str(args.hansen_treecover2000_raster or "").strip()
@@ -2561,6 +2589,7 @@ def main(argv: list[str] | None = None) -> int:
                 commodity_analysis.summary_path,
                 commodity_analysis.commodity_mask_path,
                 commodity_analysis.overlap_mask_path,
+                *commodity_analysis.derived_mask_paths.values(),
                 commodity_analysis.debug_path,
             ]
             if path is not None
@@ -2707,6 +2736,27 @@ def main(argv: list[str] | None = None) -> int:
     report_json_path = bdir / "reports" / "aoi_report_v2" / f"{aoi_id}.json"
     # HTML output
     report_html_path = bdir / "reports" / "aoi_report_v2" / f"{aoi_id}.html"
+    canonical_report_root = bdir / "reports" / "aoi_report_v2" / aoi_id
+    aoi_config_hash_path: Path | None = None
+    if geo_kind == "geojson":
+        aoi_config_hash_path = canonical_report_root / "aoi_config_hash.json"
+        aoi_config_hash_payload = {
+            "schema_version": "aoi_config_hash_v1",
+            "aoi_id": aoi_id,
+            "aoi_geometry_relpath": geo_rel.as_posix(),
+            "aoi_geometry_sha256": geo_sha,
+            "hash_algorithm": "sha256",
+        }
+        with _timed("write_aoi_config_hash"):
+            write_json(aoi_config_hash_path, aoi_config_hash_payload)
+        artifact_paths.append(aoi_config_hash_path)
+        report["computed_outputs"]["aoi_config_hash"] = {
+            "summary_ref": {
+                "relpath": str(aoi_config_hash_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(aoi_config_hash_path),
+                "content_type": "application/json",
+            }
+        }
 
     map_config_relpath: str | None = None
     map_config_href: str | None = None
@@ -2797,6 +2847,8 @@ def main(argv: list[str] | None = None) -> int:
             return "forest_mask_debug"
         if relpath.endswith("map/map_config.json"):
             return "report_map_config"
+        if relpath.endswith("/aoi_config_hash.json"):
+            return "aoi_config_hash"
         if relpath.endswith("jrc_forest_2020_mask.geojson"):
             return "jrc_forest_2020_mask"
         if "jrc_gfc2020/" in relpath and relpath.endswith("_on_jrc_forest_2020_mask.geojson"):
@@ -2811,6 +2863,8 @@ def main(argv: list[str] | None = None) -> int:
             return "commodity_mask"
         if "/commodity/" in relpath and relpath.endswith("_post2020_loss_overlap_mask.geojson"):
             return "commodity_post2020_loss_overlap_mask"
+        if "/commodity/" in relpath and relpath.endswith(".geojson"):
+            return "commodity_derived_mask"
         if "/commodity/" in relpath and relpath.endswith("_commodity_debug.json"):
             return "commodity_debug"
         if relpath.endswith("maaamet_forest_area_crosscheck.csv"):
@@ -2855,7 +2909,6 @@ def main(argv: list[str] | None = None) -> int:
     with _timed("validate_report"):
         validate_aoi_report(report)
 
-    canonical_report_root = bdir / "reports" / "aoi_report_v2" / aoi_id
     canonical_report_json_path = canonical_report_root / "report.json"
     canonical_report_html_path = canonical_report_root / "report.html"
     canonical_report_pdf_path = canonical_report_root / "report.pdf"
@@ -2892,6 +2945,8 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_metrics_csv_path,
             ]
         ]
+        if aoi_config_hash_path is not None:
+            canonical_relpaths.append(str(aoi_config_hash_path.relative_to(bdir)).replace("\\", "/"))
         for artifact in generated_artifacts.values():
             if artifact.path:
                 canonical_relpaths.append(
@@ -2929,6 +2984,58 @@ class MetricRow:
     unit: str
     source: str
     notes: str
+
+
+def _load_satellite_diagnostics(path_value: str | None) -> dict[str, Any]:
+    if not path_value:
+        return {}
+    path = Path(path_value)
+    if not path.is_file():
+        raise FileNotFoundError(f"Satellite diagnostics JSON not found: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Satellite diagnostics JSON must be an object")
+    if isinstance(payload.get("years"), dict):
+        return {"years": payload["years"]}
+
+    years: dict[str, dict[str, Any]] = {}
+    for key, value in payload.items():
+        match = re.fullmatch(r"s2_(\d{4})_(.+)", str(key))
+        if not match:
+            continue
+        year, metric_name = match.groups()
+        years.setdefault(year, {})[metric_name] = value
+    return {"years": years} if years else {}
+
+
+def _satellite_diagnostic_metric_rows(diagnostics: dict[str, Any]) -> list[MetricRow]:
+    years = diagnostics.get("years")
+    if not isinstance(years, dict):
+        return []
+    metric_specs = {
+        "scene_count": ("count", "Sentinel-2 matched-season scene count."),
+        "least_cloudy_scene_date": ("date", "Least-cloudy Sentinel-2 scene date."),
+        "least_cloudy_scene_cloud_pct": ("percent", "Cloud percentage of the least-cloudy Sentinel-2 scene."),
+        "mean_valid_obs_per_pixel": ("count", "Mean valid Sentinel-2 observations per AOI pixel."),
+        "min_valid_obs_per_pixel": ("count", "Minimum valid Sentinel-2 observations per AOI pixel."),
+    }
+    rows: list[MetricRow] = []
+    for year, values in sorted(years.items(), key=lambda kv: str(kv[0])):
+        if not isinstance(values, dict):
+            continue
+        for name, (unit, notes) in metric_specs.items():
+            if name not in values:
+                continue
+            rows.append(
+                MetricRow(
+                    variable=f"s2_{year}_{name}",
+                    value=values[name],
+                    unit=unit,
+                    source="sentinel2_scene_diagnostics",
+                    notes=notes,
+                )
+            )
+    return rows
 
 
 def _parse_metric_rows(raw_metrics: list[str], *, fallback_dummy: str | None) -> list[MetricRow]:
@@ -3029,13 +3136,15 @@ def _write_metrics_csv(path: Path, rows: list[MetricRow]) -> None:
             writer.writerow([r.variable, _stable_value_str(r.value), r.unit, r.source, r.notes])
 
 
-def _stable_value_str(value: int | float | None) -> str:
+def _stable_value_str(value: int | float | str | None) -> str:
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, str):
+        return value
     # Round to 6 dp to suppress platform-specific pyproj/GDAL floating-point
     # noise in the last 1-3 significant digits (last 10+ chars of repr).
     # 6 dp = ~0.01 mm² precision for area-in-ha values, matching pixel_* fields.
