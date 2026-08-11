@@ -3205,6 +3205,21 @@ def _layers(
     satellite_dataset = str(satellite_outputs.get("dataset_title") or "satellite_context")
     satellite_version = str(satellite_outputs.get("dataset_version") or "unavailable")
     satellite_date = str(satellite_outputs.get("recent_date") or "") or None
+    regional_dataset = (
+        satellite_dataset
+        if _ref_relpath(satellite_outputs, "regional_raster_ref")
+        else ESRI_WORLDIMAGERY_DATASET_TITLE
+    )
+    regional_version = (
+        satellite_version
+        if _ref_relpath(satellite_outputs, "regional_raster_ref")
+        else ESRI_WORLDIMAGERY_DATASET_VERSION
+    )
+    regional_date = (
+        str(satellite_outputs.get("regional_date") or "") or None
+        if _ref_relpath(satellite_outputs, "regional_raster_ref")
+        else None
+    )
     before_after_date = None
     baseline_date = satellite_outputs.get("baseline_date")
     recent_date = satellite_outputs.get("recent_date")
@@ -3243,10 +3258,10 @@ def _layers(
             "regional_overview",
             "Regional overview",
             artifacts.get("regional_overview") or _missing("regional_overview_not_materialized"),
-            ESRI_WORLDIMAGERY_DATASET_TITLE,
-            ESRI_WORLDIMAGERY_DATASET_VERSION,
+            regional_dataset,
+            regional_version,
             "Wider-context satellite view showing the AOI within its surrounding region",
-            None,
+            regional_date,
         ),
         "satellite_interactive_map": _layer(
             "satellite_interactive_map",
