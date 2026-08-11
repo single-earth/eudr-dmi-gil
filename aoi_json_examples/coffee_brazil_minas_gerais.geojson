@@ -17,6 +17,8 @@
         "center_lon": -46.967,
         "commodity": "coffee",
         "country": "Brazil",
+        "state": "Minas Gerais",
+        "municipality": "Patrocínio",
         "approx_area_ha": 5063.18,
         "description": "Sample AOI polygon for portal testing; not a verified farm boundary. The supplied brief says this is a no-evidence case for coffee-linked forest loss since 2021.",
         "geometry_type": "Polygon",

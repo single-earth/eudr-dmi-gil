@@ -36,9 +36,11 @@
         "country": "Brazil",
         "description": "Rectangular rural coffee sample AOI; not a verified farm boundary.",
         "geometry_type": "Polygon",
+        "municipality": "Serra do Salitre",
         "name": "Ibia / Patrocinio border, Minas Gerais",
         "region": "Ibia / Patrocinio border, Minas Gerais",
         "source_js": "tmp/coffee_brazil_ibia_patrocinio_eudr_two_situations.js",
+        "state": "Minas Gerais",
         "title": "Ibia / Patrocinio border, Minas Gerais",
         "zoom": 14
       },

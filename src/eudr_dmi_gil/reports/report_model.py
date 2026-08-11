@@ -572,16 +572,27 @@ def materialize_evidence_pngs(
     )
 
     admin_boundaries_ref = _ref_relpath(satellite_outputs, "regional_admin_boundaries_ref")
-    # Regional-overview basemap also switched to the live Esri World Imagery export service (see
-    # the cover_hero note above); the real admin-boundary GeoJSON overlay is unaffected and still
-    # comes from the locally pinned fetch (scripts/fetch_admin_boundaries.py).
-    artifacts["regional_overview"] = _write_regional_overview_png_esri(
-        bundle_root=bundle_root,
-        aoi_geom_wgs84=aoi_geom_wgs84,
-        output_path=evidence_dir / "07_regional_overview.png",
-        pad_factor=3.0,
-        admin_boundaries_relpath=admin_boundaries_ref,
-    )
+    regional_raster_ref = _ref_relpath(satellite_outputs, "regional_raster_ref")
+    if regional_raster_ref:
+        artifacts["regional_overview"] = _write_regional_overview_png(
+            bundle_root=bundle_root,
+            raster_relpath=regional_raster_ref,
+            aoi_geom_wgs84=aoi_geom_wgs84,
+            output_path=evidence_dir / "07_regional_overview.png",
+            pad_factor=3.0,
+            admin_boundaries_relpath=admin_boundaries_ref,
+        )
+    else:
+        # Without a pinned regional raster, fall back to the live Esri World Imagery export
+        # service. The optional admin-boundary overlay still comes from the locally pinned fetch
+        # when the caller supplies it.
+        artifacts["regional_overview"] = _write_regional_overview_png_esri(
+            bundle_root=bundle_root,
+            aoi_geom_wgs84=aoi_geom_wgs84,
+            output_path=evidence_dir / "07_regional_overview.png",
+            pad_factor=3.0,
+            admin_boundaries_relpath=admin_boundaries_ref,
+        )
 
     legend_path = evidence_dir / "legend.png"
     _write_legend_png(legend_path)
