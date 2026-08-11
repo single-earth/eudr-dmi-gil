@@ -207,6 +207,51 @@ def _build_maaamet_parcel_metadata(parcels: list[object]) -> dict[str, Any]:
     }
 
 
+def _aoi_admin_from_geojson(path: Path) -> dict[str, str | None]:
+    values: dict[str, str | None] = {"country": None, "state": None, "municipality": None}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return values
+    features = payload.get("features") if isinstance(payload, dict) else None
+    if not isinstance(features, list):
+        return values
+    keys = {
+        "country": [
+            "country",
+            "country_name",
+            "country_of_production",
+            "producer_country",
+            "admin_country",
+            "ADM0_NAME",
+        ],
+        "state": ["state", "region", "province", "admin_state", "ADM1_NAME", "adm1_name"],
+        "municipality": [
+            "municipality",
+            "admin_municipality",
+            "ADM2_NAME",
+            "adm2_name",
+            "county",
+            "district",
+        ],
+    }
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        props = feature.get("properties")
+        if not isinstance(props, dict):
+            continue
+        for field, aliases in keys.items():
+            if values[field]:
+                continue
+            for key in aliases:
+                value = props.get(key)
+                if isinstance(value, str) and value.strip():
+                    values[field] = value.strip()
+                    break
+    return values
+
+
 def _write_map_config(
     *,
     path: Path,
@@ -2109,6 +2154,12 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     in_scope_articles = ["article-3"] if hansen_result is not None else []
+    aoi_admin = _aoi_admin_from_geojson(geo_path) if geo_kind == "geojson" else {
+        "country": None,
+        "state": None,
+        "municipality": None,
+    }
+
     report: dict[str, Any] = {
         "report_version": "aoi_report_v2",
         "generated_at_utc": generated_at_utc,
@@ -2138,6 +2189,7 @@ def main(argv: list[str] | None = None) -> int:
         "methodology": {},
         "external_dependencies": [],
         "aoi_id": aoi_id,
+        "aoi_admin": aoi_admin,
         "aoi_geometry_ref": {
             "kind": geo_kind,
             "value": geo_rel.as_posix(),

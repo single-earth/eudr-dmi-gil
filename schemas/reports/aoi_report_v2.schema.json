@@ -81,6 +81,15 @@
       "type": "string",
       "minLength": 1
     },
+    "aoi_admin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "country": { "type": ["string", "null"] },
+        "state": { "type": ["string", "null"] },
+        "municipality": { "type": ["string", "null"] }
+      }
+    },
     "aoi_geometry_ref": {
       "type": "object",
       "additionalProperties": false,

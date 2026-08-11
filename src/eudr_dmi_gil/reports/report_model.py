@@ -658,10 +658,10 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         for key in ordered_layer_ids
         if key in layers and _show_layer_in_switcher(key, layers[key])
     ]
-    initial_layer = next(
-        (layer for layer in switcher_layers if layer.get("available") and layer.get("path")),
-        switcher_layers[0] if switcher_layers else None,
-    )
+    initial_layer = _first_available_layer(
+        {str(layer.get("id")): layer for layer in switcher_layers},
+        ["forest_loss", "jrc_forest_2020", "commodity", "intersection", "satellite"],
+    ) or (switcher_layers[0] if switcher_layers else None)
     # Computed from the un-overridden `layers` (below) so the hero's CSS background - which can
     # only ever be a real image - keeps using the static 01_aoi_satellite.png even after the
     # "satellite" switcher tab is repointed at the interactive map just below.
@@ -684,7 +684,13 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     main_viewer = _render_main_viewer(initial_layer, output_path)
     layer_info = _render_layer_info(initial_layer, output_path)
     downloads = _render_layer_downloads(layers, output_path)
-    layer_legend = _render_report_layer_legend(layers, output_path)
+    layer_legend = _render_report_layer_legend(
+        str(initial_layer.get("id")) if isinstance(initial_layer, Mapping) else None,
+        layers,
+        output_path,
+    )
+    state = _display_value(aoi.get("state"), "")
+    municipality = _display_value(aoi.get("municipality"), "")
 
     data_json_raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     data_json = html.escape(data_json_raw)
@@ -831,7 +837,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .two-col {{ display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: 28px; align-items: start; }}
     .three-col {{ display: grid; grid-template-columns: 1.05fr .82fr .9fr; gap: 28px; align-items: start; }}
     .viewer {{ overflow: hidden; height: 490px; min-height: 490px; background: #121916; }}
-    .viewer img {{ width: 100%; min-height: 490px; height: 100%; object-fit: contain; display: block; background: #121916; }}
+    .viewer img {{ width: 100%; min-height: 490px; height: 100%; object-fit: cover; display: block; background: #121916; }}
     .empty-viewer {{ min-height: 490px; display: grid; place-items: center; padding: 28px; color: #fff; text-align: center; }}
     .legend {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin-top: 12px; color: var(--muted); font-size: 12px; }}
     .legend span {{ display: inline-flex; align-items: center; gap: 8px; }}
@@ -991,7 +997,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         <div id="layer-panel" class="viewer" role="tabpanel" aria-live="polite">
           {main_viewer}
         </div>
-        <div class="legend" aria-label="Map legend">
+        <div id="layer-legend" class="legend" aria-label="Map legend">
           {layer_legend}
         </div>
       </div>
@@ -1003,6 +1009,8 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
           {_detail("CRS", aoi.get("crs"))}
           {_detail("Commodity", commodity_name)}
           {_detail("Country", country)}
+          {_detail("State", state)}
+          {_detail("Municipality", municipality)}
           {_detail("Evidence period", evidence_period)}
         </div>
       </aside>
@@ -1121,11 +1129,36 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
       const report = JSON.parse(document.getElementById("report-data").textContent);
       const buttons = Array.from(document.querySelectorAll("[data-layer]"));
       const panel = document.getElementById("layer-panel");
+      const legend = document.getElementById("layer-legend");
       const info = document.getElementById("layer-info");
       const downloads = document.getElementById("layer-downloads");
       const exists = new Map(buttons.map((button) => [button.dataset.layer, button.dataset.pathStatus]));
       const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}}[char]));
       const isHtmlPath = (path) => String(path || "").toLowerCase().endsWith(".html");
+      const swatches = {{
+        jrc_forest_2020: [["forest", "JRC forest baseline"], ["commodity-swatch", "Commodity layer"]],
+        forest_loss: [["loss", "Forest loss"], ["forest", "JRC forest baseline"], ["commodity-swatch", "Commodity layer"], ["intersection-swatch", "Loss and commodity intersection"]],
+        fdp_new_commodity: [["fdp-new-swatch", "New FDP coffee"]],
+        mapbiomas_new_commodity: [["mapbiomas-new-swatch", "New MapBiomas coffee"]],
+        source_specific_conversion: [["source-conversion-swatch", "Source-specific conversion"]],
+        both_source_agreement_conversion: [["agreement-conversion-swatch", "Both-source agreement conversion"]],
+        commodity: [["commodity-swatch", "Commodity layer"]],
+        intersection: [["intersection-swatch", "Loss and commodity intersection"]],
+      }};
+      function layerLegendRows(key) {{
+        const rows = (swatches[key] || [])
+          .filter((entry) => {{
+            const layerKey = entry[0] === "forest" ? "jrc_forest_2020"
+              : entry[0] === "loss" ? "forest_loss"
+              : entry[0] === "commodity-swatch" ? "commodity"
+              : entry[0] === "intersection-swatch" ? "intersection"
+              : key;
+            const layer = report.layers[layerKey];
+            return layer && layer.available && layer.path && exists.get(layerKey) !== "missing";
+          }})
+          .map(([cssClass, label]) => `<span><i class="swatch ${{cssClass}}"></i>${{escapeHTML(label)}}</span>`);
+        return rows.length ? rows.join("") : "<span>No rendered overlay layers</span>";
+      }}
       function layerDownloadRows() {{
         const rows = buttons
           .filter((button) => !button.disabled && button.dataset.path)
@@ -1152,6 +1185,7 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
           panel.innerHTML = `<div class="empty-viewer">${{escapeHTML(reason)}}</div>`;
         }}
         info.innerHTML = `<h3>${{escapeHTML(layer.title)}}</h3><p>${{escapeHTML(layer.purpose || "")}}</p><div class="detail-list"><div class="detail"><div class="detail-key">Dataset</div><div class="detail-value">${{escapeHTML(layer.dataset || "")}}</div></div><div class="detail"><div class="detail-key">Date/version</div><div class="detail-value">${{escapeHTML(layer.date || layer.dataset_version || "")}}</div></div><div class="detail"><div class="detail-key">Availability</div><div class="detail-value">${{escapeHTML(layer.availability_status || "")}}</div></div></div>`;
+        legend.innerHTML = layerLegendRows(key);
         downloads.innerHTML = layerDownloadRows();
       }}
       buttons.forEach((button) => button.addEventListener("click", () => selectLayer(button.dataset.layer)));
@@ -1401,21 +1435,40 @@ def _layer_is_rendered(layers: Mapping[str, Any], key: str, output_path: Path) -
     )
 
 
-def _render_report_layer_legend(layers: Mapping[str, Any], output_path: Path) -> str:
-    specs = [
-        ("jrc_forest_2020", "forest", "JRC forest baseline"),
-        ("forest_loss", "loss", "Forest loss"),
-        ("fdp_new_commodity", "fdp-new-swatch", "New FDP coffee"),
-        ("mapbiomas_new_commodity", "mapbiomas-new-swatch", "New MapBiomas coffee"),
-        ("source_specific_conversion", "source-conversion-swatch", "Source-specific conversion"),
-        (
-            "both_source_agreement_conversion",
-            "agreement-conversion-swatch",
-            "Both-source agreement conversion",
-        ),
-        ("commodity", "commodity-swatch", "Commodity layer"),
-        ("intersection", "intersection-swatch", "Loss and commodity intersection"),
-    ]
+def _render_report_layer_legend(
+    selected_layer_id: str | None,
+    layers: Mapping[str, Any],
+    output_path: Path,
+) -> str:
+    by_layer = {
+        "jrc_forest_2020": [
+            ("jrc_forest_2020", "forest", "JRC forest baseline"),
+            ("commodity", "commodity-swatch", "Commodity layer"),
+        ],
+        "forest_loss": [
+            ("forest_loss", "loss", "Forest loss"),
+            ("jrc_forest_2020", "forest", "JRC forest baseline"),
+            ("commodity", "commodity-swatch", "Commodity layer"),
+            ("intersection", "intersection-swatch", "Loss and commodity intersection"),
+        ],
+        "fdp_new_commodity": [("fdp_new_commodity", "fdp-new-swatch", "New FDP coffee")],
+        "mapbiomas_new_commodity": [
+            ("mapbiomas_new_commodity", "mapbiomas-new-swatch", "New MapBiomas coffee")
+        ],
+        "source_specific_conversion": [
+            ("source_specific_conversion", "source-conversion-swatch", "Source-specific conversion")
+        ],
+        "both_source_agreement_conversion": [
+            (
+                "both_source_agreement_conversion",
+                "agreement-conversion-swatch",
+                "Both-source agreement conversion",
+            )
+        ],
+        "commodity": [("commodity", "commodity-swatch", "Commodity layer")],
+        "intersection": [("intersection", "intersection-swatch", "Loss and commodity intersection")],
+    }
+    specs = by_layer.get(str(selected_layer_id or ""), [])
     rows = [
         f'<span><i class="swatch {css_class}"></i>{html.escape(label)}</span>'
         for key, css_class, label in specs
@@ -1834,7 +1887,11 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     evidence_period = f"{temporal['evidence_start_year']}-{temporal['effective_end_year']}"
     commodity_name = _display_value(commodity.get("display_name") or commodity.get("id"))
     country = _display_value(aoi.get("country"))
+    state = _display_value(aoi.get("state"), "")
+    municipality = _display_value(aoi.get("municipality"), "")
+    locality = ", ".join(part for part in [municipality, state] if part)
     context = f"{commodity_name.upper()}  ·  {country.upper()}"
+    location_context = f"{context}  ·  {locality.upper()}" if locality else context
     needs_review = bool(assessment.get("human_review_required"))
     review_state = "Needs review" if needs_review else "No review trigger"
     loss_positive = needs_review
@@ -1956,7 +2013,7 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         c.line(margin, 38, width - margin, 38)
         c.setFillColor(muted)
         c.setFont("Helvetica", 6.4)
-        c.drawString(margin, 24, f"EUDR EVIDENCE PACKAGE  ·  {context}")
+        c.drawString(margin, 24, f"EUDR EVIDENCE PACKAGE  ·  {location_context}")
         c.setFillColor(ink)
         c.setFont("Helvetica-Bold", 7)
         c.drawRightString(width - margin, 24, str(page_no))
@@ -2233,6 +2290,10 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         c.setFillColor(accent)
         c.setFont("Helvetica-Bold", 14)
         c.drawString(38, height - 275, context)
+        if locality:
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(38, height - 294, locality.upper())
         box_h = 52
         c.setStrokeColor(accent if not loss_positive else warning)
         c.setFillColor(colors.black)
@@ -2347,6 +2408,10 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     side_w = width - margin - side_x
     y = content_top - 20
     y = draw_icon_label(side_x, y, "location", "Location", country, max_w=side_w)
+    y -= 18
+    y = draw_icon_label(side_x, y, "location", "State", state or None, max_w=side_w)
+    y -= 18
+    y = draw_icon_label(side_x, y, "location", "Municipality", municipality or None, max_w=side_w)
     y -= 18
     centroid = aoi.get("centroid")
     centroid_text = (
@@ -2880,9 +2945,12 @@ def _aoi(
 ) -> dict[str, Any]:
     geom = report.get("aoi_geometry_ref", {})
     area = metrics.get("aoi_area_ha", {})
+    admin = _admin_from_report(report, geom, bundle_root=bundle_root)
     return {
         "name": str(report.get("aoi_id", "unknown")),
-        "country": _country_from_aoi_geometry_ref(geom, bundle_root=bundle_root),
+        "country": admin.get("country"),
+        "state": admin.get("state"),
+        "municipality": admin.get("municipality"),
         "centroid": _centroid_from_report_geometry(report, bundle_root=bundle_root),
         "area_ha": area.get("value") if isinstance(area, Mapping) else None,
         "polygon_count": None,
@@ -2902,40 +2970,77 @@ def _centroid_from_report_geometry(
     return {"lat": round(centroid.y, 6), "lon": round(centroid.x, 6)}
 
 
-def _country_from_aoi_geometry_ref(geom: Any, *, bundle_root: Path) -> str | None:
+def _admin_from_report(
+    report: Mapping[str, Any],
+    geom: Any,
+    *,
+    bundle_root: Path,
+) -> dict[str, str | None]:
+    values = _admin_from_aoi_geometry_ref(geom, bundle_root=bundle_root)
+    explicit = report.get("aoi_admin")
+    if isinstance(explicit, Mapping):
+        for key in ("country", "state", "municipality"):
+            value = explicit.get(key)
+            if isinstance(value, str) and value.strip():
+                values[key] = value.strip()
+    return values
+
+
+def _admin_from_aoi_geometry_ref(geom: Any, *, bundle_root: Path) -> dict[str, str | None]:
+    values: dict[str, str | None] = {"country": None, "state": None, "municipality": None}
     if not isinstance(geom, Mapping) or geom.get("kind") != "geojson":
-        return None
+        return values
     relpath = geom.get("value")
     if not isinstance(relpath, str) or not relpath:
-        return None
+        return values
     path = bundle_root / relpath
     if not path.is_file():
-        return None
+        return values
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None
+        return values
     features = payload.get("features") if isinstance(payload, Mapping) else None
     if not isinstance(features, list):
-        return None
-    keys = [
-        "country",
-        "country_name",
-        "country_of_production",
-        "producer_country",
-        "admin_country",
-    ]
+        return values
+    keys = {
+        "country": [
+            "country",
+            "country_name",
+            "country_of_production",
+            "producer_country",
+            "admin_country",
+            "ADM0_NAME",
+        ],
+        "state": ["state", "region", "province", "admin_state", "ADM1_NAME", "adm1_name"],
+        "municipality": [
+            "municipality",
+            "admin_municipality",
+            "ADM2_NAME",
+            "adm2_name",
+            "county",
+            "district",
+        ],
+    }
     for feature in features:
         if not isinstance(feature, Mapping):
             continue
         props = feature.get("properties")
         if not isinstance(props, Mapping):
             continue
-        for key in keys:
-            value = props.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return None
+        for field, aliases in keys.items():
+            if values[field]:
+                continue
+            for key in aliases:
+                value = props.get(key)
+                if isinstance(value, str) and value.strip():
+                    values[field] = value.strip()
+                    break
+    return values
+
+
+def _country_from_aoi_geometry_ref(geom: Any, *, bundle_root: Path) -> str | None:
+    return _admin_from_aoi_geometry_ref(geom, bundle_root=bundle_root).get("country")
 
 
 def _commodity(report: Mapping[str, Any], metrics: Mapping[str, Any]) -> dict[str, Any]:
@@ -3759,7 +3864,13 @@ def _write_satellite_context_png(
     if not src.is_file():
         return _missing("suitable_satellite_imagery_not_available_in_local_bundle")
     try:
-        rgba = _render_satellite_crop(src, aoi_geom_wgs84, width=width, height=height)
+        rgba = _render_satellite_crop(
+            src,
+            aoi_geom_wgs84,
+            width=width,
+            height=height,
+            allow_variable_width=True,
+        )
     except Exception:
         return _missing("satellite_raster_could_not_be_rendered")
     _write_png_rgba(output_path, rgba)
@@ -3956,6 +4067,8 @@ def _write_esri_satellite_context_png(
         )
         _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform)
     except Exception:
+        if output_path.is_file():
+            return _available(output_path, output_path.parents[1])
         return _missing("esri_satellite_imagery_could_not_be_fetched_or_rendered")
     _write_png_rgba(output_path, rgba)
     return _available(output_path, output_path.parents[1])
@@ -3984,6 +4097,8 @@ def _write_regional_overview_png_esri(
                     pass  # optional regional-context layer; never blocks the base evidence image
         _draw_aoi_outline_inplace(rgba, aoi_geom_wgs84, dst_crs, dst_transform, min_stroke_px=2.0)
     except Exception:
+        if output_path.is_file():
+            return _available(output_path, output_path.parents[1])
         return _missing("esri_regional_overview_could_not_be_fetched_or_rendered")
     _write_png_rgba(output_path, rgba)
     return _available(output_path, output_path.parents[1])
@@ -4067,7 +4182,7 @@ def _write_esri_leaflet_aoi_map_html(
   <style>
     html, body, #map {{ height: 100%; margin: 0; background: #101416; }}
     .title {{
-      position: absolute; z-index: 1000; left: 14px; top: 12px; max-width: 72%;
+      position: absolute; z-index: 1000; left: 54px; top: 12px; max-width: calc(72% - 40px);
       color: #f7fbfb; font: 700 16px Arial, sans-serif;
       background: rgba(7, 10, 12, 0.82); padding: 8px 12px; border-radius: 8px;
     }}

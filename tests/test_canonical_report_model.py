@@ -54,7 +54,13 @@ def _mask_geojson(path: Path) -> None:
     )
 
 
-def _aoi_geojson(path: Path, *, country: str = "Brazil") -> None:
+def _aoi_geojson(
+    path: Path,
+    *,
+    country: str = "Brazil",
+    state: str = "Minas Gerais",
+    municipality: str = "Coromandel",
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -63,7 +69,11 @@ def _aoi_geojson(path: Path, *, country: str = "Brazil") -> None:
                 "features": [
                     {
                         "type": "Feature",
-                        "properties": {"country": country},
+                        "properties": {
+                            "country": country,
+                            "region": state,
+                            "municipality": municipality,
+                        },
                         "geometry": {
                             "type": "Polygon",
                             "coordinates": [
@@ -367,6 +377,8 @@ def test_customer_html_is_json_first_accessible_and_non_decision_language(tmp_pa
         report_root=bundle_root / "reports" / "aoi_report_v2",
         generated_artifacts=artifacts,
     )
+    assert report.aoi["state"] == "Minas Gerais"
+    assert report.aoi["municipality"] == "Coromandel"
 
     html_path = report_root / "report.html"
     render_canonical_html(report, html_path)
@@ -378,6 +390,11 @@ def test_customer_html_is_json_first_accessible_and_non_decision_language(tmp_pa
     assert 'data-layer="commodity"' in html_text
     assert "MapBiomas Brazil Land Cover And Land Use Collection With Long Name" in html_text
     assert "Coffee - Brazil" in html_text
+    assert "Minas Gerais" in html_text
+    assert "Coromandel" in html_text
+    assert 'id="layer-legend"' in html_text
+    assert "layerLegendRows" in html_text
+    assert ".viewer img { width: 100%; min-height: 490px; height: 100%; object-fit: cover;" in html_text
     assert "2021-2024" in html_text
     assert "JSON download" in html_text
     assert "PDF download" in html_text
@@ -548,6 +565,8 @@ def test_canonical_pdf_renderer_a4_twelve_pages_headings_values_and_repeatabilit
     assert report_obj["report_id"] in text
     assert "Coffee" in text
     assert "Ghana" in text
+    assert "Minas Gerais" in text
+    assert "Coromandel" in text
     assert "100.0 ha" in text
     assert "80 ha" in text
     assert "2.5 ha" in text
