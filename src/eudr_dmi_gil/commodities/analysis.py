@@ -191,6 +191,7 @@ class CommodityAssessmentResult:
     status_messages: list[str]
     summary_path: Path | None
     commodity_mask_path: Path | None
+    baseline_commodity_mask_path: Path | None
     overlap_mask_path: Path | None
     derived_mask_paths: dict[str, Path]
     debug_path: Path | None
@@ -311,6 +312,7 @@ def run_commodity_assessment(
     source_diagnostics: dict[str, Any] = {}
     derived_masks: dict[str, np.ndarray] = {}
 
+    primary_key = _commodity_source_key(config)
     for source_config in (config, *config.companion_sources):
         key = _commodity_source_key(source_config)
         source_provider = provider_for_config(source_config)
@@ -373,7 +375,6 @@ def run_commodity_assessment(
         source_new_masks[key] = source_latest.mask & ~baseline_mask.mask
 
     if source_new_masks:
-        primary_key = _commodity_source_key(config)
         primary_new = source_new_masks.get(primary_key)
         if primary_new is not None:
             derived_masks["new_commodity_since_baseline"] = primary_new
@@ -485,10 +486,23 @@ def run_commodity_assessment(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     commodity_mask_path = output_dir / f"{config.id}_commodity_mask.geojson"
+    baseline_commodity_mask = source_baseline_masks.get(primary_key)
+    baseline_commodity_mask_path = (
+        output_dir / f"{config.id}_baseline_commodity_mask.geojson"
+        if baseline_commodity_mask is not None
+        else None
+    )
     overlap_mask_path = output_dir / f"{config.id}_post2020_loss_overlap_mask.geojson"
     debug_path = output_dir / f"{config.id}_commodity_debug.json"
     summary_path = output_dir / f"{config.id}_commodity_summary.json"
     _write_mask_geojson(commodity_mask_path, commodity_mask, target_transform, target_crs)
+    if baseline_commodity_mask_path is not None:
+        _write_mask_geojson(
+            baseline_commodity_mask_path,
+            baseline_commodity_mask,
+            target_transform,
+            target_crs,
+        )
     _write_mask_geojson(overlap_mask_path, loss_and_commodity, target_transform, target_crs)
     derived_mask_paths: dict[str, Path] = {}
     for name, mask in sorted(derived_masks.items()):
@@ -582,6 +596,11 @@ def run_commodity_assessment(
         "grid": grid,
         "artifacts": {
             "commodity_mask": commodity_mask_path.name,
+            **(
+                {"baseline_commodity_mask": baseline_commodity_mask_path.name}
+                if baseline_commodity_mask_path is not None
+                else {}
+            ),
             "post_2020_loss_overlap_mask": overlap_mask_path.name,
             "debug": debug_path.name,
             **{name: path.name for name, path in sorted(derived_mask_paths.items())},
@@ -599,6 +618,7 @@ def run_commodity_assessment(
         status_messages=status_messages,
         summary_path=summary_path,
         commodity_mask_path=commodity_mask_path,
+        baseline_commodity_mask_path=baseline_commodity_mask_path,
         overlap_mask_path=overlap_mask_path,
         derived_mask_paths=derived_mask_paths,
         debug_path=debug_path,
@@ -674,6 +694,7 @@ def _unavailable_result(
         status_messages=status_messages,
         summary_path=None,
         commodity_mask_path=None,
+        baseline_commodity_mask_path=None,
         overlap_mask_path=None,
         derived_mask_paths={},
         debug_path=None,
@@ -733,6 +754,7 @@ def artifact_refs(result: CommodityAssessmentResult, bundle_root: Path) -> dict[
     for key, path in {
         "summary_ref": result.summary_path,
         "commodity_mask_ref": result.commodity_mask_path,
+        "baseline_commodity_mask_ref": result.baseline_commodity_mask_path,
         "post_2020_loss_overlap_mask_ref": result.overlap_mask_path,
         **{f"{name}_mask_ref": path for name, path in result.derived_mask_paths.items()},
         "debug_ref": result.debug_path,

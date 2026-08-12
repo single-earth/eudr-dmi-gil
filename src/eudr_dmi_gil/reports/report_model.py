@@ -379,6 +379,12 @@ def materialize_evidence_pngs(
         if commodity_mask_ref and (bundle_root / commodity_mask_ref).is_file()
         else None
     )
+    baseline_commodity_mask_ref = _ref_relpath(commodity_outputs, "baseline_commodity_mask_ref")
+    baseline_commodity_mask_path = (
+        bundle_root / baseline_commodity_mask_ref
+        if baseline_commodity_mask_ref and (bundle_root / baseline_commodity_mask_ref).is_file()
+        else None
+    )
     commodity_loss_overlap_ref = _ref_relpath(commodity_outputs, "post_2020_loss_overlap_mask_ref")
     commodity_loss_overlap_path = (
         bundle_root / commodity_loss_overlap_ref
@@ -431,7 +437,11 @@ def materialize_evidence_pngs(
     artifacts["jrc_forest_2020"] = _layered_png_from_geojson_refs(
         layers=[
             (baseline_mask_path, (33, 122, 72), 0.62),
-            (commodity_mask_path, _COMMODITY_OVERLAY_COLOR[:3], _COMMODITY_OVERLAY_ALPHA),
+            (
+                baseline_commodity_mask_path,
+                _COMMODITY_OVERLAY_COLOR[:3],
+                _COMMODITY_OVERLAY_ALPHA,
+            ),
         ],
         output_path=evidence_dir / "02_jrc_forest_2020.png",
         background_raster_path=satellite_baseline_path or satellite_recent_path,
@@ -489,6 +499,15 @@ def materialize_evidence_pngs(
         color=_COMMODITY_OVERLAY_COLOR,
         unavailable_reason="usable_commodity_layer_not_available",
         background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["baseline_commodity_layer"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=baseline_commodity_mask_ref,
+        output_path=evidence_dir / "04b_baseline_commodity_layer.png",
+        color=_COMMODITY_OVERLAY_COLOR,
+        unavailable_reason="usable_baseline_commodity_layer_not_available",
+        background_raster_path=satellite_baseline_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
     )
 
@@ -1454,7 +1473,7 @@ def _render_report_layer_legend(
     by_layer = {
         "jrc_forest_2020": [
             ("jrc_forest_2020", "forest", "JRC forest baseline"),
-            ("commodity", "commodity-swatch", "Commodity layer"),
+            ("baseline_commodity", "commodity-swatch", "Baseline commodity layer"),
         ],
         "forest_loss": [
             ("forest_loss", "loss", "Forest loss"),
@@ -2450,10 +2469,16 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     # so AOIs without a commodity layer (e.g. the mandatory zero-config regression fixture) render
     # exactly as before.
     commodity_layer_entry = layers.get("commodity")
+    baseline_commodity_layer_entry = layers.get("baseline_commodity")
     commodity_overlay_available = bool(
         commodity.get("evidence_available")
         and isinstance(commodity_layer_entry, Mapping)
         and commodity_layer_entry.get("available")
+    )
+    baseline_commodity_overlay_available = bool(
+        commodity.get("evidence_available")
+        and isinstance(baseline_commodity_layer_entry, Mapping)
+        and baseline_commodity_layer_entry.get("available")
     )
     commodity_loss_metric_available = (
         commodity_overlay_available
@@ -2462,6 +2487,10 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     commodity_swatch = colors.HexColor("#1e88e5")
     commodity_loss_swatch = colors.HexColor("#662d91")
     commodity_label = f"{commodity_name} plantations ({_display_value(commodity.get('observation_year'))})"
+    baseline_commodity_label = (
+        f"{commodity_name} plantations "
+        f"({_display_value(commodity.get('baseline_observation_year'))})"
+    )
 
     new_page(5, "Forest Baseline 2020")
     y = content_top
@@ -2478,8 +2507,8 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         (colors.HexColor("#217a48"), "Forest (2020)"),
         (soft, f"Non-forest (2020) / {non_forest_label}"),
     ]
-    if commodity_overlay_available:
-        page5_legend_items.append((commodity_swatch, commodity_label))
+    if baseline_commodity_overlay_available:
+        page5_legend_items.append((commodity_swatch, baseline_commodity_label))
     draw_evidence_map_legend(y, page5_legend_items)
     finish_page(5)
 
@@ -2739,11 +2768,21 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
         "jrc_forest_2020": "Forest baseline evidence map (raster)",
         "forest_loss": "Forest loss evidence map (raster)",
         "commodity_layer": "Commodity evidence map (raster)",
+        "baseline_commodity_layer": "Baseline commodity evidence map (raster)",
         "intersection": "Overlap evidence map (raster)",
         "before_after": "Before/after satellite comparison (raster)",
         "legend": "Map legend (raster)",
     }
-    for key in ["aoi_satellite", "jrc_forest_2020", "forest_loss", "commodity_layer", "intersection", "before_after", "legend"]:
+    for key in [
+        "aoi_satellite",
+        "jrc_forest_2020",
+        "forest_loss",
+        "commodity_layer",
+        "baseline_commodity_layer",
+        "intersection",
+        "before_after",
+        "legend",
+    ]:
         item = artifacts.get(key)
         if isinstance(item, Mapping):
             description = (
@@ -3080,6 +3119,10 @@ def _commodity(report: Mapping[str, Any], metrics: Mapping[str, Any]) -> dict[st
             or commodity_params.get("dataset_version")
         ),
         "observation_year": commodity.get("observation_year") or commodity_params.get("observation_year"),
+        "baseline_observation_year": _metric_value(
+            metrics, "commodity_baseline_observation_year"
+        )
+        or commodity_params.get("baseline_observation_year"),
         "class_values": commodity.get("class_values") or commodity_params.get("class_values") or [],
         "coverage_status": commodity.get("coverage_status") or "missing",
         "evidence_gaps": commodity.get("evidence_gaps") or [],
@@ -3302,6 +3345,16 @@ def _layers(
             str(commodity.get("version") or "unavailable"),
             "Configured commodity evidence layer",
             str(commodity.get("observation_year") or "") or None,
+        ),
+        "baseline_commodity": _layer(
+            "baseline_commodity",
+            "Baseline commodity layer",
+            artifacts.get("baseline_commodity_layer")
+            or _missing("baseline_commodity_layer_not_materialized"),
+            str(commodity.get("dataset") or "commodity_layer"),
+            str(commodity.get("version") or "unavailable"),
+            "Configured commodity evidence layer at the baseline observation year",
+            str(commodity.get("baseline_observation_year") or "") or None,
         ),
         "intersection": _layer(
             "intersection",
