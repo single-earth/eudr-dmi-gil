@@ -1,0 +1,17 @@
+{
+  "aoi_id": "liberia_fmc_area_k_contract_boundary",
+  "commodity": "wood",
+  "country": "Liberia",
+  "country_code": "LR",
+  "production_geometry_role": "concession",
+  "production_plot_status": "unresolved",
+  "registry_source": "/Users/server/projects/geospatial-evidence-framework/inputs/liberia-eudr-wood-data-source-registry.json",
+  "required_artifacts": [
+    "source_layer_inventory.json",
+    "source_agreement_matrix.csv",
+    "evidence_gaps.json",
+    "production_geometry_status.json",
+    "boundary_comparison.json",
+    "area_k_layer_map.html"
+  ]
+}
