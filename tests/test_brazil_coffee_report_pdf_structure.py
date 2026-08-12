@@ -10,6 +10,7 @@ i.e. the PDF's own embedded text layer) -- no OCR/rasterization is used here.
 from __future__ import annotations
 
 import hashlib
+import csv
 import json
 import os
 import shutil
@@ -34,7 +35,6 @@ REQUIRED_CANONICAL_LAYERS = [
     "commodity",
     "before_after",
     "regional_overview",
-    "cover_hero",
     "legend",
 ]
 
@@ -253,6 +253,19 @@ def test_brazil_required_canonical_layers_are_all_available(brazil_bundle_dir: P
         assert path, f"required layer {key} has no path"
         assert (canonical_dir / path).is_file(), f"required layer {key} artifact missing on disk: {path}"
 
+    cover_hero = layers.get("cover_hero")
+    assert cover_hero is not None, "cover_hero layer key missing from report.json layers"
+    if cover_hero.get("available") is True:
+        path = cover_hero.get("path")
+        assert path, f"available cover_hero has no path: {cover_hero}"
+        assert (canonical_dir / path).is_file(), f"cover_hero artifact missing on disk: {path}"
+    else:
+        assert cover_hero.get("availability_status") in {
+            "esri_satellite_imagery_could_not_be_fetched_or_rendered",
+            "cover_hero_not_materialized",
+        }, f"unexpected cover_hero unavailability: {cover_hero}"
+        assert cover_hero.get("path") is None, f"unavailable cover_hero should not declare a path: {cover_hero}"
+
     intersection = layers.get("intersection")
     assert intersection is not None, "intersection layer key missing from report.json layers"
     assert intersection.get("available") is False, (
@@ -300,16 +313,23 @@ def test_brazil_metrics_agree_between_json_and_csv(brazil_bundle_dir: Path) -> N
     metrics = report["metrics"]
     assert "dummy_metric" not in metrics, "placeholder dummy_metric leaked into a JRC/commodity report"
 
-    csv_lines = (canonical_dir / "metrics.csv").read_text(encoding="utf-8").splitlines()
-    assert csv_lines[0] == "variable,value,unit,source,notes"
-    csv_values = {line.split(",", 1)[0]: line.split(",")[1] for line in csv_lines[1:]}
+    with (canonical_dir / "metrics.csv").open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        assert reader.fieldnames == ["variable", "value", "unit", "source", "notes"]
+        csv_values = {row["variable"]: row["value"] for row in reader}
 
     for name, entry in metrics.items():
         assert name in csv_values, f"metric {name} missing from metrics.csv"
-        assert abs(float(csv_values[name]) - float(entry["value"])) < 1e-6, (
-            f"metric {name} disagrees between report.json ({entry['value']}) "
-            f"and metrics.csv ({csv_values[name]})"
-        )
+        value = entry["value"]
+        csv_value = csv_values[name]
+        if isinstance(value, bool):
+            assert csv_value.lower() == str(value).lower(), (
+                f"metric {name} disagrees between report.json ({value}) and metrics.csv ({csv_value})"
+            )
+        else:
+            assert abs(float(csv_value) - float(value)) < 1e-6, (
+                f"metric {name} disagrees between report.json ({value}) and metrics.csv ({csv_value})"
+            )
 
 
 def test_brazil_headline_metrics_agree_in_pdf_text(brazil_bundle_dir: Path) -> None:
