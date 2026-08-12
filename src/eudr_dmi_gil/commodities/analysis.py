@@ -302,9 +302,7 @@ def run_commodity_assessment(
         & (loss_values >= 21)
         & (loss_values <= end_code)
     )
-    commodity_mask = commodity.mask
-    baseline_and_commodity = baseline_forest & commodity_mask
-    loss_and_commodity = post_2020_loss_on_baseline & commodity_mask
+    raw_latest_commodity_mask = commodity.mask
 
     source_new_masks: dict[str, np.ndarray] = {}
     source_latest_masks: dict[str, np.ndarray] = {}
@@ -373,6 +371,18 @@ def run_commodity_assessment(
             continue
         source_baseline_masks[key] = baseline_mask.mask
         source_new_masks[key] = source_latest.mask & ~baseline_mask.mask
+
+    # A later commodity observation is not itself evidence that baseline-year plantations were
+    # cleared. Until a configured clearing/removal layer exists, carry baseline commodity pixels
+    # forward into the effective current mask; "new since baseline" remains latest AND NOT baseline.
+    primary_baseline_mask = source_baseline_masks.get(primary_key)
+    commodity_mask = (
+        raw_latest_commodity_mask | primary_baseline_mask
+        if primary_baseline_mask is not None
+        else raw_latest_commodity_mask
+    )
+    baseline_and_commodity = baseline_forest & commodity_mask
+    loss_and_commodity = post_2020_loss_on_baseline & commodity_mask
 
     if source_new_masks:
         primary_new = source_new_masks.get(primary_key)
@@ -531,7 +541,17 @@ def run_commodity_assessment(
         "grid": grid,
         "mask_true_pixels": {
             "aoi": int(np.count_nonzero(aoi_mask)),
+            "commodity_latest_observation": int(np.count_nonzero(raw_latest_commodity_mask)),
             "commodity": int(np.count_nonzero(commodity_mask)),
+            **(
+                {
+                    "commodity_baseline_observation": int(
+                        np.count_nonzero(primary_baseline_mask)
+                    )
+                }
+                if primary_baseline_mask is not None
+                else {}
+            ),
             "jrc_forest_2020": int(np.count_nonzero(baseline_forest)),
             "post_2020_loss_on_jrc_forest_2020": int(
                 np.count_nonzero(post_2020_loss_on_baseline)

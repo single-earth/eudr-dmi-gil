@@ -300,3 +300,76 @@ def test_two_source_baseline_latest_differencing_keeps_agreement_distinct(
     assert "fdp_new_commodity_since_baseline" in result.derived_mask_paths
     assert "mapbiomas_new_commodity_since_baseline" in result.derived_mask_paths
     assert "post_2020_loss_and_both_source_agreement_new_commodity" in result.derived_mask_paths
+
+
+def test_baseline_commodity_persists_into_current_mask_without_clearing_evidence(
+    tmp_path: Path,
+) -> None:
+    aoi_path = tmp_path / "aoi.geojson"
+    jrc_path = tmp_path / "jrc.tif"
+    loss_path = tmp_path / "lossyear.tif"
+    baseline_path = tmp_path / "coffee_2020.tif"
+    latest_path = tmp_path / "coffee_2024.tif"
+    _write_aoi(aoi_path)
+    _write_raster(jrc_path, np.ones((10, 10), dtype=np.uint8))
+    loss = np.zeros((10, 10), dtype=np.uint8)
+    loss[4, 4] = 21
+    _write_raster(loss_path, loss)
+
+    baseline = np.zeros((10, 10), dtype=np.uint8)
+    baseline[4, 4] = 46
+    latest = np.zeros((10, 10), dtype=np.uint8)
+    latest[5, 5] = 46
+    _write_raster(baseline_path, baseline)
+    _write_raster(latest_path, latest)
+
+    baseline_provider = LocalJrcGfc2020Provider(jrc_path, processed_at_utc=FIXED_TS)
+    loss_metadata = build_hansen_lossyear_metadata(
+        raster_path=loss_path,
+        dataset_version="2025-v1.13",
+        latest_available_year=2025,
+        processed_at_utc=FIXED_TS,
+        source_url="https://example.test/hansen",
+        asset_identifier="UMD/hansen/global_forest_change_2025_v1_13",
+    )
+    config = CommodityConfig(
+        id="coffee",
+        display_name="Coffee",
+        provider="mapbiomas_brazil",
+        dataset_title="MapBiomas Brazil Land Cover",
+        dataset_version="collection-10-2024",
+        asset_id=latest_path.as_posix(),
+        local_path=latest_path.as_posix(),
+        baseline_asset_id=baseline_path.as_posix(),
+        baseline_local_path=baseline_path.as_posix(),
+        baseline_observation_year=2020,
+        class_values=(46,),
+        class_labels=("Coffee plantations",),
+        observation_year=2024,
+        country_scope=("Brazil",),
+    )
+
+    result = run_commodity_assessment(
+        config=config,
+        aoi_geojson_path=aoi_path,
+        aoi_country="Brazil",
+        jrc_gfc2020_raster_path=jrc_path,
+        hansen_lossyear_raster_path=loss_path,
+        output_dir=tmp_path / "out",
+        baseline_metadata=baseline_provider.metadata(),
+        loss_metadata=loss_metadata,
+        requested_end_year=2025,
+        target_resolution_m=500.0,
+    )
+
+    rows = result.metrics.to_metric_rows()
+    assert rows["new_commodity_since_baseline_ha"]["value"] > 0
+    assert rows["commodity_area_ha"]["value"] > rows["new_commodity_since_baseline_ha"]["value"]
+    assert rows["post_2020_loss_and_commodity_overlap_ha"]["value"] > 0
+
+    debug = json.loads(result.debug_path.read_text(encoding="utf-8"))
+    counts = debug["mask_true_pixels"]
+    assert counts["commodity_latest_observation"] > 0
+    assert counts["commodity_baseline_observation"] > 0
+    assert counts["commodity"] > counts["commodity_latest_observation"]
+    assert counts["commodity"] > counts["commodity_baseline_observation"]
