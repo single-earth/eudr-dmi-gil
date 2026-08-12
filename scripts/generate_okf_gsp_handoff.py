@@ -75,6 +75,7 @@ _REQUIRED_ROLES = {
     "commodity_post2020_loss_overlap_mask",
     "commodity_debug",
     "before_after_satellite_png",
+    "regional_overview_png",
 }
 
 

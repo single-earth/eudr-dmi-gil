@@ -187,6 +187,62 @@ def _write_fake_png(path: Path) -> None:
     )
 
 
+def _write_rgb_test_raster(path: Path) -> None:
+    np = pytest.importorskip("numpy")
+    rasterio = pytest.importorskip("rasterio")
+    from rasterio.transform import from_bounds
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    height, width = 64, 64
+    yy, xx = np.indices((height, width))
+    data = np.stack(
+        [
+            (80 + xx * 2).astype("uint8"),
+            (90 + yy * 2).astype("uint8"),
+            np.full((height, width), 120, dtype="uint8"),
+        ]
+    )
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=3,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=from_bounds(-1.0, -1.0, 2.0, 2.0, width=width, height=height),
+    ) as dst:
+        dst.write(data)
+
+
+def test_regional_overview_falls_back_to_local_recent_raster(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "bundle"
+    _aoi_geojson(bundle_root / "inputs" / "aoi.geojson")
+    _write_rgb_test_raster(bundle_root / "inputs" / "satellite_baseline.tif")
+    _write_rgb_test_raster(bundle_root / "inputs" / "satellite_recent.tif")
+
+    source = _source_report(bundle_root)
+    source["computed_outputs"]["satellite_imagery"] = {
+        "baseline_raster_ref": {"relpath": "inputs/satellite_baseline.tif"},
+        "recent_raster_ref": {"relpath": "inputs/satellite_recent.tif"},
+        "recent_date": "2025-01-01/2025-12-31",
+        "dataset_title": "Sentinel-2 L2A true-color (TCI) visual composite",
+        "dataset_version": "sentinel-2-l2a",
+    }
+
+    artifacts = materialize_evidence_pngs(
+        source,
+        bundle_root=bundle_root,
+        report_root=bundle_root / "reports" / "aoi_report_v2" / "coffee_named_aoi",
+    )
+
+    regional = artifacts["regional_overview"]
+    assert regional.available is True
+    assert regional.path == "evidence/07_regional_overview.png"
+    assert (bundle_root / "reports" / "aoi_report_v2" / "coffee_named_aoi" / regional.path).is_file()
+
+
 def _pdf_fixture_report(
     tmp_path: Path,
     *,

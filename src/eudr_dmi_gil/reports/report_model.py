@@ -39,14 +39,10 @@ EVIDENCE_MAP_PIXEL_HEIGHT = round(EVIDENCE_MAP_PIXEL_WIDTH / _EVIDENCE_MAP_BOX_A
 COVER_HERO_PIXEL_WIDTH = 640
 COVER_HERO_PIXEL_HEIGHT = round(COVER_HERO_PIXEL_WIDTH * 841.8897637795277 / 595.2755905511812)
 
-# Cover (page 1) and regional-overview (page 4) basemaps are composited from the Esri World
-# Imagery export service instead of the locally pinned Sentinel-2 GeoTIFFs every other evidence
-# image in this module still uses (01_aoi_satellite.png, 01b_..., 02-06). This is a deliberate,
-# per-image basemap-provider substitution, not a change to the underlying JRC/Hansen/commodity
-# analysis pipeline - see the task bundle's reproduction docs for why these two specifically were
-# switched. Unlike the checked-in Sentinel-2 rasters, Esri World Imagery is a live remote service
-# with no content hash to pin: a rerun can legitimately return non-byte-identical tiles if Esri's
-# backing mosaic has been refreshed since the previous run.
+# Cover (page 1) is composited from the Esri World Imagery export service. Page 4 uses a caller
+# supplied regional raster when present, then falls back to the locally pinned recent Sentinel-2
+# raster before attempting Esri. This keeps recurring page-4 gaps out of offline/derived evidence
+# packages whose ordinary AOI satellite imagery is already available.
 ESRI_WORLDIMAGERY_EXPORT_URL = (
     "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
 )
@@ -601,10 +597,23 @@ def materialize_evidence_pngs(
             pad_factor=3.0,
             admin_boundaries_relpath=admin_boundaries_ref,
         )
+    elif satellite_recent_ref:
+        # Offline fallback: use the locally pinned recent satellite raster when no dedicated
+        # regional raster was supplied. The frame is clamped to real raster coverage so this does
+        # not invent a wider regional image, but it does keep page 4 populated with real AOI
+        # context instead of a gap panel.
+        artifacts["regional_overview"] = _write_regional_overview_png(
+            bundle_root=bundle_root,
+            raster_relpath=satellite_recent_ref,
+            aoi_geom_wgs84=aoi_geom_wgs84,
+            output_path=evidence_dir / "07_regional_overview.png",
+            pad_factor=3.0,
+            admin_boundaries_relpath=admin_boundaries_ref,
+            allow_variable_width=True,
+        )
     else:
-        # Without a pinned regional raster, fall back to the live Esri World Imagery export
-        # service. The optional admin-boundary overlay still comes from the locally pinned fetch
-        # when the caller supplies it.
+        # Last resort for reports with AOI geometry but no local satellite raster. Unlike the
+        # Sentinel fallback above, this live service is not pinned and may be unavailable.
         artifacts["regional_overview"] = _write_regional_overview_png_esri(
             bundle_root=bundle_root,
             aoi_geom_wgs84=aoi_geom_wgs84,
@@ -3248,21 +3257,16 @@ def _layers(
     satellite_dataset = str(satellite_outputs.get("dataset_title") or "satellite_context")
     satellite_version = str(satellite_outputs.get("dataset_version") or "unavailable")
     satellite_date = str(satellite_outputs.get("recent_date") or "") or None
-    regional_dataset = (
-        satellite_dataset
-        if _ref_relpath(satellite_outputs, "regional_raster_ref")
-        else ESRI_WORLDIMAGERY_DATASET_TITLE
-    )
-    regional_version = (
-        satellite_version
-        if _ref_relpath(satellite_outputs, "regional_raster_ref")
-        else ESRI_WORLDIMAGERY_DATASET_VERSION
-    )
-    regional_date = (
-        str(satellite_outputs.get("regional_date") or "") or None
-        if _ref_relpath(satellite_outputs, "regional_raster_ref")
-        else None
-    )
+    regional_raster_ref = _ref_relpath(satellite_outputs, "regional_raster_ref")
+    recent_raster_ref = _ref_relpath(satellite_outputs, "recent_raster_ref")
+    regional_uses_local_satellite = bool(regional_raster_ref or recent_raster_ref)
+    regional_dataset = satellite_dataset if regional_uses_local_satellite else ESRI_WORLDIMAGERY_DATASET_TITLE
+    regional_version = satellite_version if regional_uses_local_satellite else ESRI_WORLDIMAGERY_DATASET_VERSION
+    regional_date = None
+    if regional_raster_ref:
+        regional_date = str(satellite_outputs.get("regional_date") or "") or None
+    elif recent_raster_ref:
+        regional_date = str(satellite_outputs.get("recent_date") or "") or None
     before_after_date = None
     baseline_date = satellite_outputs.get("baseline_date")
     recent_date = satellite_outputs.get("recent_date")
@@ -4025,6 +4029,7 @@ def _write_regional_overview_png(
     output_path: Path,
     pad_factor: float = 3.0,
     admin_boundaries_relpath: str | None = None,
+    allow_variable_width: bool = False,
 ) -> ArtifactRef:
     if not raster_relpath or aoi_geom_wgs84 is None:
         return _missing("regional_overview_imagery_not_available_in_local_bundle")
@@ -4033,7 +4038,12 @@ def _write_regional_overview_png(
         return _missing("regional_overview_imagery_not_available_in_local_bundle")
     try:
         rgba, dst_crs, dst_transform = _reproject_raster_to_grid(
-            src, aoi_geom_wgs84, pad_factor=pad_factor, width=900, height=620
+            src,
+            aoi_geom_wgs84,
+            pad_factor=pad_factor,
+            width=900,
+            height=620,
+            allow_variable_width=allow_variable_width,
         )
         if admin_boundaries_relpath:
             boundaries_path = bundle_root / admin_boundaries_relpath
