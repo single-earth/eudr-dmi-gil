@@ -16,6 +16,8 @@ runtime configuration here:
 
 - [data_db/two_situation_geemap_pipeline_config.json](two_situation_geemap_pipeline_config.json)
 - [data_db/two_situation_geemap_pipeline_assets.csv](two_situation_geemap_pipeline_assets.csv)
+- [data_db/liberia_wood_geemap_pipeline_config.json](liberia_wood_geemap_pipeline_config.json)
+- [data_db/liberia_wood_geemap_pipeline_assets.csv](liberia_wood_geemap_pipeline_assets.csv)
 
 Stakeholders may propose expansions/updates to these CSVs via the DAO feedback
 process (treat them as the public, reviewable “source of truth”).

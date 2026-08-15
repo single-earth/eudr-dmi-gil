@@ -6,9 +6,13 @@
       "type": "Feature",
       "id": "liberia_fmc_area_k",
       "properties": {
+        "aoi_id": "liberia_fmc_area_k_contract_boundary",
+        "title": "Liberia FMC Area K wood-source screening AOI",
+        "description": "Forest Management Contract Area K concession boundary for EUDR wood-source forest baseline, post-2020 disturbance, and source-context screening.",
         "id": "liberia_fmc_area_k",
         "name": "Forest Management Contract Area K",
         "country": "Liberia",
+        "country_code": "LR",
         "counties": [
           "Nimba",
           "Grand Gedeh",
@@ -29,6 +33,14 @@
         "natural_boundary_caveat": "The contract states that some boundary segments run along the Jobo River, Cestos River, and Gwen Creek. The PDF provides endpoints but not the full river/creek centerline vertex sequences, so this GeoJSON represents those segments as straight chords between documented endpoints.",
         "eudr_use": "Suitable as a concession-level AOI for forest baseline/change screening and concession provenance. It should not be treated as the actual timber-production plot when harvesting-block geometry is available.",
         "missing_for_plot_level_eudr": "Annual Operational Plan harvesting-block polygons/block maps. The contract requires harvesting blocks to be identified in the Annual Operational Plan, but those geometries are not included in this PDF.",
+        "commodity": "wood",
+        "production_geometry_role": "concession",
+        "production_plot_status": "unresolved",
+        "harvesting_block_geometry": "missing",
+        "source_gee_script": "user-provided Earth Engine Code Editor script converted by scripts/run_liberia_wood_geemap_pipeline.py",
+        "center_lon": -8.8706455,
+        "center_lat": 6.15346,
+        "zoom": 10,
         "centroid_lon": -8.8706455,
         "centroid_lat": 6.15346,
         "bbox_wgs84": [
