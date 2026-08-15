@@ -320,3 +320,127 @@ def test_small_detected_area_below_min_report_threshold(evidence_fixture, monkey
     assert payload["metrics"]["union_post2020_disturbance_candidate_ha"] > 0.0
     assert payload["evidence_state"]["post2020_disturbance_detected"] is False
     assert payload["evidence_state"]["human_review_required"] is False
+
+
+def test_include_tmf_with_rasters_computes_real_metrics_not_placeholder(
+    evidence_fixture, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("EUDR_EVIDENCE_GENERATED_AT_UTC", "2026-08-15T00:00:00Z")
+    transform = evidence_fixture["transform"]
+    defo_path = tmp_path / "tmf_defo.tif"
+    deg_path = tmp_path / "tmf_deg.tif"
+    _write_raster(defo_path, np.array([[0, 2022], [0, 0]], dtype=np.int16), transform)
+    _write_raster(deg_path, np.array([[0, 0], [0, 2023]], dtype=np.int16), transform)
+
+    payload = build_post2020_evidence(
+        aoi_geojson_path=evidence_fixture["aoi"],
+        gfc2020_raster_path=evidence_fixture["gfc"],
+        hansen_lossyear_raster_path=evidence_fixture["loss"],
+        out_path=tmp_path / "out" / "evidence.json",
+        start_year=2021,
+        requested_end_year="2025",
+        include_tmf=True,
+        include_radd=False,
+        include_sentinel_confirmation=False,
+        min_report_area_ha=0.01,
+        tmf_deforestation_raster_path=defo_path,
+        tmf_degradation_raster_path=deg_path,
+    )
+
+    metrics = payload["metrics"]
+    assert metrics["tmf_deforestation_2021_resolved_end_year_inside_gfc2020_ha"] is not None
+    assert metrics["tmf_deforestation_2021_resolved_end_year_inside_gfc2020_ha"] > 0.0
+    assert metrics["tmf_degradation_2021_resolved_end_year_inside_gfc2020_ha"] is not None
+    warning_datasets = {
+        dataset
+        for warning in payload["warnings"]
+        if warning["code"] == "optional_layers_not_computed"
+        for dataset in warning["datasets"]
+    }
+    assert "jrc_tmf" not in warning_datasets
+
+
+def test_include_tmf_without_rasters_stays_unavailable(evidence_fixture, monkeypatch) -> None:
+    monkeypatch.setenv("EUDR_EVIDENCE_GENERATED_AT_UTC", "2026-08-15T00:00:00Z")
+    payload = build_post2020_evidence(
+        aoi_geojson_path=evidence_fixture["aoi"],
+        gfc2020_raster_path=evidence_fixture["gfc"],
+        hansen_lossyear_raster_path=evidence_fixture["loss"],
+        out_path=None,
+        start_year=2021,
+        requested_end_year="2025",
+        include_tmf=True,
+        include_radd=False,
+        include_sentinel_confirmation=False,
+        min_report_area_ha=0.01,
+    )
+
+    assert payload["metrics"]["tmf_deforestation_2021_resolved_end_year_inside_gfc2020_ha"] is None
+    warning_datasets = {
+        dataset
+        for warning in payload["warnings"]
+        if warning["code"] == "optional_layers_not_computed"
+        for dataset in warning["datasets"]
+    }
+    assert "jrc_tmf" in warning_datasets
+
+
+def test_include_radd_with_rasters_computes_real_metrics(
+    evidence_fixture, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("EUDR_EVIDENCE_GENERATED_AT_UTC", "2026-08-15T00:00:00Z")
+    transform = evidence_fixture["transform"]
+    alert_path = tmp_path / "radd_alert.tif"
+    date_path = tmp_path / "radd_date.tif"
+    _write_raster(alert_path, np.array([[0, 3], [2, 0]], dtype=np.int16), transform)
+    _write_raster(date_path, np.array([[0, 24050], [24010, 0]], dtype=np.int32), transform)
+
+    payload = build_post2020_evidence(
+        aoi_geojson_path=evidence_fixture["aoi"],
+        gfc2020_raster_path=evidence_fixture["gfc"],
+        hansen_lossyear_raster_path=evidence_fixture["loss"],
+        out_path=tmp_path / "out" / "evidence.json",
+        start_year=2021,
+        requested_end_year="2025",
+        include_tmf=False,
+        include_radd=True,
+        include_sentinel_confirmation=False,
+        min_report_area_ha=0.01,
+        radd_alert_raster_path=alert_path,
+        radd_date_raster_path=date_path,
+        radd_acquired_at_utc="2026-08-15T00:00:00Z",
+        radd_geography="europe_fixture",
+    )
+
+    metrics = payload["metrics"]
+    assert metrics["radd_confirmed_alert_2021_resolved_end_year_inside_gfc2020_ha"] > 0.0
+    assert metrics["radd_low_confidence_alert_2021_resolved_end_year_inside_gfc2020_ha"] > 0.0
+
+
+def test_include_radd_requires_acquisition_timestamp_to_compute(
+    evidence_fixture, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("EUDR_EVIDENCE_GENERATED_AT_UTC", "2026-08-15T00:00:00Z")
+    transform = evidence_fixture["transform"]
+    alert_path = tmp_path / "radd_alert.tif"
+    date_path = tmp_path / "radd_date.tif"
+    _write_raster(alert_path, np.array([[0, 3], [2, 0]], dtype=np.int16), transform)
+    _write_raster(date_path, np.array([[0, 24050], [24010, 0]], dtype=np.int32), transform)
+
+    payload = build_post2020_evidence(
+        aoi_geojson_path=evidence_fixture["aoi"],
+        gfc2020_raster_path=evidence_fixture["gfc"],
+        hansen_lossyear_raster_path=evidence_fixture["loss"],
+        out_path=None,
+        start_year=2021,
+        requested_end_year="2025",
+        include_tmf=False,
+        include_radd=True,
+        include_sentinel_confirmation=False,
+        min_report_area_ha=0.01,
+        radd_alert_raster_path=alert_path,
+        radd_date_raster_path=date_path,
+        # No radd_acquired_at_utc: mutable source must never be treated as computed silently.
+    )
+
+    assert payload["metrics"]["radd_confirmed_alert_2021_resolved_end_year_inside_gfc2020_ha"] is None

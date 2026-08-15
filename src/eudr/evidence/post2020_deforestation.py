@@ -98,6 +98,12 @@ def build_post2020_evidence(
     include_sentinel_confirmation: bool,
     min_report_area_ha: float,
     forest_values: tuple[int, ...] = (1,),
+    tmf_deforestation_raster_path: Path | None = None,
+    tmf_degradation_raster_path: Path | None = None,
+    radd_alert_raster_path: Path | None = None,
+    radd_date_raster_path: Path | None = None,
+    radd_acquired_at_utc: str | None = None,
+    radd_geography: str = "",
 ) -> dict[str, Any]:
     optional = []
     if include_tmf:
@@ -137,20 +143,60 @@ def build_post2020_evidence(
         ),
         "union_post2020_disturbance_candidate_ha": union_disturbance_ha,
     }
-    metrics.update(tmf.unavailable_metrics())
-    metrics.update(radd.unavailable_metrics())
+    tmf_computed = include_tmf and tmf_deforestation_raster_path and tmf_degradation_raster_path
+    if tmf_computed:
+        metrics.update(
+            tmf.compute_metrics_or_unavailable(
+                aoi_geojson_path=aoi_geojson_path,
+                gfc2020_raster_path=gfc2020_raster_path,
+                tmf_deforestation_raster_path=tmf_deforestation_raster_path,
+                tmf_degradation_raster_path=tmf_degradation_raster_path,
+                output_dir=(out_path.parent if out_path is not None else Path(".")) / "tmf",
+                start_year=start_year,
+                end_year=resolved_year,
+                processed_at_utc=generated_at_utc(),
+            )
+        )
+    else:
+        metrics.update(tmf.unavailable_metrics())
+
+    radd_computed = (
+        include_radd and radd_alert_raster_path and radd_date_raster_path and radd_acquired_at_utc
+    )
+    if radd_computed:
+        metrics.update(
+            radd.compute_metrics_or_unavailable(
+                aoi_geojson_path=aoi_geojson_path,
+                radd_alert_raster_path=radd_alert_raster_path,
+                radd_date_raster_path=radd_date_raster_path,
+                output_dir=(out_path.parent if out_path is not None else Path(".")) / "radd",
+                acquired_at_utc=radd_acquired_at_utc,
+                geography=radd_geography,
+            )
+        )
+    else:
+        metrics.update(radd.unavailable_metrics())
+
     if include_sentinel_confirmation:
         metrics.update(sentinel_confirmation.unavailable_metrics())
 
-    if include_tmf or include_radd or include_sentinel_confirmation:
+    remaining_uncomputed = []
+    if include_tmf and not tmf_computed:
+        remaining_uncomputed.append("jrc_tmf")
+    if include_radd and not radd_computed:
+        remaining_uncomputed.append("radd")
+    if include_sentinel_confirmation:
+        remaining_uncomputed.append("sentinel_confirmation")
+    if remaining_uncomputed:
         warnings.append(
             {
                 "code": "optional_layers_not_computed",
                 "message": (
-                    "TMF, RADD, and Sentinel confirmation are represented in the registry "
-                    "and output schema but are not computed by the local raster provider yet."
+                    "These optional layers are represented in the registry and output schema "
+                    "but were not computed for this run (rasters/acquisition timestamp not "
+                    "supplied)."
                 ),
-                "datasets": optional,
+                "datasets": remaining_uncomputed,
             }
         )
 
@@ -210,6 +256,40 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-sentinel-confirmation", action="store_true")
     parser.add_argument("--min-report-area-ha", type=float, default=0.01)
     parser.add_argument("--gfc2020-forest-values", default="1")
+    parser.add_argument(
+        "--tmf-deforestation-raster",
+        type=Path,
+        default=None,
+        help="Local JRC TMF DeforestationYear raster; requires --include-tmf.",
+    )
+    parser.add_argument(
+        "--tmf-degradation-raster",
+        type=Path,
+        default=None,
+        help="Local JRC TMF DegradationYear raster; requires --include-tmf.",
+    )
+    parser.add_argument(
+        "--radd-alert-raster",
+        type=Path,
+        default=None,
+        help="Local RADD Alert-band raster; requires --include-radd.",
+    )
+    parser.add_argument(
+        "--radd-date-raster",
+        type=Path,
+        default=None,
+        help="Local RADD Date-band raster; requires --include-radd.",
+    )
+    parser.add_argument(
+        "--radd-acquired-at",
+        default=None,
+        help="UTC acquisition timestamp for the frozen RADD export; requires --include-radd.",
+    )
+    parser.add_argument(
+        "--radd-geography",
+        default="",
+        help="RADD geography label (africa/asia/ca/sa) recorded in evidence.",
+    )
     args = parser.parse_args(argv)
 
     build_post2020_evidence(
@@ -224,6 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         include_sentinel_confirmation=args.include_sentinel_confirmation,
         min_report_area_ha=args.min_report_area_ha,
         forest_values=parse_forest_values(args.gfc2020_forest_values),
+        tmf_deforestation_raster_path=args.tmf_deforestation_raster,
+        tmf_degradation_raster_path=args.tmf_degradation_raster,
+        radd_alert_raster_path=args.radd_alert_raster,
+        radd_date_raster_path=args.radd_date_raster,
+        radd_acquired_at_utc=args.radd_acquired_at,
+        radd_geography=args.radd_geography,
     )
     return 0
 

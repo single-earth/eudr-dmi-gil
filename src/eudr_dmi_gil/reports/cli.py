@@ -945,6 +945,102 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p.add_argument(
+        "--tmf-deforestation-raster",
+        default=os.environ.get("EUDR_DMI_TMF_DEFORESTATION_RASTER"),
+        help=(
+            "Local JRC Tropical Moist Forest DeforestationYear raster (pixel value = calendar "
+            "year), pre-clipped/exported for this AOI. Requires --tmf-degradation-raster and "
+            "--jrc-gfc2020-raster (env: EUDR_DMI_TMF_DEFORESTATION_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--tmf-degradation-raster",
+        default=os.environ.get("EUDR_DMI_TMF_DEGRADATION_RASTER"),
+        help=(
+            "Local JRC Tropical Moist Forest DegradationYear raster (pixel value = calendar "
+            "year), pre-clipped/exported for this AOI (env: EUDR_DMI_TMF_DEGRADATION_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--tmf-duration-raster",
+        default=os.environ.get("EUDR_DMI_TMF_DURATION_RASTER"),
+        help=(
+            "Optional local JRC TMF Duration quality/context raster, provider-native scale "
+            "(env: EUDR_DMI_TMF_DURATION_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--tmf-intensity-raster",
+        default=os.environ.get("EUDR_DMI_TMF_INTENSITY_RASTER"),
+        help=(
+            "Optional local JRC TMF Intensity quality/context raster, provider-native scale "
+            "(env: EUDR_DMI_TMF_INTENSITY_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--tmf-dataset-version",
+        default=os.environ.get("EUDR_DMI_TMF_DATASET_VERSION", "v1_2025"),
+        help="JRC TMF dataset/asset-path version recorded in evidence (default: v1_2025).",
+    )
+    p.add_argument(
+        "--tmf-start-year",
+        type=int,
+        default=_env_int("EUDR_DMI_TMF_START_YEAR") or 2021,
+        help="Start year for the TMF post-cutoff evidence window (default: 2021).",
+    )
+    p.add_argument(
+        "--radd-alert-raster",
+        default=os.environ.get("EUDR_DMI_RADD_ALERT_RASTER"),
+        help=(
+            "Local, pre-filtered/mosaicked/clipped RADD Alert-band raster for this AOI "
+            "(values: 2=low-confidence, 3=confirmed). Requires --radd-date-raster and "
+            "--radd-acquired-at (env: EUDR_DMI_RADD_ALERT_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--radd-date-raster",
+        default=os.environ.get("EUDR_DMI_RADD_DATE_RASTER"),
+        help=(
+            "Local RADD Date-band raster (YYDOY encoding) aligned to --radd-alert-raster "
+            "(env: EUDR_DMI_RADD_DATE_RASTER)."
+        ),
+    )
+    p.add_argument(
+        "--radd-metadata-json",
+        default=os.environ.get("EUDR_DMI_RADD_METADATA_JSON"),
+        help=(
+            "Optional acquisition metadata JSON produced by "
+            "eudr_dmi_gil.deps.radd_acquire.acquire_radd_alerts (tile ids, geography, "
+            "acquired_at, coverage_warning); freezes provenance for the mutable RADD source "
+            "(env: EUDR_DMI_RADD_METADATA_JSON)."
+        ),
+    )
+    p.add_argument(
+        "--radd-acquired-at",
+        default=os.environ.get("EUDR_DMI_RADD_ACQUIRED_AT"),
+        help=(
+            "UTC acquisition timestamp for the frozen RADD export; required when "
+            "--radd-alert-raster is given and --radd-metadata-json does not supply one "
+            "(env: EUDR_DMI_RADD_ACQUIRED_AT)."
+        ),
+    )
+    p.add_argument(
+        "--radd-geography",
+        default=os.environ.get("EUDR_DMI_RADD_GEOGRAPHY", ""),
+        help="RADD geography label (e.g. africa/asia/ca/sa) recorded in evidence.",
+    )
+    p.add_argument(
+        "--radd-date-window-start",
+        default=os.environ.get("EUDR_DMI_RADD_DATE_WINDOW_START"),
+        help="Optional ISO date; RADD alerts dated earlier are excluded from area/count metrics.",
+    )
+    p.add_argument(
+        "--radd-date-window-end",
+        default=os.environ.get("EUDR_DMI_RADD_DATE_WINDOW_END"),
+        help="Optional ISO date; RADD alerts dated later are excluded from area/count metrics.",
+    )
+
+    p.add_argument(
         "--loss-dataset-end-year",
         type=int,
         default=_env_int("EUDR_DMI_LOSS_DATASET_END_YEAR"),
@@ -1253,6 +1349,9 @@ def main(argv: list[str] | None = None) -> int:
     commodity_analysis = None
     hansen_canopy_analysis = None
     hansen_canopy_commodity_metrics = None
+    tmf_analysis = None
+    radd_analysis = None
+    wood_evidence = None
     if args.enable_hansen_post_2020_loss:
         from eudr_dmi_gil.analysis.forest_loss_post_2020 import run_forest_loss_post_2020
         from eudr_dmi_gil.tasks.forest_loss_post_2020 import load_hansen_config
@@ -1578,6 +1677,296 @@ def main(argv: list[str] | None = None) -> int:
                     for name, entry in hansen_canopy_commodity_metrics.to_metric_rows().items()
                 )
         metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    tmf_deforestation_raster_arg = str(args.tmf_deforestation_raster or "").strip()
+    tmf_degradation_raster_arg = str(args.tmf_degradation_raster or "").strip()
+    if tmf_deforestation_raster_arg or tmf_degradation_raster_arg:
+        if geo_kind != "geojson":
+            raise RuntimeError("TMF change evidence requires --aoi-geojson input")
+        if not (tmf_deforestation_raster_arg and tmf_degradation_raster_arg):
+            raise RuntimeError(
+                "--tmf-deforestation-raster and --tmf-degradation-raster must be provided together"
+            )
+        if jrc_analysis is None:
+            raise RuntimeError(
+                "TMF change evidence requires --jrc-gfc2020-raster and --hansen-lossyear-raster "
+                "to also be provided (TMF is reported against the JRC GFC2020 baseline "
+                "denominator as well as its own TMF domain)."
+            )
+
+        from eudr_dmi_gil.analysis.tmf_change import (
+            build_tmf_layer_metadata,
+            build_tmf_quality_metadata,
+            compute_tmf_change,
+        )
+
+        tmf_defo_path = Path(tmf_deforestation_raster_arg)
+        tmf_deg_path = Path(tmf_degradation_raster_arg)
+        if not tmf_defo_path.is_file():
+            raise FileNotFoundError(f"TMF deforestation raster not found: {tmf_defo_path}")
+        if not tmf_deg_path.is_file():
+            raise FileNotFoundError(f"TMF degradation raster not found: {tmf_deg_path}")
+
+        tmf_duration_path = Path(args.tmf_duration_raster) if args.tmf_duration_raster else None
+        tmf_intensity_path = Path(args.tmf_intensity_raster) if args.tmf_intensity_raster else None
+
+        tmf_defo_meta = build_tmf_layer_metadata(
+            raster_path=tmf_defo_path,
+            role="deforestation_year",
+            asset_identifier="projects/JRC/TMF/v1_2025/DeforestationYear",
+            dataset_version=args.tmf_dataset_version,
+            processed_at_utc=generated_at_utc,
+        )
+        tmf_deg_meta = build_tmf_layer_metadata(
+            raster_path=tmf_deg_path,
+            role="degradation_year",
+            asset_identifier="projects/JRC/TMF/v1_2025/DegradationYear",
+            dataset_version=args.tmf_dataset_version,
+            processed_at_utc=generated_at_utc,
+        )
+        tmf_duration_meta = build_tmf_quality_metadata(
+            raster_path=tmf_duration_path,
+            asset_identifier="projects/JRC/TMF/v1_2025/Duration",
+            band="constant",
+        )
+        tmf_intensity_meta = build_tmf_quality_metadata(
+            raster_path=tmf_intensity_path,
+            asset_identifier="projects/JRC/TMF/v1_2025/Intensity",
+            band="sum",
+        )
+
+        tmf_output_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "jrc_tmf"
+        with _timed("jrc_tmf_change"):
+            tmf_analysis = compute_tmf_change(
+                aoi_geojson_path=geo_path,
+                tmf_deforestation_raster_path=tmf_defo_path,
+                tmf_degradation_raster_path=tmf_deg_path,
+                jrc_gfc2020_raster_path=Path(jrc_raster_arg),
+                output_dir=tmf_output_dir,
+                deforestation_metadata=tmf_defo_meta,
+                degradation_metadata=tmf_deg_meta,
+                requested_end_year=jrc_analysis.metrics.requested_end_year,
+                start_year=args.tmf_start_year,
+                tmf_duration_raster_path=tmf_duration_path,
+                tmf_intensity_raster_path=tmf_intensity_path,
+                duration_metadata=tmf_duration_meta,
+                intensity_metadata=tmf_intensity_meta,
+                target_crs=args.analysis_target_crs,
+                target_resolution_m=args.analysis_target_resolution_m,
+            )
+
+        canonical_metric_names = set(tmf_analysis.metrics.to_metric_rows())
+        metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+        metric_rows.extend(
+            MetricRow(
+                variable=name,
+                value=entry["value"],
+                unit=entry["unit"],
+                source="jrc_tmf",
+                notes=str(entry.get("notes", "")),
+            )
+            for name, entry in tmf_analysis.metrics.to_metric_rows().items()
+        )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    radd_alert_raster_arg = str(args.radd_alert_raster or "").strip()
+    radd_date_raster_arg = str(args.radd_date_raster or "").strip()
+    if radd_alert_raster_arg or radd_date_raster_arg:
+        if geo_kind != "geojson":
+            raise RuntimeError("RADD alert evidence requires --aoi-geojson input")
+        if not (radd_alert_raster_arg and radd_date_raster_arg):
+            raise RuntimeError(
+                "--radd-alert-raster and --radd-date-raster must be provided together"
+            )
+
+        from eudr_dmi_gil.analysis.radd_alerts import (
+            build_radd_dataset_metadata,
+            compute_radd_alerts,
+        )
+
+        radd_alert_path = Path(radd_alert_raster_arg)
+        radd_date_path = Path(radd_date_raster_arg)
+        if not radd_alert_path.is_file():
+            raise FileNotFoundError(f"RADD alert raster not found: {radd_alert_path}")
+        if not radd_date_path.is_file():
+            raise FileNotFoundError(f"RADD date raster not found: {radd_date_path}")
+
+        radd_meta_json = None
+        if args.radd_metadata_json:
+            radd_meta_path = Path(args.radd_metadata_json)
+            if not radd_meta_path.is_file():
+                raise FileNotFoundError(f"RADD metadata JSON not found: {radd_meta_path}")
+            radd_meta_json = json.loads(radd_meta_path.read_text(encoding="utf-8"))
+
+        radd_geography = (radd_meta_json or {}).get("geography") or args.radd_geography or ""
+        radd_tile_ids = tuple((radd_meta_json or {}).get("tile_ids") or [])
+        radd_acquired_at = (
+            (radd_meta_json or {}).get("access_timestamp_utc") or args.radd_acquired_at
+        )
+        radd_coverage_warning = (radd_meta_json or {}).get("coverage_warning")
+        if not radd_acquired_at:
+            raise RuntimeError(
+                "--radd-acquired-at (or --radd-metadata-json with access_timestamp_utc) is "
+                "required when supplying RADD rasters: RADD is a mutable, near-real-time "
+                "source and every run must freeze its acquisition timestamp."
+            )
+
+        import rasterio as _rasterio
+
+        with _rasterio.open(radd_alert_path) as _radd_ds:
+            radd_bounds = tuple(_radd_ds.bounds)
+
+        radd_dataset_metadata = build_radd_dataset_metadata(
+            alert_raster_path=radd_alert_path,
+            date_raster_path=radd_date_path,
+            geography=radd_geography,
+            acquired_at_utc=radd_acquired_at,
+            collection_version_or_tile_ids=radd_tile_ids,
+            aoi_export_bounds_wgs84=radd_bounds,
+            date_window_start=args.radd_date_window_start,
+            date_window_end=args.radd_date_window_end,
+            coverage_warning=radd_coverage_warning,
+        )
+
+        radd_output_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "radd"
+        with _timed("radd_alerts"):
+            radd_analysis = compute_radd_alerts(
+                aoi_geojson_path=geo_path,
+                radd_alert_raster_path=radd_alert_path,
+                radd_date_raster_path=radd_date_path,
+                output_dir=radd_output_dir,
+                dataset_metadata=radd_dataset_metadata,
+                date_window_start=args.radd_date_window_start,
+                date_window_end=args.radd_date_window_end,
+                target_crs=args.analysis_target_crs,
+                target_resolution_m=args.analysis_target_resolution_m,
+            )
+
+        canonical_metric_names = set(radd_analysis.metrics.to_metric_rows())
+        metric_rows = [r for r in metric_rows if r.variable not in canonical_metric_names]
+        metric_rows.extend(
+            MetricRow(
+                variable=name,
+                value=entry["value"],
+                unit=entry["unit"],
+                source="radd",
+                notes="",
+            )
+            for name, entry in radd_analysis.metrics.to_metric_rows().items()
+        )
+        metric_rows = sorted(metric_rows, key=lambda r: r.variable)
+
+    if tmf_analysis is not None or radd_analysis is not None:
+        from eudr_dmi_gil.analysis.wood_evidence_state import (
+            ObserverInput,
+            build_wood_evidence_state,
+        )
+
+        wood_min_report_area_ha = 0.01
+        observers: list[ObserverInput] = []
+        if jrc_analysis is not None:
+            observers.append(
+                ObserverInput(
+                    observer_id="hansen",
+                    role="deforestation_change",
+                    available=True,
+                    area_ha=jrc_analysis.metrics.forest_loss_post_2020_on_baseline_ha,
+                    mask_geojson_path=jrc_analysis.loss_mask_path,
+                    date_window={
+                        "start": jrc_analysis.metrics.evidence_start_year,
+                        "end": jrc_analysis.metrics.effective_end_year,
+                    },
+                    dataset_version=jrc_analysis.loss_metadata.dataset_version,
+                )
+            )
+        if tmf_analysis is not None:
+            observers.append(
+                ObserverInput(
+                    observer_id="jrc_tmf_deforestation",
+                    role="deforestation_change",
+                    available=True,
+                    area_ha=tmf_analysis.metrics.deforestation_on_gfc2020_baseline_ha,
+                    mask_geojson_path=tmf_analysis.deforestation_mask_path,
+                    date_window={
+                        "start": tmf_analysis.metrics.start_year,
+                        "end": tmf_analysis.metrics.effective_end_year,
+                    },
+                    dataset_version=tmf_analysis.deforestation_metadata.dataset_version,
+                    evidence_gaps=tmf_analysis.evidence_gaps,
+                )
+            )
+            observers.append(
+                ObserverInput(
+                    observer_id="jrc_tmf_degradation",
+                    role="degradation_change",
+                    available=True,
+                    area_ha=tmf_analysis.metrics.degradation_on_gfc2020_baseline_ha,
+                    mask_geojson_path=tmf_analysis.degradation_mask_path,
+                    date_window={
+                        "start": tmf_analysis.metrics.start_year,
+                        "end": tmf_analysis.metrics.effective_end_year,
+                    },
+                    dataset_version=tmf_analysis.degradation_metadata.dataset_version,
+                )
+            )
+        else:
+            for _observer_id, _role in (
+                ("jrc_tmf_deforestation", "deforestation_change"),
+                ("jrc_tmf_degradation", "degradation_change"),
+            ):
+                observers.append(
+                    ObserverInput(
+                        observer_id=_observer_id,
+                        role=_role,
+                        available=False,
+                        evidence_gaps=[
+                            {
+                                "code": "tmf_not_supplied",
+                                "message": "No TMF rasters were supplied for this run.",
+                            }
+                        ],
+                    )
+                )
+        if radd_analysis is not None:
+            observers.append(
+                ObserverInput(
+                    observer_id="radd",
+                    role="alert",
+                    available=True,
+                    area_ha=radd_analysis.metrics.radd_confirmed_alert_area_ha,
+                    mask_geojson_path=radd_analysis.confirmed_mask_path,
+                    date_window={
+                        "start": radd_analysis.metrics.date_window_start,
+                        "end": radd_analysis.metrics.date_window_end,
+                    },
+                    confidence="confirmed",
+                    dataset_version=radd_analysis.dataset_metadata.geography,
+                    evidence_gaps=radd_analysis.evidence_gaps,
+                    notes=(
+                        "Cross-sensor (Sentinel-1 SAR) corroboration; not independent ground "
+                        "truth."
+                    ),
+                )
+            )
+        else:
+            observers.append(
+                ObserverInput(
+                    observer_id="radd",
+                    role="alert",
+                    available=False,
+                    evidence_gaps=[
+                        {
+                            "code": "radd_not_supplied",
+                            "message": "No RADD rasters were supplied for this run.",
+                        }
+                    ],
+                )
+            )
+
+        wood_evidence = build_wood_evidence_state(
+            observers=observers,
+            min_report_area_ha=wood_min_report_area_ha,
+        )
 
     if maaamet_top10_result is None and geo_kind == "geojson":
         maaamet_top10_parcels = maaamet_parcels
@@ -2583,6 +2972,217 @@ def main(argv: list[str] | None = None) -> int:
         }
         artifact_paths.append(hansen_canopy_commodity_metrics.overlap_mask_path)
 
+    if tmf_analysis is not None:
+        tmf_status = "present" if tmf_analysis.metrics.tmf_domain_area_ha > 0 else "missing"
+        report["methodology"]["jrc_tmf_change"] = {
+            "data_sources": [
+                "jrc_tmf_deforestation_year",
+                "jrc_tmf_degradation_year",
+                "jrc_gfc2020",
+            ],
+            "calculation": {
+                "method": "deterministic_categorical_raster_intersection",
+                "expression": (
+                    "deforestation: AOI AND tmf_defined AND defo_year in [start,end]; "
+                    "degradation: AOI AND tmf_defined AND deg_year in [start,end]; each "
+                    "reported against both the tmf_domain and gfc2020_forest_baseline "
+                    "denominators"
+                ),
+                "area_units": "ha",
+                "area_method": "equal_area_projected_pixel_count",
+                "target_crs": tmf_analysis.grid["target_crs"],
+                "target_resolution_m": tmf_analysis.grid["target_resolution_m"],
+                "resampling": "nearest",
+                "boundary_rule": tmf_analysis.grid["boundary_rule"],
+            },
+            "deforestation_dataset": tmf_analysis.deforestation_metadata.to_dict(),
+            "degradation_dataset": tmf_analysis.degradation_metadata.to_dict(),
+            "duration_dataset": (
+                tmf_analysis.duration_metadata.to_dict() if tmf_analysis.duration_metadata else None
+            ),
+            "intensity_dataset": (
+                tmf_analysis.intensity_metadata.to_dict() if tmf_analysis.intensity_metadata else None
+            ),
+            "is_placeholder": False,
+            "notes": (
+                "JRC TMF deforestation and degradation are distinct evidence streams; "
+                "degradation is never relabeled as deforestation or illegal logging, and no "
+                "shipment causality is inferred."
+            ),
+        }
+        report["computed"]["jrc_tmf_change"] = {
+            key: value["value"] for key, value in tmf_analysis.metrics.to_metric_rows().items()
+        }
+        report["computed_outputs"]["jrc_tmf_change"] = {
+            "summary_ref": {
+                "relpath": str(tmf_analysis.summary_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(tmf_analysis.summary_path),
+                "content_type": "application/json",
+            },
+            "deforestation_mask_ref": {
+                "relpath": str(tmf_analysis.deforestation_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(tmf_analysis.deforestation_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "degradation_mask_ref": {
+                "relpath": str(tmf_analysis.degradation_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(tmf_analysis.degradation_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "debug_ref": {
+                "relpath": str(tmf_analysis.debug_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(tmf_analysis.debug_path),
+                "content_type": "application/json",
+            },
+        }
+        report["evidence_registry"]["evidence_classes"].extend(
+            [
+                {"class_id": "jrc_tmf_deforestation", "mandatory": False, "status": tmf_status},
+                {"class_id": "jrc_tmf_degradation", "mandatory": False, "status": tmf_status},
+            ]
+        )
+        report["extensions"]["jrc_tmf_change"] = {"evidence_gaps": tmf_analysis.evidence_gaps}
+        report["assumptions"].append(
+            {
+                "assumption_id": "jrc-tmf-deforestation-degradation-distinct-evidence-streams",
+                "description": (
+                    "JRC TMF deforestation and degradation are separate, provider-defined "
+                    "classes reported as distinct evidence streams; neither is a legal "
+                    "determination."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+        artifact_paths.extend(
+            [
+                tmf_analysis.summary_path,
+                tmf_analysis.deforestation_mask_path,
+                tmf_analysis.degradation_mask_path,
+                tmf_analysis.debug_path,
+            ]
+        )
+
+    if radd_analysis is not None:
+        radd_status = "present" if radd_analysis.metrics.radd_domain_area_ha > 0 else "missing"
+        report["methodology"]["radd_alerts"] = {
+            "data_sources": ["radd_sentinel1_alerts"],
+            "calculation": {
+                "method": "deterministic_categorical_raster_intersection",
+                "expression": (
+                    "AOI AND radd_domain AND alert_value in {2:low_confidence, 3:confirmed} "
+                    "AND decoded(date) in [date_window_start, date_window_end]"
+                ),
+                "area_units": "ha",
+                "area_method": "equal_area_projected_pixel_count",
+                "target_crs": radd_analysis.grid["target_crs"],
+                "target_resolution_m": radd_analysis.grid["target_resolution_m"],
+                "resampling": "nearest",
+                "boundary_rule": radd_analysis.grid["boundary_rule"],
+            },
+            "dataset": radd_analysis.dataset_metadata.to_dict(),
+            "is_placeholder": False,
+            "notes": (
+                "RADD is a Sentinel-1 SAR near-real-time alert observer: cross-sensor "
+                "corroboration relative to Landsat-based Hansen/TMF, not independent ground "
+                "truth (its own forest-domain baseline depends on historical humid-tropical-"
+                "forest data). Alerts keep native date and low/confirmed confidence semantics "
+                "and are never restated as annual deforestation hectares."
+            ),
+        }
+        report["computed"]["radd_alerts"] = {
+            key: value["value"] for key, value in radd_analysis.metrics.to_metric_rows().items()
+        }
+        report["computed_outputs"]["radd_alerts"] = {
+            "summary_ref": {
+                "relpath": str(radd_analysis.summary_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(radd_analysis.summary_path),
+                "content_type": "application/json",
+            },
+            "confirmed_mask_ref": {
+                "relpath": str(radd_analysis.confirmed_mask_path.relative_to(bdir)).replace(
+                    "\\", "/"
+                ),
+                "sha256": compute_sha256(radd_analysis.confirmed_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "low_confidence_mask_ref": {
+                "relpath": str(
+                    radd_analysis.low_confidence_mask_path.relative_to(bdir)
+                ).replace("\\", "/"),
+                "sha256": compute_sha256(radd_analysis.low_confidence_mask_path),
+                "content_type": "application/geo+json",
+            },
+            "debug_ref": {
+                "relpath": str(radd_analysis.debug_path.relative_to(bdir)).replace("\\", "/"),
+                "sha256": compute_sha256(radd_analysis.debug_path),
+                "content_type": "application/json",
+            },
+        }
+        report["evidence_registry"]["evidence_classes"].extend(
+            [
+                {"class_id": "radd_confirmed_alert", "mandatory": False, "status": radd_status},
+                {
+                    "class_id": "radd_low_confidence_alert",
+                    "mandatory": False,
+                    "status": radd_status,
+                },
+            ]
+        )
+        report["extensions"]["radd_alerts"] = {"evidence_gaps": radd_analysis.evidence_gaps}
+        report["assumptions"].append(
+            {
+                "assumption_id": "radd-cross-sensor-corroboration-not-independent-ground-truth",
+                "description": (
+                    "RADD (Sentinel-1 SAR) is reported as cross-sensor corroboration / an "
+                    "additional sensor observer, never as independent ground truth, because its "
+                    "forest-domain baseline construction depends on historical humid-tropical-"
+                    "forest data shared with other observers."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+        artifact_paths.extend(
+            [
+                radd_analysis.summary_path,
+                radd_analysis.confirmed_mask_path,
+                radd_analysis.low_confidence_mask_path,
+                radd_analysis.debug_path,
+            ]
+        )
+
+    if wood_evidence is not None:
+        report["extensions"]["change_observers"] = wood_evidence["change_observers"]
+        report["extensions"]["wood_evidence_state"] = wood_evidence["wood_evidence_state"]
+        if wood_evidence["wood_evidence_state"]["evidence_conflicts"]:
+            report["evidence_registry"]["evidence_classes"].append(
+                {
+                    "class_id": "wood_cross_source_evidence_conflict",
+                    "mandatory": False,
+                    "status": "present",
+                }
+            )
+        report["assumptions"].append(
+            {
+                "assumption_id": "wood-cross-source-observers-not-averaged",
+                "description": (
+                    "Hansen, JRC TMF deforestation/degradation, and RADD are preserved as "
+                    "separate source-specific observers with their own area_by_source_ha; "
+                    "disagreement is emitted explicitly and never averaged into a single truth "
+                    "value. Any union across observers is an explicitly labeled screening union, "
+                    "not a verdict, and no synthetic confidence probability is derived from "
+                    "published dataset accuracies."
+                ),
+                "testable": True,
+                "affects_results": [],
+            }
+        )
+
     if commodity_analysis is not None:
         report["methodology"]["single_commodity_assessment"] = {
             "data_sources": [
@@ -2812,33 +3412,79 @@ def main(argv: list[str] | None = None) -> int:
 
     map_config_relpath: str | None = None
     map_config_href: str | None = None
-    if geo_kind == "geojson" and hansen_analysis is not None and hansen_result is not None:
+    if geo_kind == "geojson" and (
+        (hansen_analysis is not None and hansen_result is not None)
+        or jrc_analysis is not None
+        or tmf_analysis is not None
+        or radd_analysis is not None
+    ):
         map_dir = bdir / "reports" / "aoi_report_v2" / aoi_id / "map"
         map_config_path = map_dir / "map_config.json"
         aoi_bbox = load_aoi_bbox(geo_path)
-        layers = {
-            "forest_2000": _rel_href(map_config_path, hansen_analysis.forest_2000_mask_path),
-            "forest_end_year": _rel_href(
-                map_config_path, hansen_analysis.current_mask_path
-            ),
-            "forest_loss_post_2020": _rel_href(map_config_path, hansen_analysis.loss_mask_path),
-            "aoi_boundary": _rel_href(map_config_path, geo_path),
-            "parcels": _rel_href(map_config_path, maaamet_top10_result.geojson_path)
-            if maaamet_top10_result is not None
-            else None,
-        }
+        if hansen_analysis is not None and hansen_result is not None:
+            layers = {
+                "forest_2000": _rel_href(map_config_path, hansen_analysis.forest_2000_mask_path),
+                "forest_end_year": _rel_href(
+                    map_config_path, hansen_analysis.current_mask_path
+                ),
+                "forest_loss_post_2020": _rel_href(
+                    map_config_path, hansen_analysis.loss_mask_path
+                ),
+                "aoi_boundary": _rel_href(map_config_path, geo_path),
+                "parcels": _rel_href(map_config_path, maaamet_top10_result.geojson_path)
+                if maaamet_top10_result is not None
+                else None,
+            }
+            latest_year_for_map = hansen_result.forest_metrics.end_year
+        else:
+            layers = {
+                "forest_2000": None,
+                "forest_end_year": None,
+                "forest_loss_post_2020": (
+                    _rel_href(map_config_path, jrc_analysis.loss_mask_path)
+                    if jrc_analysis is not None
+                    else None
+                ),
+                "aoi_boundary": _rel_href(map_config_path, geo_path),
+                "parcels": _rel_href(map_config_path, maaamet_top10_result.geojson_path)
+                if maaamet_top10_result is not None
+                else None,
+            }
+            latest_year_for_map = (
+                jrc_analysis.metrics.effective_end_year
+                if jrc_analysis is not None
+                else generated_dt.year
+            )
+        if jrc_analysis is not None:
+            layers["jrc_forest_baseline"] = _rel_href(
+                map_config_path, jrc_analysis.baseline_mask_path
+            )
+        if tmf_analysis is not None:
+            layers["tmf_deforestation"] = _rel_href(
+                map_config_path, tmf_analysis.deforestation_mask_path
+            )
+            layers["tmf_degradation"] = _rel_href(
+                map_config_path, tmf_analysis.degradation_mask_path
+            )
+        if radd_analysis is not None:
+            layers["radd_confirmed"] = _rel_href(
+                map_config_path, radd_analysis.confirmed_mask_path
+            )
+            layers["radd_provisional"] = _rel_href(
+                map_config_path, radd_analysis.low_confidence_mask_path
+            )
         with _timed("write_map_config"):
             _write_map_config(
                 path=map_config_path,
                 aoi_bbox=aoi_bbox,
-                latest_year=hansen_result.forest_metrics.end_year,
+                latest_year=latest_year_for_map,
                 layers=layers,
             )
         map_config_relpath = str(map_config_path.relative_to(bdir)).replace("\\", "/")
         map_config_href = _rel_href(report_html_path, map_config_path)
         report["map_assets"] = {
             "config_relpath": map_config_relpath,
-            "latest_year": hansen_result.forest_metrics.end_year,
+            "latest_year": latest_year_for_map,
             "layers": layers,
             "aoi_bbox": {
                 "min_lon": aoi_bbox[0],

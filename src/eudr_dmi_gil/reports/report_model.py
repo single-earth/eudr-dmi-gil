@@ -3210,12 +3210,19 @@ def _collect_evidence_gaps(report: Mapping[str, Any]) -> list[dict[str, Any]]:
             "post_2020_loss_on_2020_forest",
             "commodity_assessment",
             "hansen_canopy_post2020_loss",
+            "jrc_tmf_change",
+            "radd_alerts",
         ]:
             block = extensions.get(key)
             if isinstance(block, Mapping):
                 for gap in block.get("evidence_gaps") or []:
                     if isinstance(gap, Mapping):
                         gaps.append(dict(gap))
+        wood_evidence_state = extensions.get("wood_evidence_state")
+        if isinstance(wood_evidence_state, Mapping):
+            for gap in wood_evidence_state.get("evidence_gaps") or []:
+                if isinstance(gap, Mapping):
+                    gaps.append(dict(gap))
     return gaps
 
 

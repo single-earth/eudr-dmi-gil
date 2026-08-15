@@ -482,7 +482,12 @@
             "forest_end_year": { "type": ["string", "null"] },
             "forest_loss_post_2020": { "type": ["string", "null"] },
             "aoi_boundary": { "type": ["string", "null"] },
-            "parcels": { "type": ["string", "null"] }
+            "parcels": { "type": ["string", "null"] },
+            "jrc_forest_baseline": { "type": ["string", "null"] },
+            "tmf_deforestation": { "type": ["string", "null"] },
+            "tmf_degradation": { "type": ["string", "null"] },
+            "radd_confirmed": { "type": ["string", "null"] },
+            "radd_provisional": { "type": ["string", "null"] }
           }
         },
         "aoi_bbox": {
