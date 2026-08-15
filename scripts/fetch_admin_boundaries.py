@@ -45,6 +45,21 @@ COUNTRY_SOURCES = {
             "(CC BY-SA, OpenStreetMap-derived, build gbOpen/GHA/ADM1 9469f09)"
         ),
     },
+    "liberia": {
+        "url": (
+            "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/"
+            "LBR/ADM1/geoBoundaries-LBR-ADM1_simplified.geojson"
+        ),
+        "name_property": "shapeName",
+        "dataset_title": (
+            "Liberia county (ADM1) boundaries, published via geoBoundaries "
+            "(CC BY 3.0 IGO, source UNMIL/OCHA ROWCA via data.humdata.org, "
+            "build gbOpen/LBR/ADM1 9469f09). Verified live 2026-08-15: 15 features "
+            "(counties), including Nimba, Grand Gedeh, and Rivercess (note: this "
+            "source spells the third county 'Rivercess' as one word; the Area K "
+            "contract PDF spells it 'River Cess')."
+        ),
+    },
 }
 
 
