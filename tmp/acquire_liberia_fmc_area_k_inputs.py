@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 import time
 import urllib.error
@@ -107,6 +108,7 @@ OUT_DIR = REPO_ROOT / "out" / f"{AOI_ID}_inputs"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 TILE_TMP_DIR = OUT_DIR / "_tiles_tmp"
 TILE_TMP_DIR.mkdir(parents=True, exist_ok=True)
+FORCE_REFRESH_LABELS = {v.strip() for v in os.environ.get("FORCE_REFRESH_LABELS", "").split(",") if v.strip()}
 
 AOI_BUFFER_M = 2000.0
 REGIONAL_PAD_FACTOR = 3.0
@@ -266,7 +268,7 @@ def download_image_tiled(
     recent had already downloaded successfully), this re-uses the existing file instead of
     re-downloading real, already-correct data.
     """
-    if out_path.is_file():
+    if out_path.is_file() and label not in FORCE_REFRESH_LABELS:
         with rasterio.open(out_path) as ds:
             dims = [ds.width, ds.height]
         print(f"[{label}] SKIP (already on disk): {out_path} dims={dims}")
@@ -277,6 +279,9 @@ def download_image_tiled(
             output_sha256=sha256_file(out_path),
             output_size_bytes=out_path.stat().st_size,
         )
+    if out_path.is_file() and label in FORCE_REFRESH_LABELS:
+        print(f"[{label}] FORCE refresh: replacing existing {out_path}")
+        out_path.unlink()
     cast = {"uint8": image.toByte, "int32": image.toInt32}.get(dtype)
     if cast is not None:
         image = cast()
@@ -334,11 +339,19 @@ def validate_visual_raster_coverage(path: Path, *, min_valid_percent: float = 98
     """Reject visual-context rasters with large nodata/black export gaps (Fazenda Sucuri round 2)."""
     with rasterio.open(path) as ds:
         mask = ds.dataset_mask()
+        data = ds.read()
         valid_pixels = int(np.count_nonzero(mask))
         total_pixels = int(mask.size)
-        valid_percent = (valid_pixels / total_pixels * 100.0) if total_pixels else 0.0
+        all_zero_rgb = np.all(data == 0, axis=0) if data.shape[0] >= 3 else np.zeros(mask.shape, dtype=bool)
+        valid_nonzero_mask = (mask > 0) & (~all_zero_rgb)
+        valid_nonzero_pixels = int(np.count_nonzero(valid_nonzero_mask))
+        valid_percent = (valid_nonzero_pixels / total_pixels * 100.0) if total_pixels else 0.0
+        all_zero_rgb_pixels = int(np.count_nonzero(all_zero_rgb))
     result = {
-        "valid_pixels": valid_pixels,
+        "valid_pixels": valid_nonzero_pixels,
+        "gdal_mask_valid_pixels": valid_pixels,
+        "all_zero_rgb_pixels": all_zero_rgb_pixels,
+        "all_zero_rgb_percent": round((all_zero_rgb_pixels / total_pixels * 100.0) if total_pixels else 0.0, 6),
         "total_pixels": total_pixels,
         "valid_percent": round(valid_percent, 6),
         "coverage_gate_min_valid_percent": min_valid_percent,
@@ -425,7 +438,9 @@ def s2_composite_and_diagnostics(
         # for a synchronous request. `.mosaic()` on a cloud-percentage-sorted collection is the
         # standard cheaper alternative and is what this AOI's own baseline/recent composites
         # would have needed too had their scene counts been this large.)
-        composite = masked.sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic()
+        masked_mosaic = masked.sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic()
+        raw_fallback = col.sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic().divide(10000)
+        composite = masked_mosaic.unmask(raw_fallback)
     else:
         raise ValueError(f"Unknown composite_method: {composite_method}")
     diag_dict: dict[str, Any] = {
