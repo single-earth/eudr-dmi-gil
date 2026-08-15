@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>liberia_fmc_area_k_contract_boundary Liberia wood geemap report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 28px; color: #1f2933; line-height: 1.45; }
+    main { max-width: 1120px; margin: 0 auto; }
+    h1, h2 { color: #111827; }
+    .muted { color: #596579; }
+    .callout { border-left: 5px solid #ff00ff; background: #f8fafc; padding: 12px 16px; }
+    img { max-width: 100%; border: 1px solid #d7dde8; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0; }
+    th, td { border: 1px solid #d7dde8; padding: 7px 8px; text-align: left; vertical-align: top; }
+    th { width: 36%; background: #f3f6fa; }
+    code { background: #f1f5f9; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Liberia FMC Area K wood-source screening AOI</h1>
+  <p class="muted">AOI: <code>liberia_fmc_area_k_contract_boundary</code> | generated 2026-08-12T14:53:44Z</p>
+  <p>Forest Management Contract Area K concession boundary for EUDR wood-source forest baseline, post-2020 disturbance, and source-context screening.</p>
+  <div class="callout"><strong>Screening interpretation:</strong> This run detected post-2020 forest disturbance signals inside the concession-level source context. Because the supplied geometry is a concession boundary, not a harvesting block or log-origin geometry, the result is a human-review screening signal rather than shipment-specific source or legality evidence.</div>
+
+  <h2>Interactive Evidence Map</h2>
+  <p><a href="map.html">Open map.html</a>. The map uses local PNG overlays generated from Earth Engine through this Python/geemap pipeline. Basemap tiles are live Leaflet layers; analytical overlays are saved under <code>layers/</code>.</p>
+
+  <h2>Static Evidence Composite</h2>
+  <p>The composite overlays forest baseline, remaining forest, Hansen loss, TMF deforestation, TMF degradation, optional FDP tree-crop probability context, and the concession-level source context on Sentinel-2 visual context.</p>
+  <img src="evidence_composite_2025.png" alt="Liberia FMC Area K evidence composite">
+
+  <h2>Before / After Visual Context</h2>
+  <p>Sentinel-2 panels are context only. They help human review, but the numerical screening metrics come from the named raster observers.</p>
+  <img src="before_after_sentinel2.png" alt="Sentinel-2 before-after comparison">
+
+  <h2>Evidence Logic</h2>
+  <p><strong>Forest baseline</strong> is JRC GFC2020 forest at the EUDR cutoff. <strong>Forest coverage by end-2025</strong> is baseline forest minus Hansen first-loss pixels dated 2021-2025. <strong>Wood source context</strong> is the concession polygon. It is deliberately marked unresolved for plot-level sourcing because no Annual Operational Plan block, harvesting block, tree-origin, log-origin, chain-of-custody or shipment-specific geometry is supplied.</p>
+  <p><strong>Fused commodity/source context</strong> combines two different context types for display: concession-level wood context and optional FDP tree-crop candidates. This fusion is a map product, not a claim that timber came from a tree-crop pixel, nor a compliance finding.</p>
+
+  <h2>Screening Interpretation Fields</h2>
+  <table><tr><th>wood_concession_context</th><td>The AOI is source/concession context only. It is not harvesting-block, tree-origin, log-origin or shipment-specific proof.</td></tr>
+<tr><th>hansen_loss_inside_wood_concession_context_ha</th><td>Post-2020 Hansen stand-replacement disturbance on JRC 2020 forest inside the concession.</td></tr>
+<tr><th>tmf_degradation_ha</th><td>JRC TMF degradation is a separate wood-path observer and is not collapsed into deforestation hectares.</td></tr>
+<tr><th>fdp_tree_crop_candidate</th><td>Optional non-wood tree-crop probability context from FDP. It is not timber-source evidence and does not resolve wood legality or source linkage.</td></tr></table>
+
+  <h2>Numerical Results</h2>
+  <table><tr><th>aoi_geodesic_area_ha</th><td>267497.6889</td></tr>
+<tr><th>fdp_any_tree_crop_2024_ha</th><td>14508.9626</td></tr>
+<tr><th>fdp_cocoa_image_count</th><td>4</td></tr>
+<tr><th>fdp_coffee_image_count</th><td>4</td></tr>
+<tr><th>fdp_palm_image_count</th><td>4</td></tr>
+<tr><th>fdp_rubber_image_count</th><td>4</td></tr>
+<tr><th>hansen_loss_2021_2025_on_jrc_forest_ha</th><td>10876.0295</td></tr>
+<tr><th>hansen_loss_inside_wood_concession_context_ha</th><td>10876.0295</td></tr>
+<tr><th>hansen_loss_on_fdp_tree_crop_candidate_ha</th><td>3700.1639</td></tr>
+<tr><th>hansen_lossyear_max_in_50km_buffer</th><td>25</td></tr>
+<tr><th>hansen_lossyear_max_in_aoi</th><td>25</td></tr>
+<tr><th>jrc_forest_2020_ha</th><td>260465.7432</td></tr>
+<tr><th>jrc_forest_remaining_end_2025_ha</th><td>249612.8908</td></tr>
+<tr><th>s2_2020_least_cloudy_scene_cloud_pct</th><td>0</td></tr>
+<tr><th>s2_2020_least_cloudy_scene_date</th><td>2020-02-15</td></tr>
+<tr><th>s2_2020_mean_valid_obs_per_pixel</th><td>13.2598</td></tr>
+<tr><th>s2_2020_min_valid_obs_per_pixel</th><td>5</td></tr>
+<tr><th>s2_2020_scene_count</th><td>55</td></tr>
+<tr><th>s2_2025_least_cloudy_scene_cloud_pct</th><td>0.0366</td></tr>
+<tr><th>s2_2025_least_cloudy_scene_date</th><td>2025-01-04</td></tr>
+<tr><th>s2_2025_mean_valid_obs_per_pixel</th><td>9.3911</td></tr>
+<tr><th>s2_2025_min_valid_obs_per_pixel</th><td>1</td></tr>
+<tr><th>s2_2025_scene_count</th><td>53</td></tr>
+<tr><th>tmf_deforestation_2021_2025_ha</th><td>5416.4285</td></tr>
+<tr><th>tmf_degradation_2021_2025_ha</th><td>7135.5278</td></tr>
+<tr><th>wood_concession_context_area_ha</th><td>266341.8423</td></tr>
+<tr><th>aoi_id</th><td>liberia_fmc_area_k_contract_boundary</td></tr>
+<tr><th>commodity</th><td>wood</td></tr>
+<tr><th>production_geometry_role</th><td>concession</td></tr>
+<tr><th>production_plot_status</th><td>unresolved</td></tr>
+<tr><th>generated_utc</th><td>2026-08-12T14:53:44Z</td></tr>
+<tr><th>pipeline_script</th><td>/Users/server/projects/eudr-dmi-gil/scripts/run_liberia_wood_geemap_pipeline.py</td></tr>
+<tr><th>pipeline_script_sha256</th><td>2292b65282b5536102948619a07f3fdabbaabcc259add1c3a189c7644de4b4d9</td></tr>
+<tr><th>pipeline_config</th><td>/Users/server/projects/eudr-dmi-gil/data_db/liberia_wood_geemap_pipeline_config.json</td></tr>
+<tr><th>pipeline_config_sha256</th><td>9f4535a4609b05c7eca778d3bdae088a31aaa5335859ec8cedbafe88fe661e7b</td></tr>
+<tr><th>asset_catalogue</th><td>/Users/server/projects/eudr-dmi-gil/data_db/liberia_wood_geemap_pipeline_assets.csv</td></tr>
+<tr><th>asset_catalogue_sha256</th><td>e14d4bc1d57971a7079ec18adb1996e1fbb711502ae1a25172c79e65262a0bca</td></tr>
+<tr><th>source_geojson</th><td>/Users/server/projects/eudr-dmi-gil/aoi_json_examples/liberia_fmc_area_k_contract_boundary.geojson</td></tr>
+<tr><th>source_geojson_sha256</th><td>db386f478d9b461418155cb5db4ed9bd70d26d0b554786d61e76aad6280a210b</td></tr>
+<tr><th>asset_id_fdp_cocoa</th><td>projects/forestdatapartnership/assets/cocoa/model_2025b</td></tr>
+<tr><th>asset_id_fdp_coffee</th><td>projects/forestdatapartnership/assets/coffee/model_2025b</td></tr>
+<tr><th>asset_id_fdp_palm</th><td>projects/forestdatapartnership/assets/palm/model_2025b</td></tr>
+<tr><th>asset_id_fdp_rubber</th><td>projects/forestdatapartnership/assets/rubber/model_2025b</td></tr>
+<tr><th>asset_id_hansen_gfc</th><td>UMD/hansen/global_forest_change_2025_v1_13</td></tr>
+<tr><th>asset_id_jrc_forest_types</th><td>JRC/GFC2020_subtypes/V1</td></tr>
+<tr><th>asset_id_jrc_gfc2020</th><td>JRC/GFC2020/V3</td></tr>
+<tr><th>asset_id_sentinel2</th><td>COPERNICUS/S2_SR_HARMONIZED</td></tr>
+<tr><th>asset_id_tmf_deforestation_year</th><td>projects/JRC/TMF/v1_2025/DeforestationYear</td></tr>
+<tr><th>asset_id_tmf_degradation_year</th><td>projects/JRC/TMF/v1_2025/DegradationYear</td></tr></table>
+
+  <h2>Glossary Of Terms And Abbreviations</h2>
+  <table><tr><th>AOI</th><td>Area of Interest: the polygon being screened.</td></tr>
+<tr><th>FMC</th><td>Forest Management Contract: Liberia&#x27;s concession contract area category used here as the source/context boundary.</td></tr>
+<tr><th>EUDR</th><td>European Union Deforestation Regulation, Regulation (EU) 2023/1115.</td></tr>
+<tr><th>GEE</th><td>Google Earth Engine: cloud geospatial analysis platform that hosts the source rasters used here.</td></tr>
+<tr><th>geemap</th><td>Python package that wraps Earth Engine and mapping workflows; this script uses ee/geemap-style Python rather than Code Editor JavaScript.</td></tr>
+<tr><th>JRC</th><td>Joint Research Centre of the European Commission, provider of GFC2020, GFC2020_subtypes and TMF products.</td></tr>
+<tr><th>GFC2020</th><td>JRC Global Forest Cover 2020; Map == 1 is treated as forest baseline evidence at the EUDR cutoff.</td></tr>
+<tr><th>GFT / forest types</th><td>JRC Global Forest Types 2020; class 1 = naturally regenerating, 10 = primary, 20 = planted/plantation forest.</td></tr>
+<tr><th>Hansen GFC</th><td>UMD/Hansen Global Forest Change; lossyear 21..25 means first detected gross forest-cover loss in 2021..2025.</td></tr>
+<tr><th>TMF</th><td>JRC Tropical Moist Forest product family; this script uses DeforestationYear and DegradationYear observers.</td></tr>
+<tr><th>Deforestation</th><td>In this script, a mapped forest-loss/deforestation observer. It is screening evidence, not a legal conclusion by itself.</td></tr>
+<tr><th>Degradation</th><td>A separate wood-path disturbance stream, often canopy disturbance without full stand replacement. It is not merged into deforestation hectares.</td></tr>
+<tr><th>FDP</th><td>Forest Data Partnership; optional 10 m probability models for cocoa, coffee, oil palm and rubber.</td></tr>
+<tr><th>Probability threshold</th><td>The minimum FDP probability for admitting a pixel as a candidate tree-crop pixel; configured here as 0.25.</td></tr>
+<tr><th>Fused commodity/source context</th><td>Categorical display layer: concession context plus optional FDP tree-crop candidate context. It is not shipment/source proof.</td></tr>
+<tr><th>Production geometry role</th><td>The meaning of the supplied geometry. Here it is only a concession, not a harvesting block, tree/log origin, or shipment plot.</td></tr>
+<tr><th>Production plot status</th><td>Whether plot/source geometry is resolved. Here it remains unresolved because harvesting-block/log-origin geometry is missing.</td></tr>
+<tr><th>Source linkage</th><td>Evidence tying a shipment or product to a specific harvesting block, tree, log origin, permit or chain-of-custody record.</td></tr>
+<tr><th>Sentinel-2 SR</th><td>Copernicus Sentinel-2 Level-2A surface reflectance imagery used for optional visual context.</td></tr>
+<tr><th>ha</th><td>Hectare, 10,000 square meters.</td></tr>
+<tr><th>lossyear</th><td>Hansen band encoding 0 for no loss, or 1..25 for first detected loss in 2001..2025.</td></tr></table>
+
+  <h2>Source And Reproducibility</h2>
+  <p>Pipeline script: <code>/Users/server/projects/eudr-dmi-gil/scripts/run_liberia_wood_geemap_pipeline.py</code> (sha256 2292b65282b5536102948619a07f3fdabbaabcc259add1c3a189c7644de4b4d9)</p>
+  <p>Pipeline config: <code>/Users/server/projects/eudr-dmi-gil/data_db/liberia_wood_geemap_pipeline_config.json</code> (sha256 9f4535a4609b05c7eca778d3bdae088a31aaa5335859ec8cedbafe88fe661e7b)</p>
+  <p>Dataset asset catalogue: <code>/Users/server/projects/eudr-dmi-gil/data_db/liberia_wood_geemap_pipeline_assets.csv</code> (sha256 e14d4bc1d57971a7079ec18adb1996e1fbb711502ae1a25172c79e65262a0bca)</p>
+  <p>AOI GeoJSON: <code>/Users/server/projects/eudr-dmi-gil/aoi_json_examples/liberia_fmc_area_k_contract_boundary.geojson</code> (sha256 db386f478d9b461418155cb5db4ed9bd70d26d0b554786d61e76aad6280a210b)</p>
+  <p>Machine-readable outputs: <a href="metrics.json">metrics.json</a>, <a href="metrics.csv">metrics.csv</a>.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>liberia_fmc_area_k_contract_boundary Liberia wood geemap evidence map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map { height: 100%; margin: 0; background: #101416; }
+    .title {
+      position: absolute; z-index: 1000; left: 58px; top: 12px; max-width: 70%;
+      color: #f7fbfb; font: 700 16px Arial, sans-serif;
+      background: rgba(7, 10, 12, 0.82); padding: 8px 12px; border-radius: 8px;
+    }
+    .leaflet-control-layers { font: 13px Arial, sans-serif; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="title">Liberia FMC Area K wood-source screening AOI - local PNG evidence overlays</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const bounds = [[5.835, -9.310986111], [6.470263889, -8.540047222]];
+const map = L.map('map', {center: [6.15346, -8.8706455], zoom: 10});
+const esriBase = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+  maxZoom: 19,
+  attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+}).addTo(map);
+const osmBase = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+});
+const layer0 = L.imageOverlay("layers/s2_2020_context.png", bounds, {opacity: 1.0, interactive: false});
+const layer1 = L.imageOverlay("layers/s2_2025_context.png", bounds, {opacity: 1.0, interactive: false});
+layer1.addTo(map);
+const layer2 = L.imageOverlay("layers/jrc_forest_2020.png", bounds, {opacity: 0.55, interactive: false});
+layer2.addTo(map);
+const layer3 = L.imageOverlay("layers/jrc_forest_remaining_2025.png", bounds, {opacity: 0.65, interactive: false});
+const layer4 = L.imageOverlay("layers/jrc_forest_types_2020.png", bounds, {opacity: 0.75, interactive: false});
+const layer5 = L.imageOverlay("layers/hansen_loss_2021_2025_on_jrc_forest.png", bounds, {opacity: 0.9, interactive: false});
+layer5.addTo(map);
+const layer6 = L.imageOverlay("layers/tmf_deforestation_2021_2025.png", bounds, {opacity: 0.75, interactive: false});
+const layer7 = L.imageOverlay("layers/tmf_degradation_2021_2025.png", bounds, {opacity: 0.75, interactive: false});
+const layer8 = L.imageOverlay("layers/wood_concession_source_context.png", bounds, {opacity: 0.35, interactive: false});
+const layer9 = L.imageOverlay("layers/fdp_any_tree_crop_2024.png", bounds, {opacity: 0.8, interactive: false});
+const layer10 = L.imageOverlay("layers/fused_commodity_source_context.png", bounds, {opacity: 0.45, interactive: false});
+const layer11 = L.imageOverlay("layers/loss_inside_wood_concession_context.png", bounds, {opacity: 1.0, interactive: false});
+layer11.addTo(map);
+const layer12 = L.imageOverlay("layers/loss_on_fdp_tree_crop_candidate.png", bounds, {opacity: 1.0, interactive: false});
+const aoiLayer = L.geoJSON({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"aoi_id": "liberia_fmc_area_k_contract_boundary", "title": "Liberia FMC Area K wood-source screening AOI", "description": "Forest Management Contract Area K concession boundary for EUDR wood-source forest baseline, post-2020 disturbance, and source-context screening.", "id": "liberia_fmc_area_k", "name": "Liberia FMC Area K wood-source screening AOI", "country": "Liberia", "country_code": "LR", "counties": ["Nimba", "Grand Gedeh", "River Cess"], "holder": "International Consultant Capital (ICC)", "contract_number": "FMC-005", "contract_signing_date": "2009-09-17", "termination_date_in_document": "2034-09-16", "stated_contract_area_ha": 266910.0, "computed_geodesic_area_ha_straight_chord_geometry": 266342.064, "difference_from_stated_area_ha": -567.936, "difference_from_stated_area_percent": -0.2128, "geometry_crs": "EPSG:4326", "geometry_source": "Executed Concession doc - area_K.pdf, Specific Provision A1, pages 10-12", "geometry_extraction": "DMS coordinates transcribed from written metes-and-bounds description and converted to decimal degrees", "geometry_quality": "source-grounded approximation", "natural_boundary_caveat": "The contract states that some boundary segments run along the Jobo River, Cestos River, and Gwen Creek. The PDF provides endpoints but not the full river/creek centerline vertex sequences, so this GeoJSON represents those segments as straight chords between documented endpoints.", "eudr_use": "Suitable as a concession-level AOI for forest baseline/change screening and concession provenance. It should not be treated as the actual timber-production plot when harvesting-block geometry is available.", "missing_for_plot_level_eudr": "Annual Operational Plan harvesting-block polygons/block maps. The contract requires harvesting blocks to be identified in the Annual Operational Plan, but those geometries are not included in this PDF.", "commodity": "wood", "production_geometry_role": "concession", "production_plot_status": "unresolved", "harvesting_block_geometry": "missing", "source_gee_script": "user-provided Earth Engine Code Editor script converted by scripts/run_liberia_wood_geemap_pipeline.py", "center_lon": -8.8706455, "center_lat": 6.15346, "zoom": 10, "centroid_lon": -8.8706455, "centroid_lat": 6.15346, "bbox_wgs84": [-9.3109861, 5.835, -8.5400472, 6.4702639], "source_geojson": "/Users/server/projects/eudr-dmi-gil/aoi_json_examples/liberia_fmc_area_k_contract_boundary.geojson"}, "geometry": {"type": "Polygon", "coordinates": [[[-8.557688889, 6.408894444], [-8.587894444, 6.389608333], [-8.580772222, 6.272866667], [-8.540047222, 6.272447222], [-8.542566667, 6.207769444], [-8.573636111, 6.172911111], [-8.618141667, 6.147713889], [-8.696655556, 6.127136111], [-8.696594444, 6.074375], [-8.638880556, 6.030169444], [-8.665572222, 5.921988889], [-8.663041667, 5.922202778], [-8.6623, 5.921541667], [-8.6623, 5.9201], [-8.660463889, 5.918247222], [-8.660183333, 5.917225], [-8.659088889, 5.916733333], [-8.658263889, 5.916019444], [-8.657311111, 5.916438889], [-8.657113889, 5.917911111], [-8.656386111, 5.918963889], [-8.655052778, 5.91895], [-8.654127778, 5.919805556], [-8.652516667, 5.919411111], [-8.651466667, 5.920477778], [-8.651708333, 5.910125], [-8.653152778, 5.909530556], [-8.655633333, 5.906636111], [-8.656252778, 5.904080556], [-8.657091667, 5.903125], [-8.658383333, 5.903111111], [-8.660163889, 5.90395], [-8.661363889, 5.904066667], [-8.663469444, 5.905255556], [-8.664502778, 5.906636111], [-8.668375, 5.906947222], [-8.669316667, 5.905913889], [-8.669511111, 5.902994444], [-8.670597222, 5.902619444], [-8.670827778, 5.898977778], [-8.671227778, 5.897066667], [-8.6723, 5.896538889], [-8.673138889, 5.896822222], [-8.674416667, 5.898422222], [-8.677580556, 5.898269444], [-8.680925, 5.896875], [-8.682875, 5.896925], [-8.685288889, 5.895066667], [-8.689847222, 5.895286111], [-8.692802778, 5.893386111], [-8.69395, 5.891075], [-8.693225, 5.889252778], [-8.693425, 5.887155556], [-8.694275, 5.886233333], [-8.69395, 5.882688889], [-8.694625, 5.881041667], [-8.692922222, 5.8788], [-8.691047222, 5.875761111], [-8.689444444, 5.874208333], [-8.688972222, 5.871994444], [-8.689755556, 5.871213889], [-8.694758333, 5.865069444], [-8.697925, 5.863580556], [-8.698469444, 5.8623], [-8.692744444, 5.855672222], [-8.742772222, 5.835], [-8.724744444, 5.869902778], [-8.782636111, 5.894577778], [-8.784025, 5.946825], [-8.853127778, 6.042522222], [-8.936683333, 6.014963889], [-9.081497222, 6.011280556], [-9.095691667, 5.9225], [-9.310986111, 5.969202778], [-9.306658333, 6.023216667], [-9.219108333, 6.161536111], [-9.112494444, 6.156227778], [-9.061966667, 6.210972222], [-8.917197222, 6.20795], [-8.899025, 6.238036111], [-8.893075, 6.333622222], [-8.935366667, 6.335816667], [-8.930352778, 6.399122222], [-8.828225, 6.397869444], [-8.820705556, 6.435475], [-8.762436111, 6.470263889], [-8.701975, 6.431713889], [-8.688188889, 6.397241667], [-8.557688889, 6.408894444]]]}}]}, {
+  style: {color: '#ffff00', weight: 3, dashArray: '6 5', fillColor: '#ffff00', fillOpacity: 0.08}
+}).addTo(map);
+const baseLayers = {"Esri.WorldImagery": esriBase, "OpenStreetMap.Mapnik": osmBase};
+const overlays = {"Sentinel-2 2020 visual context": layer0, "Sentinel-2 2025 visual context": layer1, "JRC forest baseline 2020": layer2, "JRC forest remaining by end-2025": layer3, "JRC forest types 2020": layer4, "Hansen loss 2021-2025 on JRC forest": layer5, "TMF deforestation 2021-2025": layer6, "TMF degradation 2021-2025": layer7, "Wood concession/source context": layer8, "FDP any cocoa/coffee/palm/rubber 2024": layer9, "Fused commodity/source context": layer10, "Loss inside wood concession/source context": layer11, "Loss on FDP tree-crop candidate": layer12, "AOI boundary": aoiLayer};
+L.control.layers(baseLayers, overlays, {collapsed: false}).addTo(map);
+map.fitBounds(bounds, {padding: [20, 20]});
+</script>
+</body>
+</html>

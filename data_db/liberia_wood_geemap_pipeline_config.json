@@ -1,0 +1,37 @@
+{
+  "pipeline_id": "liberia_wood_geemap_pipeline",
+  "asset_catalogue": "data_db/liberia_wood_geemap_pipeline_assets.csv",
+  "aoi_geojsons": [
+    "aoi_json_examples/liberia_fmc_area_k_contract_boundary.geojson"
+  ],
+  "variables": {
+    "baseline_year": 2020,
+    "change_start_year": 2021,
+    "change_end_year": 2025,
+    "fdp_year": 2024,
+    "fdp_threshold": 0.25,
+    "forest_scale": 10,
+    "change_scale": 30,
+    "s2_season_start_mmdd": "01-01",
+    "s2_season_end_mmdd": "04-01",
+    "s2_max_scene_cloud": 60
+  },
+  "asset_keys": {
+    "hansen_gfc": "hansen_gfc_2025_v1_13",
+    "jrc_gfc2020": "jrc_gfc2020_v3",
+    "jrc_forest_types": "jrc_gfc2020_subtypes_v1",
+    "tmf_deforestation_year": "jrc_tmf_deforestation_year_2025",
+    "tmf_degradation_year": "jrc_tmf_degradation_year_2025",
+    "fdp_cocoa": "fdp_cocoa_model_2025b",
+    "fdp_coffee": "fdp_coffee_model_2025b",
+    "fdp_palm": "fdp_palm_model_2025b",
+    "fdp_rubber": "fdp_rubber_model_2025b",
+    "sentinel2": "copernicus_s2_sr_harmonized"
+  },
+  "basemap": {
+    "esri_world_imagery": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    "esri_attribution": "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+    "openstreetmap_mapnik": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "openstreetmap_attribution": "&copy; OpenStreetMap contributors"
+  }
+}

@@ -1,0 +1,11 @@
+dataset_id,dataset_name,asset_id,role,notes
+hansen_gfc_2025_v1_13,Global Forest Change 2000-2025 v1.13,UMD/hansen/global_forest_change_2025_v1_13,forest_loss,Hansen lossyear source for the post-2020 to end-2025 stand-replacement disturbance window.
+jrc_gfc2020_v3,JRC Global Forest Cover 2020 V3,JRC/GFC2020/V3,forest_baseline,JRC 2020 forest baseline evidence layer; Map == 1 means forest.
+jrc_gfc2020_subtypes_v1,JRC Global Forest Types 2020 V1,JRC/GFC2020_subtypes/V1,forest_type,JRC 2020 forest type context; class 1 naturally regenerating forest, 10 primary forest, 20 planted/plantation forest.
+jrc_tmf_deforestation_year_2025,JRC Tropical Moist Forest Deforestation Year v2025,projects/JRC/TMF/v1_2025/DeforestationYear,deforestation_change,JRC TMF annual deforestation year observer, updated through 2025.
+jrc_tmf_degradation_year_2025,JRC Tropical Moist Forest Degradation Year v2025,projects/JRC/TMF/v1_2025/DegradationYear,degradation_change,JRC TMF annual degradation year observer, updated through 2025.
+fdp_cocoa_model_2025b,Forest Data Partnership cocoa probability model 2025b,projects/forestdatapartnership/assets/cocoa/model_2025b,commodity_probability,Optional FDP cocoa probability ImageCollection; year and threshold configured in liberia_wood_geemap_pipeline_config.json.
+fdp_coffee_model_2025b,Forest Data Partnership coffee probability model 2025b,projects/forestdatapartnership/assets/coffee/model_2025b,commodity_probability,Optional FDP coffee probability ImageCollection; year and threshold configured in liberia_wood_geemap_pipeline_config.json.
+fdp_palm_model_2025b,Forest Data Partnership palm probability model 2025b,projects/forestdatapartnership/assets/palm/model_2025b,commodity_probability,Optional FDP oil-palm probability ImageCollection; year and threshold configured in liberia_wood_geemap_pipeline_config.json.
+fdp_rubber_model_2025b,Forest Data Partnership rubber probability model 2025b,projects/forestdatapartnership/assets/rubber/model_2025b,commodity_probability,Optional FDP rubber probability ImageCollection; year and threshold configured in liberia_wood_geemap_pipeline_config.json.
+copernicus_s2_sr_harmonized,Sentinel-2 MSI Level-2A Surface Reflectance Harmonized,COPERNICUS/S2_SR_HARMONIZED,optical_context,Sentinel-2 SR collection used for optional matched-season visual context.
