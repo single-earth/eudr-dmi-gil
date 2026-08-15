@@ -113,7 +113,9 @@ FORCE_REFRESH_LABELS = {v.strip() for v in os.environ.get("FORCE_REFRESH_LABELS"
 AOI_BUFFER_M = 2000.0
 REGIONAL_PAD_FACTOR = 3.0
 REGIONAL_SCALE_M = 200.0
-TARGET_TILE_BYTES = 16_000_000  # conservative per-request byte budget (well under GEE's cap)
+TARGET_TILE_BYTES = int(
+    os.environ.get("AREA_K_TARGET_TILE_BYTES", "16000000")
+)  # conservative per-request byte budget (well under GEE's cap)
 DTYPE_BYTES = {"uint8": 1, "int16": 2, "uint16": 2, "int32": 4, "float32": 4}
 
 RADD_GEOGRAPHY = "africa"
@@ -130,6 +132,7 @@ ASSETS = {
     "jrc_gfc2020": "JRC/GFC2020/V3",
     "hansen_gfc": "UMD/hansen/global_forest_change_2025_v1_13",
     "sentinel2": "COPERNICUS/S2_SR_HARMONIZED",
+    "modis_mcd43a4": "MODIS/061/MCD43A4",
 }
 
 access_ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -383,6 +386,19 @@ def mask_s2_sr(image: ee.Image) -> ee.Image:
     )
 
 
+def mask_s2_zero_rgb(image: ee.Image) -> ee.Image:
+    """Mask Sentinel-2 tile padding where RGB bands are all zero.
+
+    Some wide regional requests include pixels inside a granule rectangle but outside real image
+    content. Those pixels are not always masked by SCL, and if left unmasked they win in a mosaic
+    as hard black rectangles.
+    """
+    rgb_sum = image.select(["B4", "B3", "B2"]).reduce(ee.Reducer.sum())
+    return image.updateMask(rgb_sum.gt(0)).copyProperties(
+        image, ["system:time_start", "CLOUDY_PIXEL_PERCENTAGE"]
+    )
+
+
 def s2_collection(geom: ee.Geometry, start: str, end: str, max_cloud: float) -> ee.ImageCollection:
     return (
         ee.ImageCollection(ASSETS["sentinel2"])
@@ -425,7 +441,7 @@ def s2_composite_and_diagnostics(
     scene_count/least-cloudy-date -- cheap metadata, not a full reduceRegion) and by scaling
     `valid_obs_scale` to the caller's own raster scale when it is kept on.
     """
-    masked = col.map(mask_s2_sr)
+    masked = col.map(mask_s2_sr).map(mask_s2_zero_rgb)
     sorted_first = col.sort("CLOUDY_PIXEL_PERCENTAGE").first()
     if composite_method == "median":
         composite = masked.median()
@@ -439,7 +455,7 @@ def s2_composite_and_diagnostics(
         # standard cheaper alternative and is what this AOI's own baseline/recent composites
         # would have needed too had their scene counts been this large.)
         masked_mosaic = masked.sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic()
-        raw_fallback = col.sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic().divide(10000)
+        raw_fallback = col.map(mask_s2_zero_rgb).sort("CLOUDY_PIXEL_PERCENTAGE", False).mosaic().divide(10000)
         composite = masked_mosaic.unmask(raw_fallback)
     else:
         raise ValueError(f"Unknown composite_method: {composite_method}")
@@ -458,6 +474,29 @@ def s2_composite_and_diagnostics(
         ).get("valid_obs")
     diagnostics = ee.Dictionary(diag_dict).getInfo()
     visual = composite.visualize(bands=["B4", "B3", "B2"], min=0.0, max=0.3)
+    return visual, diagnostics
+
+
+def modis_regional_composite_and_diagnostics(
+    geom: ee.Geometry, *, start: str, end: str
+) -> tuple[ee.Image, dict[str, Any]]:
+    col = ee.ImageCollection(ASSETS["modis_mcd43a4"]).filterBounds(geom).filterDate(start, end)
+    n = col.size().getInfo()
+    if n == 0:
+        raise RuntimeError(f"No MODIS MCD43A4 scenes found in {start}..{end}")
+    composite = col.median()
+    visual = composite.visualize(
+        bands=["Nadir_Reflectance_Band1", "Nadir_Reflectance_Band4", "Nadir_Reflectance_Band3"],
+        min=0,
+        max=4000,
+        gamma=1.2,
+    )
+    diagnostics = {
+        "scene_count": n,
+        "window_start": start,
+        "window_end": end,
+        "regional_fallback_reason": "Sentinel-2 regional mosaic retained tile-shaped RGB-zero nodata in the wide coastal frame.",
+    }
     return visual, diagnostics
 
 
@@ -760,27 +799,46 @@ except Exception as exc:  # noqa: BLE001
 print("\n=== 5c. Sentinel-2 regional-context composite (wide, coarse) ===")
 try:
     regional_rect = ee.Geometry.Rectangle(list(regional_bbox), proj="EPSG:4326", geodesic=False)
-    # Narrower dry-season-first windows than the original attempt: the first real run's
-    # ('2025-11-01','2026-08-15') window returned 1026 scenes over this huge frame, and a
-    # synchronous median composite across that many images returned HTTP 400 (computation graph
-    # too complex for one getPixels() request). A single dry-season window is both cheaper and a
-    # more representative single-season regional snapshot than a 9-month multi-season pull.
-    col, window, n = find_s2_window(
-        regional_rect,
-        candidate_windows=[
-            ("2026-01-01", "2026-04-01"),
-            ("2025-11-01", "2026-04-01"),
-            ("2025-01-01", "2025-04-01"),
-        ],
-        max_cloud=30,
-    )
-    print(f"  window {window} -> {n} scenes")
-    visual, diagnostics = s2_composite_and_diagnostics(
-        col,
-        regional_rect,
-        include_valid_obs_diagnostics=False,
-        composite_method="mosaic_least_cloudy",
-    )
+    regional_source = os.environ.get("AREA_K_REGIONAL_VISUAL_SOURCE", "sentinel2").strip().lower()
+    if regional_source == "modis_mcd43a4":
+        window = ("2026-01-01", "2026-04-01")
+        visual, diagnostics = modis_regional_composite_and_diagnostics(
+            regional_rect, start=window[0], end=window[1]
+        )
+        n = int(diagnostics["scene_count"])
+        asset_id = ASSETS["modis_mcd43a4"]
+        dataset_version = "061"
+        source_note = (
+            "Coarse (200m/px request, MODIS native 500m reflectance) wide-context composite for "
+            "the Regional Overview page only; selected as a real global-reflectance fallback after "
+            "Sentinel-2 retained tile-shaped RGB-zero nodata in the wide coastal regional frame."
+        )
+    else:
+        # Narrower dry-season-first windows than the original attempt: the first real run's
+        # ('2025-11-01','2026-08-15') window returned 1026 scenes over this huge frame, and a
+        # synchronous median composite across that many images returned HTTP 400 (computation graph
+        # too complex for one getPixels() request). A single dry-season window is both cheaper and a
+        # more representative single-season regional snapshot than a 9-month multi-season pull.
+        col, window, n = find_s2_window(
+            regional_rect,
+            candidate_windows=[
+                ("2026-01-01", "2026-04-01"),
+                ("2025-11-01", "2026-04-01"),
+                ("2025-01-01", "2025-04-01"),
+            ],
+            max_cloud=30,
+        )
+        print(f"  window {window} -> {n} scenes")
+        visual, diagnostics = s2_composite_and_diagnostics(
+            col,
+            regional_rect,
+            include_valid_obs_diagnostics=False,
+            composite_method="mosaic_least_cloudy",
+        )
+        asset_id = ASSETS["sentinel2"]
+        dataset_version = "sentinel-2-l2a"
+        source_note = "Coarse (200m/px) wide-context composite for the Regional Overview page only (rendered at a fixed 900x620px); never used for area/hectare metrics."
+    print(f"  source {regional_source}, window {window} -> {n} scenes")
     result = download_image_tiled(
         image=visual,
         bands=["vis-red", "vis-green", "vis-blue"],
@@ -793,14 +851,14 @@ try:
     )
     coverage = validate_visual_raster_coverage(result.output_path, min_valid_percent=85.0)
     manifest["layers"]["sentinel2_regional_overview"] = {
-        "asset_id": ASSETS["sentinel2"],
-        "dataset_version": "sentinel-2-l2a",
+        "asset_id": asset_id,
+        "dataset_version": dataset_version,
         "role": "sentinel2_regional_overview",
+        "regional_visual_source": regional_source,
         "window": list(window),
         "scene_count": n,
         "scale_m": REGIONAL_SCALE_M,
-        "note": "Coarse (200m/px) wide-context composite for the Regional Overview page only "
-                "(rendered at a fixed 900x620px); never used for area/hectare metrics.",
+        "note": source_note,
         "tile_count": result.tile_count,
         "output_dimensions": result.output_dimensions,
         "output_path": str(result.output_path.relative_to(REPO_ROOT)),
