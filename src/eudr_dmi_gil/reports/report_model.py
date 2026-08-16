@@ -276,6 +276,30 @@ def _references(layers: Mapping[str, "LayerEntry"]) -> list[dict[str, Any]]:
                 "url": "https://earth-search.aws.element84.com/v1",
             }
         )
+    tmf_deforestation_layer = layers.get("tmf_deforestation")
+    tmf_degradation_layer = layers.get("tmf_degradation")
+    if getattr(tmf_deforestation_layer, "available", False) or getattr(tmf_degradation_layer, "available", False):
+        refs.append(
+            {
+                "id": "jrc_tmf",
+                "citation": (
+                    "European Commission Joint Research Centre Tropical Moist Forest product "
+                    "family, including DeforestationYear and DegradationYear evidence layers."
+                ),
+                "url": "https://forobs.jrc.ec.europa.eu/TMF",
+            }
+        )
+    if getattr(layers.get("radd_alerts"), "available", False) or getattr(layers.get("radd_confirmed"), "available", False):
+        refs.append(
+            {
+                "id": "radd_alerts",
+                "citation": (
+                    "RADD forest disturbance alerts from Wageningen University and Research, "
+                    "using Sentinel-1 SAR alert confidence classes."
+                ),
+                "url": "https://wur-radd.users.earthengine.app/view/raddalert",
+            }
+        )
     cover_hero_layer = layers.get("cover_hero")
     regional_overview_layer = layers.get("regional_overview")
     if getattr(cover_hero_layer, "available", False) or getattr(regional_overview_layer, "available", False):
@@ -308,6 +332,16 @@ def materialize_evidence_pngs(
     computed_outputs = report.get("computed_outputs", {})
     jrc_outputs = (
         computed_outputs.get("post_2020_loss_on_2020_forest", {})
+        if isinstance(computed_outputs, Mapping)
+        else {}
+    )
+    tmf_outputs = (
+        computed_outputs.get("jrc_tmf_change", {})
+        if isinstance(computed_outputs, Mapping)
+        else {}
+    )
+    radd_outputs = (
+        computed_outputs.get("radd_alerts", {})
         if isinstance(computed_outputs, Mapping)
         else {}
     )
@@ -422,6 +456,30 @@ def materialize_evidence_pngs(
     )
     loss_ref = _ref_relpath(jrc_outputs, "loss_mask_ref")
     loss_mask_path = bundle_root / loss_ref if loss_ref and (bundle_root / loss_ref).is_file() else None
+    tmf_deforestation_ref = _ref_relpath(tmf_outputs, "deforestation_mask_ref")
+    tmf_deforestation_path = (
+        bundle_root / tmf_deforestation_ref
+        if tmf_deforestation_ref and (bundle_root / tmf_deforestation_ref).is_file()
+        else None
+    )
+    tmf_degradation_ref = _ref_relpath(tmf_outputs, "degradation_mask_ref")
+    tmf_degradation_path = (
+        bundle_root / tmf_degradation_ref
+        if tmf_degradation_ref and (bundle_root / tmf_degradation_ref).is_file()
+        else None
+    )
+    radd_confirmed_ref = _ref_relpath(radd_outputs, "confirmed_mask_ref")
+    radd_confirmed_path = (
+        bundle_root / radd_confirmed_ref
+        if radd_confirmed_ref and (bundle_root / radd_confirmed_ref).is_file()
+        else None
+    )
+    radd_low_confidence_ref = _ref_relpath(radd_outputs, "low_confidence_mask_ref")
+    radd_low_confidence_path = (
+        bundle_root / radd_low_confidence_ref
+        if radd_low_confidence_ref and (bundle_root / radd_low_confidence_ref).is_file()
+        else None
+    )
 
     # Round 26: this composite ("Forest Baseline 2020", page 5) is now drawn over the actual 2020
     # satellite raster instead of the 2025 "recent" one every mask-over-basemap composite
@@ -486,6 +544,53 @@ def materialize_evidence_pngs(
         background_raster_path=satellite_recent_path,
         aoi_geom_wgs84=aoi_geom_wgs84,
         unavailable_reason="post_2020_loss_mask_not_available",
+    )
+
+    artifacts["tmf_deforestation"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=tmf_deforestation_ref,
+        output_path=evidence_dir / f"13_tmf_deforestation_2021_{effective_end_year}.png",
+        color=(211, 47, 47, 220),
+        unavailable_reason="tmf_deforestation_mask_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["tmf_degradation"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=tmf_degradation_ref,
+        output_path=evidence_dir / f"14_tmf_degradation_2021_{effective_end_year}.png",
+        color=(245, 124, 0, 220),
+        unavailable_reason="tmf_degradation_mask_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["radd_confirmed"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=radd_confirmed_ref,
+        output_path=evidence_dir / "15_radd_confirmed_alerts.png",
+        color=(142, 36, 170, 225),
+        unavailable_reason="radd_confirmed_alert_mask_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["radd_low_confidence"] = _png_from_geojson_ref(
+        bundle_root=bundle_root,
+        relpath=radd_low_confidence_ref,
+        output_path=evidence_dir / "16_radd_low_confidence_alerts.png",
+        color=(251, 192, 45, 225),
+        unavailable_reason="radd_low_confidence_alert_mask_not_available",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+    )
+    artifacts["radd_alerts"] = _layered_png_from_geojson_refs(
+        layers=[
+            (radd_low_confidence_path, (251, 192, 45), 0.72),
+            (radd_confirmed_path, (142, 36, 170), 0.78),
+        ],
+        output_path=evidence_dir / "17_radd_alerts_confirmed_low_confidence.png",
+        background_raster_path=satellite_recent_path,
+        aoi_geom_wgs84=aoi_geom_wgs84,
+        unavailable_reason="radd_alert_masks_not_available",
     )
 
     artifacts["commodity_layer"] = _png_from_geojson_ref(
@@ -569,6 +674,10 @@ def materialize_evidence_pngs(
         overlay_layers=[
             ("JRC Global Forest Cover 2020", baseline_mask_path, (33, 122, 72)),
             (f"Forest loss 2021-{effective_end_year}", loss_mask_path, (198, 40, 40)),
+            (f"TMF deforestation 2021-{effective_end_year}", tmf_deforestation_path, (211, 47, 47)),
+            (f"TMF degradation 2021-{effective_end_year}", tmf_degradation_path, (245, 124, 0)),
+            ("RADD confirmed/high-confidence alerts", radd_confirmed_path, (142, 36, 170)),
+            ("RADD low-confidence alerts", radd_low_confidence_path, (251, 192, 45)),
             ("New FDP coffee after baseline", new_fdp_path, (0, 132, 124)),
             ("New MapBiomas coffee after baseline", new_mapbiomas_path, (30, 136, 229)),
             ("Source-specific conversion", source_conversion_path, (245, 124, 0)),
@@ -685,6 +794,11 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
         "satellite",
         "jrc_forest_2020",
         "forest_loss",
+        "tmf_deforestation",
+        "tmf_degradation",
+        "radd_confirmed",
+        "radd_low_confidence",
+        "radd_alerts",
         "fdp_new_commodity",
         "mapbiomas_new_commodity",
         "source_specific_conversion",
@@ -885,6 +999,10 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
     .loss {{ background: #c62828; }}
     .commodity-swatch {{ background: #1e88e5; }}
     .intersection-swatch {{ background: #662d91; }}
+    .tmf-deforestation-swatch {{ background: #d32f2f; }}
+    .tmf-degradation-swatch {{ background: #f57c00; }}
+    .radd-confirmed-swatch {{ background: #8e24aa; }}
+    .radd-low-swatch {{ background: #fbc02d; }}
     .fdp-new-swatch {{ background: #00847c; }}
     .mapbiomas-new-swatch {{ background: #1e88e5; }}
     .source-conversion-swatch {{ background: #f57c00; }}
@@ -1177,6 +1295,11 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
       const swatches = {{
         jrc_forest_2020: [["forest", "JRC forest baseline"], ["commodity-swatch", "Commodity layer"]],
         forest_loss: [["loss", "Forest loss"], ["forest", "JRC forest baseline"], ["commodity-swatch", "Commodity layer"], ["intersection-swatch", "Loss and commodity intersection"]],
+        tmf_deforestation: [["tmf-deforestation-swatch", "TMF deforestation"]],
+        tmf_degradation: [["tmf-degradation-swatch", "TMF degradation"]],
+        radd_confirmed: [["radd-confirmed-swatch", "RADD confirmed/high-confidence alerts"]],
+        radd_low_confidence: [["radd-low-swatch", "RADD low-confidence alerts"]],
+        radd_alerts: [["radd-confirmed-swatch", "RADD confirmed/high-confidence alerts"], ["radd-low-swatch", "RADD low-confidence alerts"]],
         fdp_new_commodity: [["fdp-new-swatch", "New FDP coffee"]],
         mapbiomas_new_commodity: [["mapbiomas-new-swatch", "New MapBiomas coffee"]],
         source_specific_conversion: [["source-conversion-swatch", "Source-specific conversion"]],
@@ -1191,6 +1314,8 @@ def render_canonical_html(report: CanonicalReport, output_path: Path) -> None:
               : entry[0] === "loss" ? "forest_loss"
               : entry[0] === "commodity-swatch" ? "commodity"
               : entry[0] === "intersection-swatch" ? "intersection"
+              : entry[0] === "radd-confirmed-swatch" ? "radd_confirmed"
+              : entry[0] === "radd-low-swatch" ? "radd_low_confidence"
               : key;
             const layer = report.layers[layerKey];
             return layer && layer.available && layer.path && exists.get(layerKey) !== "missing";
@@ -1429,11 +1554,41 @@ def _render_layer_info(layer: Mapping[str, Any] | None, output_path: Path) -> st
 
 
 def _render_layer_downloads(layers: Mapping[str, Any], output_path: Path) -> str:
-    # Round 7: a single combined interactive map (AOI boundary + JRC 2020 / forest loss /
-    # commodity / intersection as toggle-able overlays, see `_write_esri_leaflet_aoi_map_html`)
-    # replaces what used to be one download link per static evidence-layer PNG - the same PNGs
-    # remain viewable in-page via the Layer Switcher tabs above, so nothing is actually lost, only
-    # de-duplicated.
+    downloadable_ids = [
+        "satellite_interactive_map",
+        "jrc_forest_2020",
+        "forest_loss",
+        "tmf_deforestation",
+        "tmf_degradation",
+        "radd_confirmed",
+        "radd_low_confidence",
+        "radd_alerts",
+        "commodity",
+        "intersection",
+        "before_after",
+    ]
+    rows = []
+    for key in downloadable_ids:
+        layer = layers.get(key) if isinstance(layers, Mapping) else None
+        if not (
+            isinstance(layer, Mapping)
+            and layer.get("available")
+            and layer.get("path")
+            and _layer_path_status(layer, output_path) != "missing"
+        ):
+            continue
+        title = html.escape(str(layer.get("title") or key))
+        path = _esc_attr(layer["path"])
+        if _is_html_layer_path(layer["path"]):
+            rows.append(
+                f'<a href="{path}" target="_blank" rel="noopener">{title} (interactive map)</a>'
+            )
+        else:
+            rows.append(f'<a href="{path}" download>{title}</a>')
+    if rows:
+        return f'<div class="download-list">{"".join(rows)}</div>'
+
+    # Backward-compatible fallback for older reports where only the interactive map was emitted.
     interactive = layers.get("satellite_interactive_map") if isinstance(layers, Mapping) else None
     if (
         isinstance(interactive, Mapping)
@@ -1489,6 +1644,22 @@ def _render_report_layer_legend(
             ("jrc_forest_2020", "forest", "JRC forest baseline"),
             ("commodity", "commodity-swatch", "Commodity layer"),
             ("intersection", "intersection-swatch", "Loss and commodity intersection"),
+        ],
+        "tmf_deforestation": [
+            ("tmf_deforestation", "tmf-deforestation-swatch", "TMF deforestation")
+        ],
+        "tmf_degradation": [
+            ("tmf_degradation", "tmf-degradation-swatch", "TMF degradation")
+        ],
+        "radd_confirmed": [
+            ("radd_confirmed", "radd-confirmed-swatch", "RADD confirmed/high-confidence alerts")
+        ],
+        "radd_low_confidence": [
+            ("radd_low_confidence", "radd-low-swatch", "RADD low-confidence alerts")
+        ],
+        "radd_alerts": [
+            ("radd_confirmed", "radd-confirmed-swatch", "RADD confirmed/high-confidence alerts"),
+            ("radd_low_confidence", "radd-low-swatch", "RADD low-confidence alerts"),
         ],
         "fdp_new_commodity": [("fdp_new_commodity", "fdp-new-swatch", "New FDP coffee")],
         "mapbiomas_new_commodity": [
@@ -1867,6 +2038,7 @@ ICON_GLYPH = {
     "ban": chr(0xF05E),  # ban
     "clipboard_check": chr(0xF46C),  # clipboard-check
     "scale": chr(0xF24E),  # scale-balanced
+    "satellite": chr(0xF7BF),  # satellite
     "shield": chr(0xF3ED),  # shield-halved
     "warning_triangle": chr(0xF071),  # triangle-exclamation
 }
@@ -2523,110 +2695,160 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
 
     new_page(6, "Forest Loss After 2020")
     y = content_top
-    # Round 26: `forest_loss` (see materialize_evidence_pngs) is now a stacked composite - current
-    # forest (JRC 2020 baseline minus any detected loss), the commodity overlay, the raw loss
-    # mask, and the loss-and-commodity intersection, in that draw order - so it renders whenever
-    # this AOI has a computed forest baseline and/or commodity layer, not only when loss is
-    # nonzero. The plain satellite-only fallback below (round 25) is now the true last resort: it
-    # only triggers when none of those four layers has any geometry at all for this AOI.
     loss_image = image_path("forest_loss")
     satellite_image = image_path("satellite_evidence_map")
-    page6_image = loss_image or satellite_image
-    using_satellite_fallback = loss_image is None and satellite_image is not None
+    has_cross_observer_layers = any(
+        image_path(layer_id) is not None
+        for layer_id in ("tmf_deforestation", "tmf_degradation", "radd_alerts", "radd_confirmed", "radd_low_confidence")
+    )
     forest_loss_layer = layers.get("forest_loss")
     forest_loss_status = (
         forest_loss_layer.get("availability_status") if isinstance(forest_loss_layer, Mapping) else None
     )
-    # The composite's "current forest" layer is derived from the same baseline mask page 5's
-    # `jrc_forest_2020` layer reports on, so that layer's own availability flag is reused here
-    # rather than re-deriving a third copy of the same fact - this only diverges from what the
-    # image actually contains in the edge case of measured loss consuming the entire baseline
-    # forest polygon (a scenario already flagged for human review via `needs_review`/`loss_positive`
-    # regardless of this legend row).
     forest_context_shown = bool(
         loss_image is not None
         and isinstance(layers.get("jrc_forest_2020"), Mapping)
         and layers["jrc_forest_2020"].get("available")
     )
     commodity_suffix = f" and {commodity_name.lower()} plantation" if commodity_overlay_available else ""
-    if loss_image is not None and loss_positive:
+
+    if has_cross_observer_layers:
         intro_text = (
-            f"Tree-cover loss evidence detected by Hansen Global Forest Change during "
-            f"{evidence_period}, shown together with current forest{commodity_suffix} extent for "
-            f"context."
+            "Post-2020 change evidence is shown as a cross-observer comparison. Hansen/JRC, "
+            "TMF deforestation, TMF degradation and RADD alerts have different source "
+            "definitions, sensors, spatial supports and temporal semantics; differing areas are "
+            "reported as method differences, not as automatic source error."
         )
-    elif loss_image is not None:
-        intro_text = (
-            f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
-            f"{evidence_period}; current forest{commodity_suffix} extent shown for AOI context."
-        )
-    elif using_satellite_fallback and forest_loss_status == "source_mask_contains_no_renderable_features":
-        intro_text = (
-            f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
-            f"{evidence_period}; satellite basemap shown for AOI context."
-        )
-    elif using_satellite_fallback:
-        intro_text = (
-            f"Post-2020 tree-cover loss evidence from Hansen Global Forest Change is unavailable "
-            f"for this AOI during {evidence_period}; satellite basemap shown for AOI context."
+        y = draw_wrapped(intro_text, margin, y, content_w, size=8.6, leading=11)
+        panel_gap = 12
+        panel_w = (content_w - panel_gap) / 2
+        panel_h = 214
+        top = y - 15
+        panel_specs = [
+            (
+                "Hansen/JRC loss",
+                loss_image or satellite_image,
+                metric("forest_loss_post_2020_on_baseline_ha"),
+                "loss",
+                "Loss on JRC 2020 forest",
+            ),
+            (
+                "TMF deforestation",
+                image_path("tmf_deforestation"),
+                metric(f"tmf_deforestation_{temporal['evidence_start_year']}_{temporal['effective_end_year']}_ha"),
+                "tmf-deforestation",
+                "JRC TMF DeforestationYear",
+            ),
+            (
+                "TMF degradation",
+                image_path("tmf_degradation"),
+                metric(f"tmf_degradation_{temporal['evidence_start_year']}_{temporal['effective_end_year']}_ha"),
+                "tmf-degradation",
+                "JRC TMF DegradationYear",
+            ),
+            (
+                "RADD alerts",
+                image_path("radd_alerts") or image_path("radd_confirmed") or image_path("radd_low_confidence"),
+                f"Confirmed {metric('radd_confirmed_alert_area_ha')} / low {metric('radd_low_confidence_alert_area_ha')}",
+                "radd",
+                "Sentinel-1 alert confidence classes",
+            ),
+        ]
+        swatch_by_kind = {
+            "loss": warning,
+            "tmf-deforestation": colors.HexColor("#d32f2f"),
+            "tmf-degradation": colors.HexColor("#f57c00"),
+            "radd": colors.HexColor("#8e24aa"),
+        }
+        for index, (title, path, value, kind, subtitle) in enumerate(panel_specs):
+            col = index % 2
+            row = index // 2
+            x = margin + col * (panel_w + panel_gap)
+            p_top = top - row * (panel_h + 56)
+            draw_image_fit(path, x, p_top, panel_w, panel_h, gap=f"{title} map is unavailable.")
+            draw_photo_chip(x + 9, p_top - 8, title.upper(), align="left")
+            c.setFillColor(swatch_by_kind[kind])
+            c.roundRect(x, p_top - panel_h - 20, 12, 12, 2, stroke=0, fill=1)
+            draw_wrapped(str(value), x + 18, p_top - panel_h - 10, panel_w - 20, font="Helvetica-Bold", size=8.2, leading=9, max_lines=1)
+            draw_wrapped(subtitle, x + 18, p_top - panel_h - 24, panel_w - 20, size=6.8, leading=8, color=muted, max_lines=1)
+        draw_swatch_legend(
+            margin,
+            54,
+            [
+                (colors.HexColor("#c62828"), "Hansen loss"),
+                (colors.HexColor("#d32f2f"), "TMF deforestation"),
+                (colors.HexColor("#f57c00"), "TMF degradation"),
+                (colors.HexColor("#8e24aa"), "RADD confirmed"),
+                (colors.HexColor("#fbc02d"), "RADD low-confidence"),
+                (aoi_boundary, "AOI boundary"),
+            ],
         )
     else:
-        intro_text = f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}."
-    y = draw_wrapped(intro_text, margin, y, content_w, size=9, leading=12)
-    # See the matching comment on page 5 above: fill=False is intentional here now. When the
-    # post-2020-loss-and-commodity intersection is available, this image also carries a stronger
-    # overlay of that intersection (see materialize_evidence_pngs) so loss detected inside the
-    # commodity layer visually stands out from loss elsewhere in the AOI.
-    img_top = y - 18
-    draw_image_fit(page6_image, margin, img_top, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
-    if using_satellite_fallback:
-        draw_photo_chip(margin + 10, img_top - 10, "SATELLITE BASEMAP - NO LOSS OVERLAY", align="left")
-    elif loss_image is not None and not loss_positive:
-        draw_photo_chip(margin + 10, img_top - 10, "NO LOSS DETECTED - FOREST/COMMODITY CONTEXT SHOWN", align="left")
-    if using_satellite_fallback:
-        page6_legend_items = [(aoi_boundary, "AOI boundary")]
-    else:
-        page6_legend_items = []
-        if loss_positive:
-            page6_legend_items.append((colors.HexColor("#c62828"), f"Loss ({evidence_period})"))
-        if forest_context_shown:
-            page6_legend_items.append(
-                (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)")
+        page6_image = loss_image or satellite_image
+        using_satellite_fallback = loss_image is None and satellite_image is not None
+        if loss_image is not None and loss_positive:
+            intro_text = (
+                f"Tree-cover loss evidence detected by Hansen Global Forest Change during "
+                f"{evidence_period}, shown together with current forest{commodity_suffix} extent for "
+                f"context."
             )
-        if commodity_overlay_available:
-            page6_legend_items.append((commodity_swatch, commodity_label))
-    primary_metric = (
-        "Forest loss after 2020",
-        metric("forest_loss_post_2020_on_baseline_ha"),
-        f"{metric('forest_loss_post_2020_percent_of_aoi')} of AOI; {metric('forest_loss_post_2020_percent_of_baseline')} of baseline",
-        warning if loss_positive else forest,
-    )
-    if commodity_loss_metric_available:
-        # Round 26: this legend row is now only added when loss is actually positive - the
-        # underlying metric (and its explicit "0 ha" secondary value on the card below) is still
-        # shown regardless, since a numeric zero is a disclosure, not a claim that a purple swatch
-        # appears somewhere on the map with nothing actually drawn under it.
-        if loss_positive:
-            page6_legend_items.append(
-                (commodity_loss_swatch, f"Loss within {commodity_name.lower()} plantations")
+        elif loss_image is not None:
+            intro_text = (
+                f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
+                f"{evidence_period}; current forest{commodity_suffix} extent shown for AOI context."
             )
-        # Intersection of JRC 2020 forest, Hansen post-2020 loss, and the configured commodity
-        # (coffee) layer: the area of forest lost during evidence_period that falls inside the
-        # commodity/coffee-plantation mask - the headline "forest loss at the coffee plantations"
-        # figure, computed by run_commodity_assessment (JRC forest & Hansen lossyear & commodity).
-        # Round 20: fused into the primary card as a second stacked block (was its own
-        # top-right card) - its dot uses commodity_loss_swatch, the same purple as its legend
-        # swatch two rows up, instead of the primary card's alert/forest colour.
-        secondary_metric = (
-            f"Forest loss at {commodity_name.lower()} plantations ({evidence_period})",
-            metric("post_2020_loss_and_commodity_overlap_ha"),
-            f"{metric('post_2020_loss_and_commodity_percent_of_loss')} of total loss; {metric('post_2020_loss_and_commodity_percent_of_aoi')} of AOI",
-            commodity_loss_swatch,
+        elif using_satellite_fallback and forest_loss_status == "source_mask_contains_no_renderable_features":
+            intro_text = (
+                f"No post-2020 tree-cover loss was detected by Hansen Global Forest Change during "
+                f"{evidence_period}; satellite basemap shown for AOI context."
+            )
+        elif using_satellite_fallback:
+            intro_text = (
+                f"Post-2020 tree-cover loss evidence from Hansen Global Forest Change is unavailable "
+                f"for this AOI during {evidence_period}; satellite basemap shown for AOI context."
+            )
+        else:
+            intro_text = f"Tree-cover loss evidence detected by Hansen Global Forest Change during {evidence_period}."
+        y = draw_wrapped(intro_text, margin, y, content_w, size=9, leading=12)
+        img_top = y - 18
+        draw_image_fit(page6_image, margin, img_top, content_w, 520, gap="Post-2020 forest-loss image is unavailable.")
+        if using_satellite_fallback:
+            draw_photo_chip(margin + 10, img_top - 10, "SATELLITE BASEMAP - NO LOSS OVERLAY", align="left")
+        elif loss_image is not None and not loss_positive:
+            draw_photo_chip(margin + 10, img_top - 10, "NO LOSS DETECTED - FOREST/COMMODITY CONTEXT SHOWN", align="left")
+        if using_satellite_fallback:
+            page6_legend_items = [(aoi_boundary, "AOI boundary")]
+        else:
+            page6_legend_items = []
+            if loss_positive:
+                page6_legend_items.append((colors.HexColor("#c62828"), f"Loss ({evidence_period})"))
+            if forest_context_shown:
+                page6_legend_items.append(
+                    (colors.HexColor("#217a48"), "Forest (JRC 2020 baseline)")
+                )
+            if commodity_overlay_available:
+                page6_legend_items.append((commodity_swatch, commodity_label))
+        primary_metric = (
+            "Forest loss after 2020",
+            metric("forest_loss_post_2020_on_baseline_ha"),
+            f"{metric('forest_loss_post_2020_percent_of_aoi')} of AOI; {metric('forest_loss_post_2020_percent_of_baseline')} of baseline",
+            warning if loss_positive else forest,
         )
-        draw_dual_metric_card(margin + 16, evidence_map_card_y(y, 150), 185, 150, primary_metric, secondary_metric)
-    else:
-        draw_metric_card(margin + 16, evidence_map_card_y(y, 92), 185, 92, *primary_metric[:3], alert=loss_positive)
-    draw_evidence_map_legend(y, page6_legend_items)
+        if commodity_loss_metric_available:
+            if loss_positive:
+                page6_legend_items.append(
+                    (commodity_loss_swatch, f"Loss within {commodity_name.lower()} plantations")
+                )
+            secondary_metric = (
+                f"Forest loss at {commodity_name.lower()} plantations ({evidence_period})",
+                metric("post_2020_loss_and_commodity_overlap_ha"),
+                f"{metric('post_2020_loss_and_commodity_percent_of_loss')} of total loss; {metric('post_2020_loss_and_commodity_percent_of_aoi')} of AOI",
+                commodity_loss_swatch,
+            )
+            draw_dual_metric_card(margin + 16, evidence_map_card_y(y, 150), 185, 150, primary_metric, secondary_metric)
+        else:
+            draw_metric_card(margin + 16, evidence_map_card_y(y, 92), 185, 92, *primary_metric[:3], alert=loss_positive)
+        draw_evidence_map_legend(y, page6_legend_items)
     finish_page(6)
 
     new_page(7, "Satellite Evidence")
@@ -2683,6 +2905,12 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
 
     new_page(8, "Interpretation")
     y = content_top
+    tmf_deforestation_metric = f"tmf_deforestation_{temporal['evidence_start_year']}_{temporal['effective_end_year']}_ha"
+    tmf_degradation_metric = f"tmf_degradation_{temporal['evidence_start_year']}_{temporal['effective_end_year']}_ha"
+    radd_alert_text = (
+        f"Confirmed/high-confidence: {metric('radd_confirmed_alert_area_ha')}; "
+        f"low-confidence: {metric('radd_low_confidence_alert_area_ha')}."
+    )
     interp = (
         "Evidence suggests potential post-2020 forest disturbance within the AOI."
         if loss_positive
@@ -2691,11 +2919,16 @@ def render_canonical_pdf(report: CanonicalReport, output_path: Path, *, report_r
     draw_wrapped(interp, margin, y, content_w * 0.52, font="Helvetica", size=18, leading=23)
     y -= 110
     bullets = [
-        ("Detected evidence", assessment.get("summary"), "search"),
-        ("Commodity overlap", metric("post_2020_loss_and_commodity_overlap_ha"), "leaf"),
-        ("Missing evidence", "This report does not supply conversion-cause or supply-chain legality evidence.", "ban"),
-        ("Review state", review_state, "clipboard_check"),
-        ("Legal outcome", "No compliance determination is made by this report.", "scale"),
+        ("Hansen/JRC disturbance", metric("forest_loss_post_2020_on_baseline_ha"), "search"),
+        ("TMF deforestation", metric(tmf_deforestation_metric), "fire"),
+        ("TMF degradation", metric(tmf_degradation_metric), "layers"),
+        ("RADD alerts", radd_alert_text, "satellite"),
+        (
+            "Source-linkage gap",
+            "The AOI is concession context; harvesting block, tree/log origin, shipment linkage and chain-of-custody evidence remain separate gaps.",
+            "ban",
+        ),
+        ("Legal boundary", "No compliance determination is made by this report.", "scale"),
     ]
     for label, text, icon_key in bullets:
         badge_fill = warning if label in {"Detected evidence", "Review state"} and loss_positive else accent
@@ -3087,13 +3320,13 @@ def _admin_from_aoi_geometry_ref(geom: Any, *, bundle_root: Path) -> dict[str, s
         props = feature.get("properties")
         if not isinstance(props, Mapping):
             continue
-        for field, aliases in keys.items():
-            if values[field]:
+        for admin_field, aliases in keys.items():
+            if values[admin_field]:
                 continue
             for key in aliases:
                 value = props.get(key)
                 if isinstance(value, str) and value.strip():
-                    values[field] = value.strip()
+                    values[admin_field] = value.strip()
                     break
     return values
 
@@ -3256,6 +3489,28 @@ def _layers(
         baseline_version = str(post_params.get("baseline_dataset_id") or baseline_version)
     commodity = _commodity(report, _canonical_metrics(report.get("metrics", {})))
     computed_outputs = report.get("computed_outputs", {})
+    methodology = report.get("methodology", {})
+    tmf_method = (
+        methodology.get("jrc_tmf_change", {})
+        if isinstance(methodology, Mapping)
+        else {}
+    )
+    radd_method = (
+        methodology.get("radd_alerts", {})
+        if isinstance(methodology, Mapping)
+        else {}
+    )
+    tmf_defo_dataset = (
+        tmf_method.get("deforestation_dataset", {})
+        if isinstance(tmf_method, Mapping)
+        else {}
+    )
+    tmf_deg_dataset = (
+        tmf_method.get("degradation_dataset", {})
+        if isinstance(tmf_method, Mapping)
+        else {}
+    )
+    radd_dataset = radd_method.get("dataset", {}) if isinstance(radd_method, Mapping) else {}
     satellite_outputs = (
         computed_outputs.get("satellite_imagery", {})
         if isinstance(computed_outputs, Mapping)
@@ -3347,6 +3602,52 @@ def _layers(
             "Post-2020 loss evidence intersected with baseline forest, alongside current forest "
             "and commodity extent for AOI context",
             str(temporal_scope["effective_end_year"]),
+        ),
+        "tmf_deforestation": _layer(
+            "tmf_deforestation",
+            f"TMF deforestation 2021-{temporal_scope['effective_end_year']}",
+            artifacts.get("tmf_deforestation") or _missing("tmf_deforestation_not_materialized"),
+            str(tmf_defo_dataset.get("asset_identifier") or "JRC TMF DeforestationYear"),
+            str(tmf_defo_dataset.get("dataset_version") or "unavailable"),
+            "JRC TMF DeforestationYear evidence, kept distinct from Hansen loss and TMF degradation",
+            str(temporal_scope["effective_end_year"]),
+        ),
+        "tmf_degradation": _layer(
+            "tmf_degradation",
+            f"TMF degradation 2021-{temporal_scope['effective_end_year']}",
+            artifacts.get("tmf_degradation") or _missing("tmf_degradation_not_materialized"),
+            str(tmf_deg_dataset.get("asset_identifier") or "JRC TMF DegradationYear"),
+            str(tmf_deg_dataset.get("dataset_version") or "unavailable"),
+            "JRC TMF DegradationYear evidence; degradation is not collapsed into deforestation",
+            str(temporal_scope["effective_end_year"]),
+        ),
+        "radd_confirmed": _layer(
+            "radd_confirmed",
+            "RADD confirmed alerts",
+            artifacts.get("radd_confirmed") or _missing("radd_confirmed_not_materialized"),
+            str(radd_dataset.get("collection_id") or "projects/radar-wur/raddalert/v1"),
+            str(radd_dataset.get("geography") or "unavailable"),
+            "RADD Alert=3 confirmed/high-confidence Sentinel-1 disturbance alerts",
+            str(radd_dataset.get("date_window_end") or "") or None,
+        ),
+        "radd_low_confidence": _layer(
+            "radd_low_confidence",
+            "RADD low-confidence alerts",
+            artifacts.get("radd_low_confidence")
+            or _missing("radd_low_confidence_not_materialized"),
+            str(radd_dataset.get("collection_id") or "projects/radar-wur/raddalert/v1"),
+            str(radd_dataset.get("geography") or "unavailable"),
+            "RADD Alert=2 unconfirmed/low-confidence Sentinel-1 disturbance alerts",
+            str(radd_dataset.get("date_window_end") or "") or None,
+        ),
+        "radd_alerts": _layer(
+            "radd_alerts",
+            "RADD alerts by confidence",
+            artifacts.get("radd_alerts") or _missing("radd_alerts_not_materialized"),
+            str(radd_dataset.get("collection_id") or "projects/radar-wur/raddalert/v1"),
+            str(radd_dataset.get("geography") or "unavailable"),
+            "RADD Sentinel-1 alerts with confirmed/high-confidence and low-confidence classes distinguished",
+            str(radd_dataset.get("date_window_end") or "") or None,
         ),
         "commodity": _layer(
             "commodity",

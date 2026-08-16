@@ -15,7 +15,7 @@ Reuses `jrc_post2020_loss.py`'s private grid/reprojection/mask-write helpers, th
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pytest
 import rasterio
 from rasterio.transform import from_bounds
 

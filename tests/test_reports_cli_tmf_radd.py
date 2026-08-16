@@ -203,6 +203,69 @@ def test_cli_tmf_and_radd_produce_wood_evidence_state(tmp_path: Path) -> None:
     assert layers["radd_provisional"] is not None
     assert layers["jrc_forest_baseline"] is not None
 
+    canonical_root = report_json.parent / "liberia_wood_fixture"
+    canonical_json = canonical_root / "report.json"
+    canonical_html = canonical_root / "report.html"
+    canonical_pdf = canonical_root / "report.pdf"
+    canonical_metrics = canonical_root / "metrics.csv"
+    canonical_manifest = canonical_root / "manifest.sha256"
+    for path in [
+        canonical_json,
+        canonical_html,
+        canonical_pdf,
+        canonical_metrics,
+        canonical_manifest,
+    ]:
+        assert path.is_file(), path
+
+    canonical = json.loads(canonical_json.read_text(encoding="utf-8"))
+    canonical_layers = canonical["layers"]
+    expected_layer_ids = {
+        "jrc_forest_2020",
+        "forest_loss",
+        "tmf_deforestation",
+        "tmf_degradation",
+        "radd_confirmed",
+        "radd_low_confidence",
+        "radd_alerts",
+    }
+    for layer_id in expected_layer_ids:
+        layer = canonical_layers[layer_id]
+        assert layer["available"], layer
+        assert layer["path"], layer
+        assert (canonical_root / layer["path"]).is_file()
+
+    html = canonical_html.read_text(encoding="utf-8")
+    for expected in [
+        "TMF deforestation",
+        "TMF degradation",
+        "RADD confirmed alerts",
+        "RADD low-confidence alerts",
+        "RADD alerts by confidence",
+    ]:
+        assert expected in html
+
+    metrics_csv = canonical_metrics.read_text(encoding="utf-8")
+    for expected_metric in [
+        "tmf_deforestation_2021_2025_ha",
+        "tmf_degradation_2021_2025_ha",
+        "radd_confirmed_alert_area_ha",
+        "radd_low_confidence_alert_area_ha",
+    ]:
+        assert expected_metric in metrics_csv
+
+    manifest = canonical_manifest.read_text(encoding="utf-8")
+    for expected_artifact in [
+        "13_tmf_deforestation_2021_2025.png",
+        "14_tmf_degradation_2021_2025.png",
+        "15_radd_confirmed_alerts.png",
+        "16_radd_low_confidence_alerts.png",
+        "17_radd_alerts_confirmed_low_confidence.png",
+        "report.pdf",
+    ]:
+        assert expected_artifact in manifest
+    assert canonical_pdf.read_bytes().startswith(b"%PDF")
+
 
 def test_cli_radd_requires_acquisition_timestamp(tmp_path: Path) -> None:
     evidence_root = tmp_path / "evidence"

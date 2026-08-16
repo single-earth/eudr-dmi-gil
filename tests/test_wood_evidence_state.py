@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from eudr_dmi_gil.analysis.wood_evidence_state import ObserverInput, build_wood_evidence_state
 
 
