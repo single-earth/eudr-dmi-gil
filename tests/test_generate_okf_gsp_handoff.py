@@ -13,7 +13,7 @@ from rasterio.transform import from_bounds
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.generate_okf_gsp_handoff import build_handoff  # noqa: E402
+from scripts.generate_okf_gsp_handoff import _role_for, build_handoff  # noqa: E402
 
 
 def _run_cli(args: list[str], *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -136,6 +136,31 @@ def test_handoff_self_verifies_and_matches_disk(tmp_path: Path) -> None:
         from eudr_dmi_gil.reports.bundle import compute_sha256
 
         assert compute_sha256(abs_path) == artifact["sha256"]
+
+
+def test_handoff_classifies_tmf_and_radd_canonical_maps() -> None:
+    assert (
+        _role_for("reports/aoi_report_v2/aoi/evidence/13_tmf_deforestation_2021_2025.png")
+        == "jrc_tmf_deforestation_mask_png"
+    )
+    assert (
+        _role_for("reports/aoi_report_v2/aoi/evidence/14_tmf_degradation_2021_2025.png")
+        == "jrc_tmf_degradation_mask_png"
+    )
+    assert (
+        _role_for("reports/aoi_report_v2/aoi/evidence/15_radd_confirmed_alerts.png")
+        == "radd_confirmed_alert_mask_png"
+    )
+    assert (
+        _role_for("reports/aoi_report_v2/aoi/evidence/16_radd_low_confidence_alerts.png")
+        == "radd_low_confidence_alert_mask_png"
+    )
+    assert (
+        _role_for(
+            "reports/aoi_report_v2/aoi/evidence/17_radd_alerts_confirmed_low_confidence.png"
+        )
+        == "radd_alerts_by_confidence_png"
+    )
 
 
 def test_handoff_fails_on_modified_artifact(tmp_path: Path) -> None:

@@ -15,14 +15,14 @@ from urllib.request import urlopen
 
 from pyproj import Geod
 from shapely.geometry import shape
-from shapely.ops import transform, unary_union
+from shapely.ops import unary_union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from eudr.evidence.source_roles import evidence_gaps, load_source_layers, p0_layers  # noqa: E402
+from eudr.evidence.source_roles import evidence_gaps, load_source_layers  # noqa: E402
 from eudr_dmi_gil.reports.bundle import compute_sha256  # noqa: E402
 
 
