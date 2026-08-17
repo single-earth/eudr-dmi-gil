@@ -197,7 +197,11 @@
         "properties": {
           "value": { "type": ["number", "integer", "string", "boolean", "null"] },
           "unit": { "type": "string", "minLength": 1 },
-          "notes": { "type": "string" }
+          "notes": { "type": "string" },
+          "source": {
+            "type": "string",
+            "description": "Dataset/process id(s) that produced this metric (e.g. 'jrc_tmf', 'radd', 'hansen_treecover2000+hansen_lossyear'); the real per-metric provenance, distinct from the free-text 'notes'."
+          }
         }
       }
     },

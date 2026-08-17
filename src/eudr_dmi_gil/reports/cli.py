@@ -1780,6 +1780,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         from eudr_dmi_gil.analysis.radd_alerts import (
+            RADD_SOURCE_URL,
             build_radd_dataset_metadata,
             compute_radd_alerts,
         )
@@ -2373,6 +2374,45 @@ def main(argv: list[str] | None = None) -> int:
                     or commodity_analysis.metadata.local_path
                     or ""
                 ),
+            }
+        )
+    if hansen_canopy_analysis is not None:
+        datasets.append(
+            {
+                "dataset_id": hansen_canopy_analysis.baseline_metadata.dataset_id,
+                "version": hansen_canopy_analysis.baseline_metadata.dataset_version,
+                "retrieved_at_utc": generated_at_utc,
+                "license": "Hansen GFC (public)",
+                "source_url": hansen_canopy_analysis.baseline_metadata.source_url,
+            }
+        )
+    if tmf_analysis is not None:
+        datasets.extend(
+            [
+                {
+                    "dataset_id": tmf_analysis.deforestation_metadata.dataset_id,
+                    "version": tmf_analysis.deforestation_metadata.dataset_version,
+                    "retrieved_at_utc": generated_at_utc,
+                    "license": "see JRC catalogue/source terms",
+                    "source_url": tmf_analysis.deforestation_metadata.source_url,
+                },
+                {
+                    "dataset_id": tmf_analysis.degradation_metadata.dataset_id,
+                    "version": tmf_analysis.degradation_metadata.dataset_version,
+                    "retrieved_at_utc": generated_at_utc,
+                    "license": "see JRC catalogue/source terms",
+                    "source_url": tmf_analysis.degradation_metadata.source_url,
+                },
+            ]
+        )
+    if radd_analysis is not None:
+        datasets.append(
+            {
+                "dataset_id": "radd_sentinel1_alerts",
+                "version": radd_analysis.dataset_metadata.collection_id,
+                "retrieved_at_utc": radd_analysis.dataset_metadata.acquired_at_utc,
+                "license": "see RADD/Wageningen University source terms",
+                "source_url": RADD_SOURCE_URL,
             }
         )
 
@@ -3817,6 +3857,8 @@ def _metrics_from_rows(rows: list[MetricRow]) -> dict[str, dict[str, Any]]:
         entry: dict[str, Any] = {"value": r.value, "unit": r.unit}
         if r.notes:
             entry["notes"] = r.notes
+        if r.source:
+            entry["source"] = r.source
         out[r.variable] = entry
     return out
 

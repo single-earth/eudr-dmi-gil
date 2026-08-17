@@ -3144,7 +3144,12 @@ def _canonical_metrics(raw: Any) -> dict[str, Any]:
             "value": item.get("value"),
             "unit": item.get("unit", ""),
             "description": str(item.get("notes") or ""),
-            "provenance": "source_report.metrics",
+            # The real per-metric dataset/process attribution computed by
+            # reports.cli.MetricRow.source (e.g. "jrc_tmf", "radd",
+            # "hansen_treecover2000+hansen_lossyear"). Only metrics whose analysis
+            # stage never set a source (the legacy generic fallback below) still
+            # need the placeholder.
+            "provenance": item.get("source") or "source_report.metrics",
         }
     descriptions = {
         "aoi_area_ha": "AOI area.",
